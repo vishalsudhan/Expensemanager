@@ -145,7 +145,7 @@ function Shell({ children }: { children: ReactNode }) {
           <p className="font-display text-sm font-bold">A fresh start</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">Your personal money space is ready when you are.</p>
         </div>
-        <div className="mt-5 border-t border-border/70 pt-4 text-[10px] font-semibold tracking-[0.08em] text-muted-foreground">POCKETFUL <span className="mx-1.5">·</span> STAGE THREE</div>
+        <div className="mt-5 border-t border-border/70 pt-4 text-[10px] font-semibold tracking-[0.08em] text-muted-foreground">POCKETFUL <span className="mx-1.5">·</span> STAGE FOUR</div>
       </aside>
 
       <div className="min-h-[100dvh] lg:pl-[252px]">

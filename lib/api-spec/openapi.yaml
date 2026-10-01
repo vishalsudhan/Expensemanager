@@ -607,14 +607,11 @@ components:
           format: date
         description:
           type: [string, "null"]
-        projectName:
-          type: [string, "null"]
       required:
         - id
         - amount
         - date
         - description
-        - projectName
     CategoryMonthlySpending:
       type: object
       properties:

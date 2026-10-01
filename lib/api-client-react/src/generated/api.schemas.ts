@@ -202,8 +202,6 @@ export interface CategoryRecentExpense {
   date: string;
   /** @nullable */
   description: string | null;
-  /** @nullable */
-  projectName: string | null;
 }
 
 export interface CategoryMonthlySpending {

@@ -13,6 +13,4 @@ export interface CategoryRecentExpense {
   date: Date;
   /** @nullable */
   description: string | null;
-  /** @nullable */
-  projectName: string | null;
 }

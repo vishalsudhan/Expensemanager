@@ -305,8 +305,7 @@ export const GetCategoryResponse = zod.object({
   "id": zod.string().uuid(),
   "amount": zod.string().regex(getCategoryResponseRecentExpensesItemAmountRegExp),
   "date": zod.coerce.date(),
-  "description": zod.string().nullable(),
-  "projectName": zod.string().nullable()
+  "description": zod.string().nullable()
 })),
   "monthlySpending": zod.array(zod.object({
   "month": zod.string().regex(getCategoryResponseMonthlySpendingItemMonthRegExp),
