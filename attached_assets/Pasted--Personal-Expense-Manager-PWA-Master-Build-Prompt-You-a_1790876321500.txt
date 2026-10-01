@@ -1,0 +1,1098 @@
+# Personal Expense Manager PWA — Master Build Prompt
+
+You are a senior full-stack engineer, product designer, and QA engineer.
+
+Build a **personal expense manager as a Progressive Web App (PWA)**.
+
+The application is primarily for personal use and must be:
+- Fast
+- Mobile-first
+- Simple to use
+- Offline-capable
+- Installable as a PWA
+- Responsive on desktop
+- Clean and modern
+- Easy to maintain and extend
+
+Do NOT attempt to build the entire application in one step.
+
+You MUST execute the project **stage by stage**.
+
+After completing each stage:
+1. Verify that the stage works.
+2. Run tests/checks where appropriate.
+3. Fix any issues discovered.
+4. Summarize what was completed.
+5. STOP and wait for my approval before starting the next stage.
+
+Do not proceed automatically to the next stage.
+
+---
+
+# IMPORTANT PRODUCT DECISIONS
+
+## 1. Categories are INDEPENDENT
+
+Categories must NOT belong to Projects.
+
+The relationship is:
+
+Expense
+├── Project (optional)
+├── Category (required)
+├── Labels (multiple, optional)
+├── Amount
+├── Date
+├── Payment Method
+└── Notes
+
+Example:
+
+Expense: ₹2,500 Hotel
+
+Project: Qatar Move
+Category: Travel
+Labels: Personal, Important
+
+Another expense:
+
+Expense: ₹850 Dinner
+
+Project: None
+Category: Food
+Labels: Personal
+
+Categories must be reusable across all projects.
+
+---
+
+# 2. Core Entities
+
+The application should have these main entities.
+
+## Projects
+
+Examples:
+- Qatar Move
+- New House
+- Dubai Trip
+- Car Purchase
+
+Fields:
+
+- id
+- name
+- description
+- color
+- icon (optional)
+- status
+- created_at
+- updated_at
+
+Projects are optional when creating an expense.
+
+---
+
+## Categories
+
+Categories are GLOBAL and independent.
+
+Examples:
+
+- Food
+- Travel
+- Shopping
+- Rent
+- Utilities
+- Entertainment
+- Healthcare
+- Bills
+- Transport
+- Education
+- Subscriptions
+- Personal Care
+- Miscellaneous
+
+Fields:
+
+- id
+- name
+- icon
+- color
+- status
+- created_at
+- updated_at
+
+A category must NOT have a project_id.
+
+---
+
+## Labels
+
+Labels are also global.
+
+Examples:
+
+- Personal
+- Family
+- Business
+- Urgent
+- Important
+- Reimbursable
+- Monthly
+- One-time
+
+Fields:
+
+- id
+- name
+- color
+- created_at
+- updated_at
+
+One expense can have multiple labels.
+
+Therefore use a many-to-many relationship:
+
+Expense ↔ Labels
+
+through an appropriate junction table.
+
+---
+
+## Expenses
+
+Fields:
+
+- id
+- amount
+- date
+- project_id — nullable
+- category_id
+- description
+- payment_method
+- notes
+- created_at
+- updated_at
+
+An expense must have:
+
+- Amount
+- Date
+- Category
+
+Project is optional.
+
+Labels are optional and can be multiple.
+
+---
+
+# 3. Expense Example
+
+The data model should support:
+
+₹5,000
+
+Project:
+Qatar Move
+
+Category:
+Travel
+
+Labels:
+Personal
+Important
+
+Description:
+Flight ticket
+
+Payment Method:
+Credit Card
+
+Date:
+2026-10-01
+
+---
+
+# TECHNOLOGY
+
+Choose a modern, stable stack suitable for Replit.
+
+Preferred:
+
+Frontend:
+- React
+- TypeScript
+- Vite
+
+UI:
+- Tailwind CSS
+- shadcn/ui or another clean component system
+
+Icons:
+- Lucide
+
+Database:
+Use a proper relational database.
+
+Preferred:
+- PostgreSQL
+
+ORM:
+- Drizzle ORM or Prisma
+
+PWA:
+- Service Worker
+- Web App Manifest
+- Offline support
+- Installable application
+
+Charts:
+- Recharts or another lightweight React charting library
+
+Use TypeScript throughout.
+
+Do not introduce unnecessary technologies.
+
+---
+
+# UI / UX DIRECTION
+
+Design a clean modern personal-finance application.
+
+The application should feel:
+
+- Minimal
+- Premium
+- Fast
+- Uncluttered
+- Mobile-first
+
+Avoid:
+- Excessive animations
+- Complicated accounting terminology
+- Crowded dashboards
+- Unnecessary features
+
+The most important action is:
+
+## ADD EXPENSE
+
+Adding an expense should take only a few seconds.
+
+---
+
+# MAIN NAVIGATION
+
+Use a mobile-friendly bottom navigation:
+
+Home
+Expenses
+Projects
+Reports
+More
+
+Provide a prominent:
+
++ Add Expense
+
+button.
+
+On desktop, convert this into a suitable sidebar/top navigation layout.
+
+---
+
+# STAGE-WISE DEVELOPMENT
+
+## STAGE 1 — PROJECT FOUNDATION
+
+Goal:
+
+Create the technical foundation.
+
+Tasks:
+
+1. Initialize the React + TypeScript application.
+2. Configure Tailwind CSS.
+3. Configure the UI component system.
+4. Configure routing.
+5. Set up PostgreSQL.
+6. Configure ORM.
+7. Create environment configuration.
+8. Create basic application layout.
+9. Create responsive navigation.
+10. Configure PWA manifest.
+11. Configure service worker.
+12. Ensure the application can be installed as a PWA.
+13. Create a basic application shell.
+
+Pages/routes:
+
+- /
+- /expenses
+- /projects
+- /categories
+- /labels
+- /reports
+- /settings
+
+At this stage, do NOT build complex business functionality.
+
+Verify:
+
+- Application starts successfully.
+- Database connection works.
+- Routes work.
+- PWA manifest works.
+- Application is responsive.
+
+Then STOP.
+
+---
+
+# STAGE 2 — DATABASE & DATA MODEL
+
+Create the complete relational data model.
+
+Tables:
+
+projects
+categories
+labels
+expenses
+expense_labels
+
+Important:
+
+categories MUST NOT contain project_id.
+
+Relationships:
+
+projects
+    ↓
+expenses
+
+categories
+    ↓
+expenses
+
+expenses
+    ↕
+labels
+
+Use proper foreign keys.
+
+Use timestamps.
+
+Add indexes where appropriate, especially for:
+
+- expense date
+- project_id
+- category_id
+- label relationships
+
+Create database migrations.
+
+Create seed data for development.
+
+Example categories:
+
+Food
+Travel
+Shopping
+Rent
+Utilities
+Entertainment
+Healthcare
+Transport
+Bills
+Subscriptions
+Miscellaneous
+
+Example labels:
+
+Personal
+Family
+Business
+Urgent
+Important
+
+Verify CRUD/database operations.
+
+Then STOP.
+
+---
+
+# STAGE 3 — PROJECT MANAGEMENT
+
+Build the Projects module.
+
+Features:
+
+- View projects
+- Create project
+- Edit project
+- Archive project
+- View project details
+- Show total spending for project
+- Show number of expenses
+- Show spending by category
+
+Project detail page should display:
+
+Project name
+Description
+Total spent
+Expense count
+Category breakdown
+Recent expenses
+
+Do not allow categories to be created inside projects.
+
+Categories remain independent.
+
+Verify all CRUD operations.
+
+Then STOP.
+
+---
+
+# STAGE 4 — CATEGORY MANAGEMENT
+
+Build independent Category management.
+
+Features:
+
+- View categories
+- Create category
+- Edit category
+- Archive category
+- Search categories
+- Choose icon
+- Choose color
+
+Category detail should show:
+
+- Total spending
+- Expense count
+- Recent expenses
+- Monthly spending
+
+Important:
+
+There must be NO project relationship in the category database model or UI.
+
+The same category must be usable for any project.
+
+Then STOP.
+
+---
+
+# STAGE 5 — LABEL MANAGEMENT
+
+Build Labels.
+
+Features:
+
+- Create label
+- Edit label
+- Archive label
+- Search labels
+- Select label color
+
+Labels must support multiple labels per expense.
+
+Example:
+
+Expense:
+₹2,500
+
+Labels:
+Personal
+Important
+Travel
+
+Then STOP.
+
+---
+
+# STAGE 6 — EXPENSE ENTRY
+
+This is one of the most important stages.
+
+Build the Add Expense experience.
+
+Fields:
+
+Amount
+Date
+Project
+Category
+Labels
+Payment Method
+Description
+Notes
+
+Rules:
+
+- Amount is required.
+- Date is required.
+- Category is required.
+- Project is optional.
+- Labels are optional.
+- Multiple labels can be selected.
+
+Create:
+
+- Add expense
+- Edit expense
+- Delete expense
+- Expense details
+- Expense list
+
+Make expense entry extremely fast.
+
+On mobile, the Add Expense interface should be optimized for one-handed use.
+
+Include sensible validation.
+
+Payment methods can initially be:
+
+Cash
+Credit Card
+Debit Card
+Bank Transfer
+UPI
+Other
+
+Then STOP.
+
+---
+
+# STAGE 7 — EXPENSE LIST & FILTERING
+
+Build the complete Expenses page.
+
+Features:
+
+- List expenses
+- Search expenses
+- Filter by date
+- Filter by project
+- Filter by category
+- Filter by label
+- Filter by payment method
+- Sort newest/oldest
+- Sort highest/lowest amount
+
+Show:
+
+Date
+Description
+Category
+Project
+Amount
+Labels
+
+Create useful empty states.
+
+Add pagination or efficient loading if required.
+
+Then STOP.
+
+---
+
+# STAGE 8 — DASHBOARD
+
+Build the Home dashboard.
+
+Display:
+
+## Total Spent
+
+Today
+This Week
+This Month
+
+## Recent Expenses
+
+Show the latest expenses.
+
+## Spending Breakdown
+
+Category-wise spending.
+
+## Project Spending
+
+Project-wise spending.
+
+## Spending Trend
+
+Daily/weekly/monthly trend.
+
+## Quick Add
+
+Prominent Add Expense button.
+
+Dashboard should remain clean and not overloaded.
+
+Then STOP.
+
+---
+
+# STAGE 9 — REPORTS
+
+Build a dedicated Reports module.
+
+Reports required:
+
+## 1. Monthly Report
+
+Display:
+
+- Total spending
+- Number of expenses
+- Average expense
+- Category breakdown
+- Project breakdown
+- Label breakdown
+- Daily spending trend
+
+Allow changing month.
+
+---
+
+## 2. Weekly Report
+
+Display:
+
+- Total spending
+- Daily breakdown
+- Category breakdown
+- Project breakdown
+
+Allow selecting a week.
+
+---
+
+## 3. Project-wise Report
+
+For each project:
+
+- Total spending
+- Expense count
+- Category breakdown
+- Monthly trend
+
+---
+
+## 4. Category-wise Report
+
+For each category:
+
+- Total spending
+- Expense count
+- Project distribution
+- Monthly trend
+
+---
+
+## 5. Label-wise Report
+
+For each label:
+
+- Total spending
+- Expense count
+- Monthly trend
+
+---
+
+## 6. Custom Date Range
+
+Allow:
+
+Start date
+End date
+
+Then generate the same breakdowns.
+
+Use charts where useful.
+
+Avoid unnecessary charts.
+
+Prioritize readability.
+
+Then STOP.
+
+---
+
+# STAGE 10 — ADVANCED FILTERING & REPORT INTERACTION
+
+Make reports interactive.
+
+For example:
+
+User clicks:
+
+Travel
+
+The application should show:
+
+All Travel expenses.
+
+User clicks:
+
+Qatar Move
+
+Show:
+
+Expenses belonging to Qatar Move.
+
+User combines:
+
+Project = Qatar Move
+Category = Travel
+Date = October 2026
+
+Show only matching expenses.
+
+All report totals must be calculated from the actual expense records.
+
+Avoid hard-coded calculations.
+
+Then STOP.
+
+---
+
+# STAGE 11 — PWA / OFFLINE EXPERIENCE
+
+Make the application genuinely useful as a PWA.
+
+Requirements:
+
+- Installable
+- Service worker
+- Offline application shell
+- Offline expense entry
+- Local caching
+- Sync strategy when connection returns
+
+Important:
+
+Do not silently lose an expense if the user temporarily loses internet.
+
+Clearly handle offline/online states.
+
+Show an offline indicator when appropriate.
+
+Then STOP.
+
+---
+
+# STAGE 12 — DATA BACKUP & EXPORT
+
+Add:
+
+## Export
+
+Allow the user to export:
+
+- Expenses CSV
+- Projects
+- Categories
+- Labels
+
+Also provide a complete backup option.
+
+Backup should include:
+
+Projects
+Categories
+Labels
+Expenses
+Expense-label relationships
+
+Allow importing a previously created backup.
+
+Validate imported data before inserting it.
+
+Then STOP.
+
+---
+
+# STAGE 13 — POLISH
+
+Perform a complete UX/UI pass.
+
+Check:
+
+- Mobile layout
+- Desktop layout
+- Empty states
+- Loading states
+- Error states
+- Form validation
+- Confirmation dialogs
+- Toast notifications
+- Accessibility
+- Keyboard navigation
+- Touch targets
+- Responsive charts
+- Dark mode if implemented
+
+Improve visual consistency.
+
+Do not add unnecessary features.
+
+Then STOP.
+
+---
+
+# STAGE 14 — TESTING & QA
+
+Perform complete testing.
+
+Test:
+
+1. Create project.
+2. Create category.
+3. Create label.
+4. Create expense without project.
+5. Create expense with project.
+6. Add multiple labels.
+7. Edit expense.
+8. Delete expense.
+9. Archive project.
+10. Archive category.
+11. Filter expenses.
+12. Generate monthly report.
+13. Generate weekly report.
+14. Generate project report.
+15. Generate category report.
+16. Generate label report.
+17. Export data.
+18. Import backup.
+19. Test mobile layout.
+20. Test PWA installation.
+21. Test offline behaviour.
+22. Test database persistence.
+
+Fix all critical bugs.
+
+Then STOP.
+
+---
+
+# STAGE 15 — FINAL PRODUCTION PREPARATION
+
+Prepare the application for production.
+
+Check:
+
+- Environment variables
+- Database configuration
+- Production build
+- Error handling
+- Security
+- Input validation
+- Database indexes
+- Performance
+- PWA configuration
+- SEO metadata where appropriate
+- Favicon
+- App icons
+- Manifest
+- Service worker
+
+Run:
+
+npm run build
+
+Fix all build errors.
+
+Make sure there are no major console errors.
+
+Then provide:
+
+1. Final architecture summary
+2. Database schema summary
+3. Implemented features
+4. Known limitations
+5. Environment variables required
+6. Deployment instructions
+7. Future enhancement suggestions
+
+---
+
+# IMPORTANT DEVELOPMENT RULES
+
+## Rule 1 — Do not skip stages
+
+Complete only the current stage.
+
+Wait for my approval before proceeding.
+
+## Rule 2 — Do not rewrite working functionality unnecessarily
+
+When implementing later stages, preserve existing functionality.
+
+## Rule 3 — Use reusable components
+
+Create reusable:
+
+- Buttons
+- Inputs
+- Modals
+- Selects
+- Date pickers
+- Tables
+- Cards
+- Charts
+- Empty states
+- Loading states
+- Confirmation dialogs
+
+## Rule 4 — Keep business logic separate
+
+Do not put complex database/business logic directly inside UI components.
+
+Use appropriate:
+
+- Services
+- Hooks
+- API functions
+- Repository/data-access layer
+
+## Rule 5 — Validate everything
+
+Validate both frontend and backend/server-side.
+
+Never rely only on frontend validation.
+
+## Rule 6 — No unnecessary features
+
+Do NOT add:
+
+- Bank integrations
+- Investment tracking
+- Accounting
+- Tax management
+- Invoicing
+- Payroll
+- Cryptocurrency
+- Complex budgeting
+
+unless explicitly requested later.
+
+This is a **personal expense manager**, not enterprise accounting software.
+
+## Rule 7 — Currency
+
+Make currency configurable.
+
+Default:
+
+INR (₹)
+
+Allow changing the default currency later through Settings.
+
+## Rule 8 — Dates
+
+Store dates consistently in the database and handle timezone correctly.
+
+Display dates according to the user's configured timezone.
+
+## Rule 9 — Amounts
+
+Never use floating-point arithmetic for financial calculations where avoidable.
+
+Use appropriate decimal/numeric database types.
+
+## Rule 10 — Confirm destructive actions
+
+Deleting expenses, projects, categories, or labels should require confirmation.
+
+Prefer archive/deactivate behaviour where appropriate.
+
+---
+
+# FINAL PRODUCT STRUCTURE
+
+The finished application should conceptually look like:
+
+Home
+│
+├── Total Spending
+├── Spending Trend
+├── Category Breakdown
+├── Project Breakdown
+└── Recent Expenses
+
+Expenses
+│
+├── Search
+├── Filters
+└── Expense List
+
+Projects
+│
+├── Project List
+└── Project Details
+
+Categories
+│
+├── Category List
+└── Category Details
+
+Labels
+│
+└── Label List
+
+Reports
+│
+├── Monthly
+├── Weekly
+├── Project-wise
+├── Category-wise
+├── Label-wise
+└── Custom Range
+
+Settings
+│
+├── Currency
+├── Theme
+├── Data Export
+├── Data Import
+└── PWA information
+
+---
+
+# MOST IMPORTANT DATA RELATIONSHIP
+
+Do NOT implement:
+
+Project → Category
+
+Implement:
+
+Project ───────┐
+               │
+Category ──────┼──→ Expense ←──→ Labels
+               │
+Payment Method ┘
+
+Categories are global and reusable.
+
+Projects are optional context.
+
+Labels are cross-cutting tags.
+
+---
+
+# START NOW
+
+Start with **STAGE 1 — PROJECT FOUNDATION ONLY**.
+
+Do not implement Stage 2 or any later stage yet.
+
+After Stage 1 is complete and verified, provide a concise completion report and wait for my approval.
