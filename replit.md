@@ -9,6 +9,9 @@ A mobile-first personal expense manager, planned as an installable PWA with INR 
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
+- `pnpm --filter @workspace/db run generate` — generate a SQL migration from the Drizzle schema
+- `pnpm --filter @workspace/db run migrate` — apply generated migrations to the development database
+- `pnpm --filter @workspace/db run seed` — add repeatable sample records to development only
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required environment: `DATABASE_URL` — provided by the project's PostgreSQL database and consumed by Drizzle.
 
@@ -28,7 +31,9 @@ A mobile-first personal expense manager, planned as an installable PWA with INR 
 - `artifacts/expense-manager` — React app, route shell, and PWA assets
 - `artifacts/api-server` — Express API, including the database-backed health check
 - `lib/api-spec/openapi.yaml` — API contract source of truth
-- `lib/db/src/schema` — Drizzle schema source of truth (no expense domain tables yet)
+- `lib/db/src/schema` — Drizzle table definitions, validation schemas, relations, and types
+- `lib/db/drizzle` — generated SQL migrations and migration journal
+- `lib/db/seed.sql` — idempotent development sample data; refuses production
 - `lib/db/drizzle.config.ts` — PostgreSQL/Drizzle configuration
 
 ## Architecture decisions
