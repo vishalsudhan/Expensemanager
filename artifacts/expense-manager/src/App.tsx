@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { ProjectDetailPage, ProjectListPage } from '@/pages/Projects';
+import { CategoryDetailPage, CategoryListPage } from '@/pages/Categories';
 import {
   Link,
   Route,
@@ -322,7 +323,8 @@ function Router() {
           <Route path="/expenses"><PlaceholderPage path="/expenses" /></Route>
           <Route path="/projects" component={ProjectListPage} />
           <Route path="/projects/:projectId" component={ProjectDetailPage} />
-          <Route path="/categories"><PlaceholderPage path="/categories" /></Route>
+          <Route path="/categories" component={CategoryListPage} />
+          <Route path="/categories/:categoryId" component={CategoryDetailPage} />
           <Route path="/labels"><PlaceholderPage path="/labels" /></Route>
           <Route path="/reports"><PlaceholderPage path="/reports" /></Route>
           <Route path="/settings"><PlaceholderPage path="/settings" /></Route>

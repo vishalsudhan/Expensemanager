@@ -171,6 +171,157 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: Search and list categories
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, archived, all]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+      responses:
+        "200":
+          description: Categories with current spending summaries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryCollection"
+    post:
+      operationId: createCategory
+      tags: [categories]
+      summary: Create a category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryInput"
+      responses:
+        "201":
+          description: Created category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          description: Invalid category data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A category with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /categories/{categoryId}:
+    parameters:
+      - name: categoryId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getCategory
+      tags: [categories]
+      summary: Get category details and spending
+      responses:
+        "200":
+          description: Category totals, recent expenses, and monthly spending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryDetail"
+        "400":
+          description: Invalid category ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateCategory
+      tags: [categories]
+      summary: Update a category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryUpdate"
+      responses:
+        "200":
+          description: Updated category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          description: Invalid category data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A category with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /categories/{categoryId}/archive:
+    parameters:
+      - name: categoryId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: archiveCategory
+      tags: [categories]
+      summary: Archive a category
+      responses:
+        "200":
+          description: Archived category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          description: Invalid category ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -362,4 +513,147 @@ components:
         - expenseCount
         - categoryBreakdown
         - recentExpenses
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        icon:
+          type: [string, "null"]
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - icon
+        - color
+        - status
+        - createdAt
+        - updatedAt
+    CategoryInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        icon:
+          type: string
+          maxLength: 64
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+      required:
+        - name
+    CategoryUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        icon:
+          type: [string, "null"]
+          maxLength: 64
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+    CategoryListItem:
+      allOf:
+        - $ref: "#/components/schemas/Category"
+        - type: object
+          properties:
+            totalSpent:
+              type: string
+              pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+            expenseCount:
+              type: integer
+              minimum: 0
+          required:
+            - totalSpent
+            - expenseCount
+    CategoryCollection:
+      type: array
+      items:
+        $ref: "#/components/schemas/CategoryListItem"
+    CategoryRecentExpense:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        amount:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        date:
+          type: string
+          format: date
+        description:
+          type: [string, "null"]
+        projectName:
+          type: [string, "null"]
+      required:
+        - id
+        - amount
+        - date
+        - description
+        - projectName
+    CategoryMonthlySpending:
+      type: object
+      properties:
+        month:
+          type: string
+          pattern: "^\\d{4}-\\d{2}$"
+        totalSpent:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        expenseCount:
+          type: integer
+          minimum: 0
+      required:
+        - month
+        - totalSpent
+        - expenseCount
+    CategoryDetail:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/Category"
+        totalSpent:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        expenseCount:
+          type: integer
+          minimum: 0
+        recentExpenses:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryRecentExpense"
+        monthlySpending:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryMonthlySpending"
+      required:
+        - category
+        - totalSpent
+        - expenseCount
+        - recentExpenses
+        - monthlySpending
 

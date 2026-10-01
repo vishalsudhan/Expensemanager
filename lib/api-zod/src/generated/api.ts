@@ -202,3 +202,176 @@ export const ArchiveProjectResponse = zod.object({
 })
 
 
+/**
+ * @summary Search and list categories
+ */
+export const listCategoriesQuerySearchMax = 80;
+
+
+
+export const ListCategoriesQueryParams = zod.object({
+  "status": zod.enum(['active', 'archived', 'all']).optional(),
+  "search": zod.coerce.string().max(listCategoriesQuerySearchMax).optional()
+})
+
+export const listCategoriesResponseOneNameMax = 80;
+
+export const listCategoriesResponseOneColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const listCategoriesResponseTwoTotalSpentRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const listCategoriesResponseTwoExpenseCountMin = 0;
+
+
+
+export const ListCategoriesResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(listCategoriesResponseOneNameMax),
+  "icon": zod.string().nullable(),
+  "color": zod.string().regex(listCategoriesResponseOneColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "totalSpent": zod.string().regex(listCategoriesResponseTwoTotalSpentRegExp),
+  "expenseCount": zod.number().int().min(listCategoriesResponseTwoExpenseCountMin)
+}))
+export const ListCategoriesResponse = zod.array(ListCategoriesResponseItem)
+
+
+/**
+ * @summary Create a category
+ */
+export const createCategoryBodyNameMax = 80;
+
+export const createCategoryBodyIconMax = 64;
+
+export const createCategoryBodyColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
+
+export const CreateCategoryBody = zod.object({
+  "name": zod.string().min(1).max(createCategoryBodyNameMax),
+  "icon": zod.string().max(createCategoryBodyIconMax).optional(),
+  "color": zod.string().regex(createCategoryBodyColorRegExp).optional()
+})
+
+export const createCategoryResponseNameMax = 80;
+
+export const createCategoryResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
+
+export const CreateCategoryResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(createCategoryResponseNameMax),
+  "icon": zod.string().nullable(),
+  "color": zod.string().regex(createCategoryResponseColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get category details and spending
+ */
+export const GetCategoryParams = zod.object({
+  "categoryId": zod.coerce.string().uuid()
+})
+
+export const getCategoryResponseCategoryNameMax = 80;
+
+export const getCategoryResponseCategoryColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getCategoryResponseTotalSpentRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getCategoryResponseExpenseCountMin = 0;
+
+export const getCategoryResponseRecentExpensesItemAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getCategoryResponseMonthlySpendingItemMonthRegExp = new RegExp('^\\d{4}-\\d{2}$');
+export const getCategoryResponseMonthlySpendingItemTotalSpentRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getCategoryResponseMonthlySpendingItemExpenseCountMin = 0;
+
+
+
+export const GetCategoryResponse = zod.object({
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(getCategoryResponseCategoryNameMax),
+  "icon": zod.string().nullable(),
+  "color": zod.string().regex(getCategoryResponseCategoryColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "totalSpent": zod.string().regex(getCategoryResponseTotalSpentRegExp),
+  "expenseCount": zod.number().int().min(getCategoryResponseExpenseCountMin),
+  "recentExpenses": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "amount": zod.string().regex(getCategoryResponseRecentExpensesItemAmountRegExp),
+  "date": zod.coerce.date(),
+  "description": zod.string().nullable(),
+  "projectName": zod.string().nullable()
+})),
+  "monthlySpending": zod.array(zod.object({
+  "month": zod.string().regex(getCategoryResponseMonthlySpendingItemMonthRegExp),
+  "totalSpent": zod.string().regex(getCategoryResponseMonthlySpendingItemTotalSpentRegExp),
+  "expenseCount": zod.number().int().min(getCategoryResponseMonthlySpendingItemExpenseCountMin)
+}))
+})
+
+
+/**
+ * @summary Update a category
+ */
+export const UpdateCategoryParams = zod.object({
+  "categoryId": zod.coerce.string().uuid()
+})
+
+export const updateCategoryBodyNameMax = 80;
+
+export const updateCategoryBodyIconMax = 64;
+
+export const updateCategoryBodyColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
+
+export const UpdateCategoryBody = zod.object({
+  "name": zod.string().min(1).max(updateCategoryBodyNameMax).optional(),
+  "icon": zod.string().max(updateCategoryBodyIconMax).nullish(),
+  "color": zod.string().regex(updateCategoryBodyColorRegExp).optional()
+})
+
+export const updateCategoryResponseNameMax = 80;
+
+export const updateCategoryResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
+
+export const UpdateCategoryResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(updateCategoryResponseNameMax),
+  "icon": zod.string().nullable(),
+  "color": zod.string().regex(updateCategoryResponseColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Archive a category
+ */
+export const ArchiveCategoryParams = zod.object({
+  "categoryId": zod.coerce.string().uuid()
+})
+
+export const archiveCategoryResponseNameMax = 80;
+
+export const archiveCategoryResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
+
+export const ArchiveCategoryResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(archiveCategoryResponseNameMax),
+  "icon": zod.string().nullable(),
+  "color": zod.string().regex(archiveCategoryResponseColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

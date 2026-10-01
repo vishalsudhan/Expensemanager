@@ -135,6 +135,96 @@ export interface ProjectDetail {
   recentExpenses: ProjectRecentExpense[];
 }
 
+export type CategoryStatus = typeof CategoryStatus[keyof typeof CategoryStatus];
+
+
+export const CategoryStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface Category {
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /** @nullable */
+  icon: string | null;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  color: string;
+  status: CategoryStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CategoryInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /** @maxLength 64 */
+  icon?: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  color?: string;
+}
+
+export interface CategoryUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name?: string;
+  /**
+     * @maxLength 64
+     * @nullable
+     */
+  icon?: string | null;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  color?: string;
+}
+
+export type CategoryListItem = Category & {
+  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
+  totalSpent: string;
+  /** @minimum 0 */
+  expenseCount: number;
+};
+
+export type CategoryCollection = CategoryListItem[];
+
+export interface CategoryRecentExpense {
+  id: string;
+  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
+  amount: string;
+  date: string;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  projectName: string | null;
+}
+
+export interface CategoryMonthlySpending {
+  /** @pattern ^\d{4}-\d{2}$ */
+  month: string;
+  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
+  totalSpent: string;
+  /** @minimum 0 */
+  expenseCount: number;
+}
+
+export interface CategoryDetail {
+  category: Category;
+  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
+  totalSpent: string;
+  /** @minimum 0 */
+  expenseCount: number;
+  recentExpenses: CategoryRecentExpense[];
+  monthlySpending: CategoryMonthlySpending[];
+}
+
 export type ListProjectsParams = {
 status?: ListProjectsStatus;
 };
@@ -143,6 +233,23 @@ export type ListProjectsStatus = typeof ListProjectsStatus[keyof typeof ListProj
 
 
 export const ListProjectsStatus = {
+  active: 'active',
+  archived: 'archived',
+  all: 'all',
+} as const;
+
+export type ListCategoriesParams = {
+status?: ListCategoriesStatus;
+/**
+ * @maxLength 80
+ */
+search?: string;
+};
+
+export type ListCategoriesStatus = typeof ListCategoriesStatus[keyof typeof ListCategoriesStatus];
+
+
+export const ListCategoriesStatus = {
   active: 'active',
   archived: 'archived',
   all: 'all',

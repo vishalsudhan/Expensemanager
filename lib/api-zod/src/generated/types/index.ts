@@ -6,8 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './category';
+export * from './categoryCollection';
+export * from './categoryDetail';
+export * from './categoryInput';
+export * from './categoryListItem';
+export * from './categoryMonthlySpending';
+export * from './categoryRecentExpense';
+export * from './categoryStatus';
+export * from './categoryUpdate';
 export * from './errorResponse';
 export * from './healthStatus';
+export * from './listCategoriesParams';
+export * from './listCategoriesStatus';
 export * from './listProjectsParams';
 export * from './listProjectsStatus';
 export * from './project';
