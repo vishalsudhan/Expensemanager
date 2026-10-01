@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Personal Expense Manager"
+description = "A fast, mobile-first personal expense manager designed for INR, with an installable offline-capable app shell and clear routes for expenses, projects, categories, labels, reports, and settings."
+version = "1.0.0"
+id = "artifacts/expense-manager"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19111
+
+[services.development]
+run = "pnpm --filter @workspace/expense-manager run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/expense-manager", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/expense-manager/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19111"
+BASE_PATH = "/"
