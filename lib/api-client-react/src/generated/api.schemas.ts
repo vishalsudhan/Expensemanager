@@ -223,6 +223,50 @@ export interface CategoryDetail {
   monthlySpending: CategoryMonthlySpending[];
 }
 
+export type LabelStatus = typeof LabelStatus[keyof typeof LabelStatus];
+
+
+export const LabelStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface Label {
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  color: string;
+  status: LabelStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LabelInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  color?: string;
+}
+
+export interface LabelUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name?: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  color?: string;
+}
+
+export type LabelCollection = Label[];
+
 export type ListProjectsParams = {
 status?: ListProjectsStatus;
 };
@@ -248,6 +292,23 @@ export type ListCategoriesStatus = typeof ListCategoriesStatus[keyof typeof List
 
 
 export const ListCategoriesStatus = {
+  active: 'active',
+  archived: 'archived',
+  all: 'all',
+} as const;
+
+export type ListLabelsParams = {
+status?: ListLabelsStatus;
+/**
+ * @maxLength 80
+ */
+search?: string;
+};
+
+export type ListLabelsStatus = typeof ListLabelsStatus[keyof typeof ListLabelsStatus];
+
+
+export const ListLabelsStatus = {
   active: 'active',
   archived: 'archived',
   all: 'all',

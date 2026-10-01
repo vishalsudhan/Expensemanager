@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { ProjectDetailPage, ProjectListPage } from '@/pages/Projects';
 import { CategoryDetailPage, CategoryListPage } from '@/pages/Categories';
+import { LabelListPage } from '@/pages/Labels';
 import {
   Link,
   Route,
@@ -325,7 +326,7 @@ function Router() {
           <Route path="/projects/:projectId" component={ProjectDetailPage} />
           <Route path="/categories" component={CategoryListPage} />
           <Route path="/categories/:categoryId" component={CategoryDetailPage} />
-          <Route path="/labels"><PlaceholderPage path="/labels" /></Route>
+          <Route path="/labels" component={LabelListPage} />
           <Route path="/reports"><PlaceholderPage path="/reports" /></Route>
           <Route path="/settings"><PlaceholderPage path="/settings" /></Route>
           <Route><NotFoundPage /></Route>

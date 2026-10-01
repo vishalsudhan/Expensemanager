@@ -322,6 +322,135 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /labels:
+    get:
+      operationId: listLabels
+      tags: [labels]
+      summary: Search and list labels
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, archived, all]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+      responses:
+        "200":
+          description: Labels matching the search and status filter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelCollection"
+    post:
+      operationId: createLabel
+      tags: [labels]
+      summary: Create a label
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelInput"
+      responses:
+        "201":
+          description: Created label
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Label"
+        "400":
+          description: Invalid label data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A label with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /labels/{labelId}:
+    parameters:
+      - name: labelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateLabel
+      tags: [labels]
+      summary: Update a label
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelUpdate"
+      responses:
+        "200":
+          description: Updated label
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Label"
+        "400":
+          description: Invalid label data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Label not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A label with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /labels/{labelId}/archive:
+    parameters:
+      - name: labelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: archiveLabel
+      tags: [labels]
+      summary: Archive a label
+      responses:
+        "200":
+          description: Archived label
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Label"
+        "400":
+          description: Invalid label ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Label not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -653,4 +782,61 @@ components:
         - expenseCount
         - recentExpenses
         - monthlySpending
+    Label:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - color
+        - status
+        - createdAt
+        - updatedAt
+    LabelInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+      required:
+        - name
+    LabelUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+    LabelCollection:
+      type: array
+      items:
+        $ref: "#/components/schemas/Label"
 

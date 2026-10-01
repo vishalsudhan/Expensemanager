@@ -374,3 +374,113 @@ export const ArchiveCategoryResponse = zod.object({
 })
 
 
+/**
+ * @summary Search and list labels
+ */
+export const listLabelsQuerySearchMax = 80;
+
+
+
+export const ListLabelsQueryParams = zod.object({
+  "status": zod.enum(['active', 'archived', 'all']).optional(),
+  "search": zod.coerce.string().max(listLabelsQuerySearchMax).optional()
+})
+
+export const listLabelsResponseNameMax = 80;
+
+export const listLabelsResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
+
+export const ListLabelsResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(listLabelsResponseNameMax),
+  "color": zod.string().regex(listLabelsResponseColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListLabelsResponse = zod.array(ListLabelsResponseItem)
+
+
+/**
+ * @summary Create a label
+ */
+export const createLabelBodyNameMax = 80;
+
+export const createLabelBodyColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
+
+export const CreateLabelBody = zod.object({
+  "name": zod.string().min(1).max(createLabelBodyNameMax),
+  "color": zod.string().regex(createLabelBodyColorRegExp).optional()
+})
+
+export const createLabelResponseNameMax = 80;
+
+export const createLabelResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
+
+export const CreateLabelResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(createLabelResponseNameMax),
+  "color": zod.string().regex(createLabelResponseColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a label
+ */
+export const UpdateLabelParams = zod.object({
+  "labelId": zod.coerce.string().uuid()
+})
+
+export const updateLabelBodyNameMax = 80;
+
+export const updateLabelBodyColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
+
+export const UpdateLabelBody = zod.object({
+  "name": zod.string().min(1).max(updateLabelBodyNameMax).optional(),
+  "color": zod.string().regex(updateLabelBodyColorRegExp).optional()
+})
+
+export const updateLabelResponseNameMax = 80;
+
+export const updateLabelResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
+
+export const UpdateLabelResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(updateLabelResponseNameMax),
+  "color": zod.string().regex(updateLabelResponseColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Archive a label
+ */
+export const ArchiveLabelParams = zod.object({
+  "labelId": zod.coerce.string().uuid()
+})
+
+export const archiveLabelResponseNameMax = 80;
+
+export const archiveLabelResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
+
+export const ArchiveLabelResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(archiveLabelResponseNameMax),
+  "color": zod.string().regex(archiveLabelResponseColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
