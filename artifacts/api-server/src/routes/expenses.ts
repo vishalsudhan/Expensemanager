@@ -66,10 +66,12 @@ function isValidAmount(amount: string): boolean {
   return Number.isFinite(Number(amount)) && Number(amount) > 0;
 }
 
-function isValidExpenseDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+function isValidExpenseDate(value: Date): boolean {
+  return value instanceof Date && Number.isFinite(value.getTime());
+}
+
+function expenseDateToDatabase(value: Date): string {
+  return value.toISOString().slice(0, 10);
 }
 
 function normalizeOptionalText(value: string | null | undefined): string | null {
@@ -174,7 +176,7 @@ router.post("/expenses", async (req, res): Promise<void> => {
         .insert(expensesTable)
         .values({
           amount: data.amount,
-          date: data.date,
+          date: expenseDateToDatabase(data.date),
           projectId: data.projectId ?? null,
           categoryId: data.categoryId,
           description: normalizeOptionalText(data.description),
@@ -261,12 +263,17 @@ router.patch("/expenses/:expenseId", async (req, res): Promise<void> => {
   if (changes.notes !== undefined) {
     changes.notes = normalizeOptionalText(changes.notes);
   }
+  const { date, ...changesWithoutDate } = changes;
+  const databaseChanges = {
+    ...changesWithoutDate,
+    ...(date !== undefined ? { date: expenseDateToDatabase(date) } : {}),
+  };
 
   try {
     const updated = await db.transaction(async (tx) => {
       const [expense] = await tx
         .update(expensesTable)
-        .set(changes)
+        .set(databaseChanges)
         .where(eq(expensesTable.id, params.data.expenseId))
         .returning({ id: expensesTable.id });
 

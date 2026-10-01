@@ -60,8 +60,14 @@ const errorText = (error: unknown) => {
   if (error && typeof error === 'object' && 'error' in error && typeof error.error === 'string') return error.error;
   return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
 };
+const localToday = () => {
+  const date = new Date();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+};
 const defaultValues = (): ExpenseFormValues => ({
-  amount: '', date: new Date().toISOString().slice(0, 10), projectId: '',
+  amount: '', date: localToday(), projectId: '',
   categoryId: '', labelIds: [], description: '', paymentMethod: '', notes: '',
 });
 const fromExpense = (expense: ExpenseRecord): ExpenseFormValues => ({
@@ -228,9 +234,9 @@ export function ExpenseEditorPage() {
             <section className="rounded-[22px] border border-border/70 bg-card p-5 sm:p-7">
               <div className="mb-6 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-secondary text-primary"><ReceiptText size={17} /></span><div><h2 className="font-display text-[17px] font-semibold tracking-[-.025em]">The essentials</h2><p className="text-xs text-muted-foreground">A few details to anchor this expense.</p></div></div>
               <div className="grid gap-5 sm:grid-cols-2">
-                <FormField control={form.control} name="amount" render={({ field }) => <FormItem className="sm:col-span-2"><FormLabel>Amount</FormLabel><FormControl><div className="relative"><span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-display text-xl font-semibold text-muted-foreground">₹</span><Input {...field} inputMode="decimal" autoComplete="off" placeholder="0.00" maxLength={15} className="h-[58px] rounded-xl bg-background pl-10 font-display text-[24px] font-semibold tracking-[-.04em] tabular-nums" data-testid="input-expense-amount" /></div></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="date" render={({ field }) => <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} type="date" className="h-11 rounded-xl bg-background" data-testid="input-expense-date" /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="categoryId" render={({ field }) => <FormItem><FormLabel>Category <span className="text-destructive">*</span></FormLabel><FormControl><select {...field} aria-label="Category" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-category"><option value="">Choose a category</option>{(categoriesQuery.data ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></FormControl>{categoriesQuery.isError && <p className="text-xs text-destructive">Categories could not be loaded.</p>}<FormMessage /></FormItem>} />
+                <FormField control={form.control} name="amount" render={({ field }) => <FormItem className="sm:col-span-2"><FormLabel>Amount <span className="text-destructive">*</span></FormLabel><FormControl><div className="relative"><span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-display text-xl font-semibold text-muted-foreground">₹</span><Input {...field} inputMode="decimal" autoComplete="off" placeholder="0.00" maxLength={15} className="h-[58px] rounded-xl bg-background pl-10 font-display text-[24px] font-semibold tracking-[-.04em] tabular-nums" data-testid="input-expense-amount" /></div></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="date" render={({ field }) => <FormItem><FormLabel>Date <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} type="date" className="h-11 rounded-xl bg-background" data-testid="input-expense-date" /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="categoryId" render={({ field }) => <FormItem><FormLabel>Category <span className="text-destructive">*</span></FormLabel><FormControl><select {...field} aria-label="Category" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-category"><option value="">Choose a category</option>{(categoriesQuery.data ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></FormControl>{categoriesQuery.isError ? <p className="text-xs text-destructive">Categories could not be loaded.</p> : !categoriesQuery.isLoading && !categoriesQuery.data?.length ? <p className="text-xs text-muted-foreground" data-testid="status-no-expense-categories">No categories yet. <Link href="/categories" className="font-semibold text-primary hover:underline" data-testid="link-create-expense-category">Create one first.</Link></p> : null}<FormMessage /></FormItem>} />
                 <FormField control={form.control} name="description" render={({ field }) => <FormItem className="sm:col-span-2"><FormLabel>Description <span className="font-normal text-muted-foreground">(optional)</span></FormLabel><FormControl><Input {...field} maxLength={1000} placeholder="What was this for?" className="h-11 rounded-xl bg-background" data-testid="input-expense-description" /></FormControl><FormMessage /></FormItem>} />
               </div>
             </section>
@@ -252,7 +258,7 @@ export function ExpenseEditorPage() {
                 <p className="flex gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#b9795e]" />Project, labels, and notes are always optional.</p>
               </div>
             </section>
-            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row lg:flex-col">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row lg:flex-col">
               <Link href={editing && expenseId ? `/expenses/${expenseId}` : '/expenses'} className="inline-flex h-11 items-center justify-center rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground hover:bg-muted" data-testid="button-cancel-expense">Cancel</Link>
               <Button type="submit" disabled={busy} className="h-11 gap-2 rounded-xl" data-testid="button-save-expense">{busy && <LoaderCircle size={15} className="animate-spin" />}{editing ? 'Save changes' : 'Save expense'}</Button>
             </div>

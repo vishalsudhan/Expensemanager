@@ -1,5 +1,14 @@
 const CACHE_PREFIX = 'expense-manager-shell-';
-const CACHE_NAME = `${CACHE_PREFIX}v1`;
+const CACHE_NAME = `${CACHE_PREFIX}v2`;
+// Vite dev modules use stable URLs; bypass cache so preview changes remain visible after restarts.
+const VITE_DEV_PATHS = [
+  '/src/',
+  '/@vite/',
+  '/@id/',
+  '/@fs/',
+  '/@react-refresh',
+  '/node_modules/.vite/',
+];
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',
@@ -33,7 +42,12 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) {
+  if (
+    request.method !== 'GET' ||
+    url.origin !== self.location.origin ||
+    url.pathname.startsWith('/api/') ||
+    VITE_DEV_PATHS.some((prefix) => url.pathname.startsWith(prefix))
+  ) {
     return;
   }
 

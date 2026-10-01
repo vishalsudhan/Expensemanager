@@ -22,6 +22,7 @@ import {
 import { ProjectDetailPage, ProjectListPage } from '@/pages/Projects';
 import { CategoryDetailPage, CategoryListPage } from '@/pages/Categories';
 import { LabelListPage } from '@/pages/Labels';
+import { ExpenseDetailPage, ExpenseEditorPage, ExpenseListPage } from '@/pages/Expenses';
 import {
   Link,
   Route,
@@ -127,7 +128,13 @@ function Shell({ children }: { children: ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRoutes = ['/categories', '/labels', '/settings'];
   const moreActive = moreRoutes.includes(location);
-  const pageTitle = location === '/' ? 'Home' : location.startsWith('/projects') ? 'Projects' : pageCopy[location]?.title ?? 'Not found';
+  const pageTitle = location === '/'
+    ? 'Home'
+    : location.startsWith('/projects')
+      ? 'Projects'
+      : location.startsWith('/expenses')
+        ? 'Expenses'
+        : pageCopy[location]?.title ?? 'Not found';
 
   return (
     <div className="app-shell soft-grain bg-background text-foreground">
@@ -136,7 +143,11 @@ function Shell({ children }: { children: ReactNode }) {
         <div className="mb-3 mt-12 px-3 text-[10px] font-bold uppercase tracking-[0.19em] text-muted-foreground/80">Your space</div>
         <nav aria-label="Main navigation" className="flex flex-col gap-1">
           {destinations.map((item) => (
-            <NavigationLink key={item.href} item={item} active={location === item.href || (item.href === '/projects' && location.startsWith('/projects/'))} />
+            <NavigationLink
+              key={item.href}
+              item={item}
+              active={location === item.href || ((item.href === '/projects' || item.href === '/expenses') && location.startsWith(`${item.href}/`))}
+            />
           ))}
         </nav>
         <div className="mt-auto rounded-2xl border border-border/70 bg-background/70 p-4">
@@ -146,7 +157,7 @@ function Shell({ children }: { children: ReactNode }) {
           <p className="font-display text-sm font-bold">A fresh start</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">Your personal money space is ready when you are.</p>
         </div>
-        <div className="mt-5 border-t border-border/70 pt-4 text-[10px] font-semibold tracking-[0.08em] text-muted-foreground">POCKETFUL <span className="mx-1.5">·</span> STAGE FOUR</div>
+        <div className="mt-5 border-t border-border/70 pt-4 text-[10px] font-semibold tracking-[0.08em] text-muted-foreground">POCKETFUL <span className="mx-1.5">·</span> STAGE SIX</div>
       </aside>
 
       <div className="min-h-[100dvh] lg:pl-[252px]">
@@ -157,19 +168,16 @@ function Shell({ children }: { children: ReactNode }) {
           </div>
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden text-xs text-muted-foreground sm:inline">A little more in order.</span>
-            <button
-              type="button"
-              disabled
-              title="Adding expenses will be available in a later stage."
-              aria-label="Add expense — coming in a later stage"
+            <Link
+              href="/expenses/new"
+              aria-label="Add expense"
               data-testid="button-add-expense"
-              className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-xl bg-primary px-3.5 text-[12px] font-bold text-primary-foreground opacity-90 shadow-sm sm:px-4"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-3.5 text-[12px] font-bold text-primary-foreground shadow-sm transition-transform hover:-translate-y-0.5 sm:px-4"
             >
               <Plus size={16} strokeWidth={2.5} />
               <span className="hidden sm:inline">Add expense</span>
               <span className="sm:hidden">Add</span>
-              <span className="rounded-md bg-primary-foreground/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em]">Soon</span>
-            </button>
+            </Link>
           </div>
         </header>
         <main className="mx-auto w-full max-w-[1120px] px-5 pb-28 pt-8 sm:px-8 sm:pt-11 lg:px-12 lg:pb-16">
@@ -195,7 +203,7 @@ function Shell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-lg items-stretch justify-around">
           {mobileDestinations.map((item) => {
             const Icon = item.icon;
-            const active = location === item.href || (item.href === '/projects' && location.startsWith('/projects/'));
+            const active = location === item.href || ((item.href === '/projects' || item.href === '/expenses') && location.startsWith(`${item.href}/`));
             return (
               <Link key={item.href} href={item.href} data-testid={`mobile-nav-${item.label.toLowerCase()}`} aria-current={active ? 'page' : undefined} className={`nav-link flex min-h-[58px] min-w-[62px] flex-col items-center justify-center gap-1 rounded-xl px-2 text-[10px] font-semibold ${active ? 'text-primary' : 'text-muted-foreground'}`}>
                 <Icon size={19} strokeWidth={active ? 2.2 : 1.8} /><span>{item.label}</span>
@@ -321,7 +329,10 @@ function Router() {
       <Shell>
         <Switch>
           <Route path="/" component={HomePage} />
-          <Route path="/expenses"><PlaceholderPage path="/expenses" /></Route>
+          <Route path="/expenses" component={ExpenseListPage} />
+          <Route path="/expenses/new" component={ExpenseEditorPage} />
+          <Route path="/expenses/:expenseId/edit" component={ExpenseEditorPage} />
+          <Route path="/expenses/:expenseId" component={ExpenseDetailPage} />
           <Route path="/projects" component={ProjectListPage} />
           <Route path="/projects/:projectId" component={ProjectDetailPage} />
           <Route path="/categories" component={CategoryListPage} />

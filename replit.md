@@ -45,7 +45,7 @@ A mobile-first personal expense manager, planned as an installable PWA with INR 
 
 ## Product
 
-Personal expense tracking, project context, reusable global categories and labels, and spending reports. Stage 1 provides the responsive app shell and infrastructure only; expense management and reports are not implemented yet.
+Personal expense tracking, project context, reusable global categories and labels, and spending reports. Stages 1–6 are implemented: the responsive app shell, data model, project/category/label management, and expense list, entry, detail, edit, and delete flows. Expense search/filtering, reports, and offline entry remain later stages; wait for approval before starting the next stage.
 
 ## User preferences
 
