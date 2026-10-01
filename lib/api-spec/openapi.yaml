@@ -450,6 +450,120 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /expenses:
+    get:
+      operationId: listExpenses
+      tags: [expenses]
+      summary: List expenses
+      responses:
+        "200":
+          description: Expenses ordered by date, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseCollection"
+    post:
+      operationId: createExpense
+      tags: [expenses]
+      summary: Create an expense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExpenseInput"
+      responses:
+        "201":
+          description: Created expense with related records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseRecord"
+        "400":
+          description: Invalid expense data or related record IDs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /expenses/{expenseId}:
+    parameters:
+      - name: expenseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getExpense
+      tags: [expenses]
+      summary: Get an expense and its related records
+      responses:
+        "200":
+          description: Expense detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseRecord"
+        "400":
+          description: Invalid expense ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Expense not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateExpense
+      tags: [expenses]
+      summary: Update an expense and its label associations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExpenseUpdate"
+      responses:
+        "200":
+          description: Updated expense with related records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseRecord"
+        "400":
+          description: Invalid expense data or related record IDs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Expense not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteExpense
+      tags: [expenses]
+      summary: Delete an expense
+      responses:
+        "204":
+          description: Expense deleted
+        "400":
+          description: Invalid expense ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Expense not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   schemas:
@@ -592,7 +706,7 @@ components:
           pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
         date:
           type: string
-          format: date
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
         description:
           type: [string, "null"]
         categoryId:
@@ -733,7 +847,7 @@ components:
           pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
         date:
           type: string
-          format: date
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
         description:
           type: [string, "null"]
       required:
@@ -839,4 +953,185 @@ components:
       type: array
       items:
         $ref: "#/components/schemas/Label"
+    ExpensePaymentMethod:
+      type: string
+      enum: [cash, credit_card, debit_card, bank_transfer, upi, other]
+    ExpenseProject:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        color:
+          type: string
+        status:
+          type: string
+          enum: [active, archived]
+      required: [id, name, color, status]
+    ExpenseCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        icon:
+          type: [string, "null"]
+        color:
+          type: string
+        status:
+          type: string
+          enum: [active, archived]
+      required: [id, name, icon, color, status]
+    ExpenseLabel:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        color:
+          type: string
+        status:
+          type: string
+          enum: [active, archived]
+      required: [id, name, color, status]
+    ExpenseRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        amount:
+          type: string
+          pattern: "^[0-9]{1,12}(\\.[0-9]{1,2})?$"
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        projectId:
+          type: [string, "null"]
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        labelIds:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+        description:
+          type: [string, "null"]
+        paymentMethod:
+          anyOf:
+            - $ref: "#/components/schemas/ExpensePaymentMethod"
+            - type: "null"
+        notes:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        project:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseProject"
+            - type: "null"
+        category:
+          $ref: "#/components/schemas/ExpenseCategory"
+        labels:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExpenseLabel"
+      required:
+        - id
+        - amount
+        - date
+        - projectId
+        - categoryId
+        - labelIds
+        - description
+        - paymentMethod
+        - notes
+        - createdAt
+        - updatedAt
+        - project
+        - category
+        - labels
+    ExpenseCollection:
+      type: array
+      items:
+        $ref: "#/components/schemas/ExpenseRecord"
+    ExpenseInput:
+      type: object
+      additionalProperties: false
+      properties:
+        amount:
+          type: string
+          pattern: "^[0-9]{1,12}(\\.[0-9]{1,2})?$"
+          maxLength: 15
+        date:
+          type: string
+          format: date
+        projectId:
+          type: [string, "null"]
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        labelIds:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+        description:
+          type: [string, "null"]
+          maxLength: 1000
+        paymentMethod:
+          anyOf:
+            - $ref: "#/components/schemas/ExpensePaymentMethod"
+            - type: "null"
+        notes:
+          type: [string, "null"]
+          maxLength: 4000
+      required: [amount, date, categoryId]
+    ExpenseUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        amount:
+          type: string
+          pattern: "^[0-9]{1,12}(\\.[0-9]{1,2})?$"
+          maxLength: 15
+        date:
+          type: string
+          format: date
+        projectId:
+          type: [string, "null"]
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        labelIds:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+        description:
+          type: [string, "null"]
+          maxLength: 1000
+        paymentMethod:
+          anyOf:
+            - $ref: "#/components/schemas/ExpensePaymentMethod"
+            - type: "null"
+        notes:
+          type: [string, "null"]
+          maxLength: 4000
 

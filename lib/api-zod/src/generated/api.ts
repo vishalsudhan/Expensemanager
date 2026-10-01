@@ -101,6 +101,7 @@ export const getProjectResponseCategoryBreakdownItemTotalSpentRegExp = new RegEx
 export const getProjectResponseCategoryBreakdownItemExpenseCountMin = 0;
 
 export const getProjectResponseRecentExpensesItemAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getProjectResponseRecentExpensesItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 
 
 export const GetProjectResponse = zod.object({
@@ -127,7 +128,7 @@ export const GetProjectResponse = zod.object({
   "recentExpenses": zod.array(zod.object({
   "id": zod.string().uuid(),
   "amount": zod.string().regex(getProjectResponseRecentExpensesItemAmountRegExp),
-  "date": zod.coerce.date(),
+  "date": zod.string().regex(getProjectResponseRecentExpensesItemDateRegExp),
   "description": zod.string().nullable(),
   "categoryId": zod.string().uuid(),
   "categoryName": zod.string(),
@@ -283,6 +284,7 @@ export const getCategoryResponseTotalSpentRegExp = new RegExp('^[0-9]+(\\.[0-9]{
 export const getCategoryResponseExpenseCountMin = 0;
 
 export const getCategoryResponseRecentExpensesItemAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getCategoryResponseRecentExpensesItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 export const getCategoryResponseMonthlySpendingItemMonthRegExp = new RegExp('^\\d{4}-\\d{2}$');
 export const getCategoryResponseMonthlySpendingItemTotalSpentRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
 export const getCategoryResponseMonthlySpendingItemExpenseCountMin = 0;
@@ -304,7 +306,7 @@ export const GetCategoryResponse = zod.object({
   "recentExpenses": zod.array(zod.object({
   "id": zod.string().uuid(),
   "amount": zod.string().regex(getCategoryResponseRecentExpensesItemAmountRegExp),
-  "date": zod.coerce.date(),
+  "date": zod.string().regex(getCategoryResponseRecentExpensesItemDateRegExp),
   "description": zod.string().nullable()
 })),
   "monthlySpending": zod.array(zod.object({
@@ -482,5 +484,230 @@ export const ArchiveLabelResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
+
+
+/**
+ * @summary List expenses
+ */
+export const listExpensesResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
+export const listExpensesResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const ListExpensesResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "amount": zod.string().regex(listExpensesResponseAmountRegExp),
+  "date": zod.string().regex(listExpensesResponseDateRegExp),
+  "projectId": zod.string().uuid().nullable(),
+  "categoryId": zod.string().uuid(),
+  "labelIds": zod.array(zod.string().uuid()),
+  "description": zod.string().nullable(),
+  "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "project": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]),
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "labels": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}))
+})
+export const ListExpensesResponse = zod.array(ListExpensesResponseItem)
+
+
+/**
+ * @summary Create an expense
+ */
+export const createExpenseBodyAmountMax = 15;
+
+
+export const createExpenseBodyAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
+export const createExpenseBodyDescriptionMax = 1000;
+
+export const createExpenseBodyNotesMax = 4000;
+
+
+
+export const CreateExpenseBody = zod.object({
+  "amount": zod.string().max(createExpenseBodyAmountMax).regex(createExpenseBodyAmountRegExp),
+  "date": zod.coerce.date(),
+  "projectId": zod.string().uuid().nullish(),
+  "categoryId": zod.string().uuid(),
+  "labelIds": zod.array(zod.string().uuid()).optional(),
+  "description": zod.string().max(createExpenseBodyDescriptionMax).nullish(),
+  "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
+  "notes": zod.string().max(createExpenseBodyNotesMax).nullish()
+})
+
+export const createExpenseResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
+export const createExpenseResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const CreateExpenseResponse = zod.object({
+  "id": zod.string().uuid(),
+  "amount": zod.string().regex(createExpenseResponseAmountRegExp),
+  "date": zod.string().regex(createExpenseResponseDateRegExp),
+  "projectId": zod.string().uuid().nullable(),
+  "categoryId": zod.string().uuid(),
+  "labelIds": zod.array(zod.string().uuid()),
+  "description": zod.string().nullable(),
+  "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "project": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]),
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "labels": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}))
+})
+
+
+/**
+ * @summary Get an expense and its related records
+ */
+export const GetExpenseParams = zod.object({
+  "expenseId": zod.coerce.string().uuid()
+})
+
+export const getExpenseResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
+export const getExpenseResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetExpenseResponse = zod.object({
+  "id": zod.string().uuid(),
+  "amount": zod.string().regex(getExpenseResponseAmountRegExp),
+  "date": zod.string().regex(getExpenseResponseDateRegExp),
+  "projectId": zod.string().uuid().nullable(),
+  "categoryId": zod.string().uuid(),
+  "labelIds": zod.array(zod.string().uuid()),
+  "description": zod.string().nullable(),
+  "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "project": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]),
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "labels": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}))
+})
+
+
+/**
+ * @summary Update an expense and its label associations
+ */
+export const UpdateExpenseParams = zod.object({
+  "expenseId": zod.coerce.string().uuid()
+})
+
+export const updateExpenseBodyAmountMax = 15;
+
+
+export const updateExpenseBodyAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
+export const updateExpenseBodyDescriptionMax = 1000;
+
+export const updateExpenseBodyNotesMax = 4000;
+
+
+
+export const UpdateExpenseBody = zod.object({
+  "amount": zod.string().max(updateExpenseBodyAmountMax).regex(updateExpenseBodyAmountRegExp).optional(),
+  "date": zod.coerce.date().optional(),
+  "projectId": zod.string().uuid().nullish(),
+  "categoryId": zod.string().uuid().optional(),
+  "labelIds": zod.array(zod.string().uuid()).optional(),
+  "description": zod.string().max(updateExpenseBodyDescriptionMax).nullish(),
+  "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
+  "notes": zod.string().max(updateExpenseBodyNotesMax).nullish()
+})
+
+export const updateExpenseResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
+export const updateExpenseResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const UpdateExpenseResponse = zod.object({
+  "id": zod.string().uuid(),
+  "amount": zod.string().regex(updateExpenseResponseAmountRegExp),
+  "date": zod.string().regex(updateExpenseResponseDateRegExp),
+  "projectId": zod.string().uuid().nullable(),
+  "categoryId": zod.string().uuid(),
+  "labelIds": zod.array(zod.string().uuid()),
+  "description": zod.string().nullable(),
+  "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "project": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]),
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "labels": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}))
+})
+
+
+/**
+ * @summary Delete an expense
+ */
+export const DeleteExpenseParams = zod.object({
+  "expenseId": zod.coerce.string().uuid()
+})
+
+export const DeleteExpenseResponse = zod.void()
 
 

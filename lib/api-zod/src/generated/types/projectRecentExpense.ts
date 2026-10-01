@@ -11,7 +11,8 @@ export interface ProjectRecentExpense {
   id: string;
   /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
   amount: string;
-  date: Date;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
   /** @nullable */
   description: string | null;
   categoryId: string;

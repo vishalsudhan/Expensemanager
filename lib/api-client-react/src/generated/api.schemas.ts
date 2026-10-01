@@ -113,6 +113,7 @@ export interface ProjectRecentExpense {
   id: string;
   /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
   amount: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
   date: string;
   /** @nullable */
   description: string | null;
@@ -199,6 +200,7 @@ export interface CategoryRecentExpense {
   id: string;
   /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
   amount: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
   date: string;
   /** @nullable */
   description: string | null;
@@ -266,6 +268,137 @@ export interface LabelUpdate {
 }
 
 export type LabelCollection = Label[];
+
+export type ExpensePaymentMethod = typeof ExpensePaymentMethod[keyof typeof ExpensePaymentMethod];
+
+
+export const ExpensePaymentMethod = {
+  cash: 'cash',
+  credit_card: 'credit_card',
+  debit_card: 'debit_card',
+  bank_transfer: 'bank_transfer',
+  upi: 'upi',
+  other: 'other',
+} as const;
+
+export type ExpenseProjectStatus = typeof ExpenseProjectStatus[keyof typeof ExpenseProjectStatus];
+
+
+export const ExpenseProjectStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface ExpenseProject {
+  id: string;
+  name: string;
+  color: string;
+  status: ExpenseProjectStatus;
+}
+
+export type ExpenseCategoryStatus = typeof ExpenseCategoryStatus[keyof typeof ExpenseCategoryStatus];
+
+
+export const ExpenseCategoryStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  /** @nullable */
+  icon: string | null;
+  color: string;
+  status: ExpenseCategoryStatus;
+}
+
+export type ExpenseLabelStatus = typeof ExpenseLabelStatus[keyof typeof ExpenseLabelStatus];
+
+
+export const ExpenseLabelStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface ExpenseLabel {
+  id: string;
+  name: string;
+  color: string;
+  status: ExpenseLabelStatus;
+}
+
+export interface ExpenseRecord {
+  id: string;
+  /** @pattern ^[0-9]{1,12}(\.[0-9]{1,2})?$ */
+  amount: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  /** @nullable */
+  projectId: string | null;
+  categoryId: string;
+  labelIds: string[];
+  /** @nullable */
+  description: string | null;
+  paymentMethod: ExpensePaymentMethod | null;
+  /** @nullable */
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  project: ExpenseProject | null;
+  category: ExpenseCategory;
+  labels: ExpenseLabel[];
+}
+
+export type ExpenseCollection = ExpenseRecord[];
+
+export interface ExpenseInput {
+  /**
+     * @maxLength 15
+     * @pattern ^[0-9]{1,12}(\.[0-9]{1,2})?$
+     */
+  amount: string;
+  date: string;
+  /** @nullable */
+  projectId?: string | null;
+  categoryId: string;
+  labelIds?: string[];
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  description?: string | null;
+  paymentMethod?: ExpensePaymentMethod | null;
+  /**
+     * @maxLength 4000
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+export interface ExpenseUpdate {
+  /**
+     * @maxLength 15
+     * @pattern ^[0-9]{1,12}(\.[0-9]{1,2})?$
+     */
+  amount?: string;
+  date?: string;
+  /** @nullable */
+  projectId?: string | null;
+  categoryId?: string;
+  labelIds?: string[];
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  description?: string | null;
+  paymentMethod?: ExpensePaymentMethod | null;
+  /**
+     * @maxLength 4000
+     * @nullable
+     */
+  notes?: string | null;
+}
 
 export type ListProjectsParams = {
 status?: ListProjectsStatus;

@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import categoriesRouter from "./categories";
+import expensesRouter from "./expenses";
 import healthRouter from "./health";
 import labelsRouter from "./labels";
 import projectsRouter from "./projects";
@@ -10,5 +11,6 @@ router.use(healthRouter);
 router.use(categoriesRouter);
 router.use(labelsRouter);
 router.use(projectsRouter);
+router.use(expensesRouter);
 
 export default router;
