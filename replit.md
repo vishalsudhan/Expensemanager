@@ -4,8 +4,11 @@ A mobile-first personal expense manager, planned as an installable PWA with INR 
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/expense-manager run dev` — run the web app
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- Start the Replit workflows `artifacts/api-server: API Server` and `artifacts/expense-manager: web` to run the app. The workflows supply the required environment and preview routing.
+- The web app is served at `/`; the API is served at `/api` (internal port 8080). The web workflow supplies `PORT=19111` and `BASE_PATH=/`.
+- `pnpm install --frozen-lockfile` — install the existing workspace dependencies after import
+- `pnpm --filter @workspace/expense-manager run dev` — web workflow command (requires `PORT` and `BASE_PATH`)
+- `pnpm --filter @workspace/api-server run dev` — API workflow command (requires `PORT` and `DATABASE_URL`)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -14,6 +17,7 @@ A mobile-first personal expense manager, planned as an installable PWA with INR 
 - `pnpm --filter @workspace/db run seed` — add repeatable sample records to development only
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required environment: `DATABASE_URL` — provided by the project's PostgreSQL database and consumed by Drizzle.
+- The imported migration has been applied to the development database; no sample data was added. `/api/healthz` checks database connectivity.
 
 ## Stack
 
