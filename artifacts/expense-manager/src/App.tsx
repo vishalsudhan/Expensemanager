@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react';
+import { ProjectDetailPage, ProjectListPage } from '@/pages/Projects';
 import {
   Link,
   Route,
@@ -124,7 +125,7 @@ function Shell({ children }: { children: ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRoutes = ['/categories', '/labels', '/settings'];
   const moreActive = moreRoutes.includes(location);
-  const pageTitle = location === '/' ? 'Home' : pageCopy[location]?.title ?? 'Not found';
+  const pageTitle = location === '/' ? 'Home' : location.startsWith('/projects') ? 'Projects' : pageCopy[location]?.title ?? 'Not found';
 
   return (
     <div className="app-shell soft-grain bg-background text-foreground">
@@ -133,7 +134,7 @@ function Shell({ children }: { children: ReactNode }) {
         <div className="mb-3 mt-12 px-3 text-[10px] font-bold uppercase tracking-[0.19em] text-muted-foreground/80">Your space</div>
         <nav aria-label="Main navigation" className="flex flex-col gap-1">
           {destinations.map((item) => (
-            <NavigationLink key={item.href} item={item} active={location === item.href} />
+            <NavigationLink key={item.href} item={item} active={location === item.href || (item.href === '/projects' && location.startsWith('/projects/'))} />
           ))}
         </nav>
         <div className="mt-auto rounded-2xl border border-border/70 bg-background/70 p-4">
@@ -143,7 +144,7 @@ function Shell({ children }: { children: ReactNode }) {
           <p className="font-display text-sm font-bold">A fresh start</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">Your personal money space is ready when you are.</p>
         </div>
-        <div className="mt-5 border-t border-border/70 pt-4 text-[10px] font-semibold tracking-[0.08em] text-muted-foreground">POCKETFUL <span className="mx-1.5">·</span> STAGE ONE</div>
+        <div className="mt-5 border-t border-border/70 pt-4 text-[10px] font-semibold tracking-[0.08em] text-muted-foreground">POCKETFUL <span className="mx-1.5">·</span> STAGE THREE</div>
       </aside>
 
       <div className="min-h-[100dvh] lg:pl-[252px]">
@@ -192,7 +193,7 @@ function Shell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-lg items-stretch justify-around">
           {mobileDestinations.map((item) => {
             const Icon = item.icon;
-            const active = location === item.href;
+            const active = location === item.href || (item.href === '/projects' && location.startsWith('/projects/'));
             return (
               <Link key={item.href} href={item.href} data-testid={`mobile-nav-${item.label.toLowerCase()}`} aria-current={active ? 'page' : undefined} className={`nav-link flex min-h-[58px] min-w-[62px] flex-col items-center justify-center gap-1 rounded-xl px-2 text-[10px] font-semibold ${active ? 'text-primary' : 'text-muted-foreground'}`}>
                 <Icon size={19} strokeWidth={active ? 2.2 : 1.8} /><span>{item.label}</span>
@@ -319,7 +320,8 @@ function Router() {
         <Switch>
           <Route path="/" component={HomePage} />
           <Route path="/expenses"><PlaceholderPage path="/expenses" /></Route>
-          <Route path="/projects"><PlaceholderPage path="/projects" /></Route>
+          <Route path="/projects" component={ProjectListPage} />
+          <Route path="/projects/:projectId" component={ProjectDetailPage} />
           <Route path="/categories"><PlaceholderPage path="/categories" /></Route>
           <Route path="/labels"><PlaceholderPage path="/labels" /></Route>
           <Route path="/reports"><PlaceholderPage path="/reports" /></Route>

@@ -1,0 +1,2 @@
+- [Drizzle PostgreSQL error wrapping](drizzle-postgres-error-wrapping.md) — constraint codes may be nested in Drizzle’s error cause chain.
+- [Vite HMR in preview captures](vite-hmr-preview-capture.md) — a capture-only WebSocket warning can coexist with a working app; verify page/API behavior before changing proxy setup.

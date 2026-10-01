@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: projects
+    description: Project management and spending summaries
 paths:
   /healthz:
     get:
@@ -24,6 +26,151 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List projects
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, archived, all]
+      responses:
+        "200":
+          description: Projects with current spending totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectCollection"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectInput"
+      responses:
+        "201":
+          description: Created project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          description: Invalid project data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A project with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /projects/{projectId}:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get project details and spending
+      responses:
+        "200":
+          description: Project details with spending totals and recent expenses
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+        "400":
+          description: Invalid project ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectUpdate"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          description: Invalid project data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A project with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /projects/{projectId}/archive:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: archiveProject
+      tags: [projects]
+      summary: Archive a project
+      responses:
+        "200":
+          description: Archived project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          description: Invalid project ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +180,186 @@ components:
           type: string
       required:
         - status
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: [string, "null"]
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        icon:
+          type: [string, "null"]
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - description
+        - color
+        - icon
+        - status
+        - createdAt
+        - updatedAt
+    ProjectInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 4000
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        icon:
+          type: string
+          maxLength: 64
+      required:
+        - name
+    ProjectUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: [string, "null"]
+          maxLength: 4000
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        icon:
+          type: [string, "null"]
+          maxLength: 64
+    ProjectListItem:
+      allOf:
+        - $ref: "#/components/schemas/Project"
+        - type: object
+          properties:
+            totalSpent:
+              type: string
+              pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+            expenseCount:
+              type: integer
+              minimum: 0
+          required:
+            - totalSpent
+            - expenseCount
+    ProjectCollection:
+      type: array
+      items:
+        $ref: "#/components/schemas/ProjectListItem"
+    ProjectCategoryBreakdown:
+      type: object
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        categoryColor:
+          type: string
+        categoryIcon:
+          type: [string, "null"]
+        totalSpent:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        expenseCount:
+          type: integer
+          minimum: 0
+      required:
+        - categoryId
+        - categoryName
+        - categoryColor
+        - categoryIcon
+        - totalSpent
+        - expenseCount
+    ProjectRecentExpense:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        amount:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        date:
+          type: string
+          format: date
+        description:
+          type: [string, "null"]
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        categoryColor:
+          type: string
+        categoryIcon:
+          type: [string, "null"]
+        paymentMethod:
+          type: [string, "null"]
+          enum: [cash, credit_card, debit_card, bank_transfer, upi, other, null]
+      required:
+        - id
+        - amount
+        - date
+        - description
+        - categoryId
+        - categoryName
+        - categoryColor
+        - categoryIcon
+        - paymentMethod
+    ProjectDetail:
+      type: object
+      properties:
+        project:
+          $ref: "#/components/schemas/Project"
+        totalSpent:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        expenseCount:
+          type: integer
+          minimum: 0
+        categoryBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectCategoryBreakdown"
+        recentExpenses:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectRecentExpense"
+      required:
+        - project
+        - totalSpent
+        - expenseCount
+        - categoryBreakdown
+        - recentExpenses
 

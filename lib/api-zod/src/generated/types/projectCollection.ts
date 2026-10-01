@@ -5,7 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ProjectListItem } from './projectListItem';
 
-export interface HealthStatus {
-  status: string;
-}
+export type ProjectCollection = ProjectListItem[];
