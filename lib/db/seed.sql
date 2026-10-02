@@ -1,11 +1,22 @@
 BEGIN;
 
-INSERT INTO projects (name, description, color, icon)
+INSERT INTO currencies (id, code, name, symbol, decimal_places, is_active)
+VALUES
+  ('c0de0000-0000-4000-a000-000000000001', 'INR', 'Indian Rupee', '₹', 2, true),
+  ('c0de0000-0000-4000-a000-000000000002', 'QAR', 'Qatari Riyal', '﷼', 2, true),
+  ('c0de0000-0000-4000-a000-000000000003', 'AED', 'UAE Dirham', 'د.إ', 2, true),
+  ('c0de0000-0000-4000-a000-000000000004', 'USD', 'US Dollar', '$', 2, true),
+  ('c0de0000-0000-4000-a000-000000000005', 'EUR', 'Euro', '€', 2, true),
+  ('c0de0000-0000-4000-a000-000000000006', 'GBP', 'British Pound', '£', 2, true)
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO projects (name, description, color, icon, default_currency_id)
 VALUES (
   'Qatar Move',
   'Development example project for a planned move.',
   '#1F6B55',
-  'Plane'
+  'Plane',
+  'c0de0000-0000-4000-a000-000000000001'
 )
 ON CONFLICT (name) DO NOTHING;
 
@@ -41,6 +52,7 @@ INSERT INTO expenses (
   date,
   project_id,
   category_id,
+  currency_id,
   description,
   payment_method
 )
@@ -51,6 +63,7 @@ VALUES
     '2026-10-01',
     (SELECT id FROM projects WHERE name = 'Qatar Move'),
     (SELECT id FROM categories WHERE name = 'Travel'),
+    'c0de0000-0000-4000-a000-000000000001',
     'Flight ticket',
     'credit_card'
   ),
@@ -60,6 +73,7 @@ VALUES
     '2026-09-30',
     NULL,
     (SELECT id FROM categories WHERE name = 'Food'),
+    'c0de0000-0000-4000-a000-000000000001',
     'Dinner',
     'upi'
   )

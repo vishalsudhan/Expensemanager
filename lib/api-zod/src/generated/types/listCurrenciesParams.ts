@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { ExpenseRecord } from './expenseRecord';
 
-export type ExpenseCollection = ExpenseRecord[];
+export type ListCurrenciesParams = {
+isActive?: boolean;
+};

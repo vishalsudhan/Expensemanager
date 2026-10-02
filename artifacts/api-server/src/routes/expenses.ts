@@ -1,11 +1,25 @@
 import { Router, type IRouter } from "express";
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import {
   CreateExpenseBody,
   CreateExpenseResponse,
   DeleteExpenseParams,
   GetExpenseParams,
   GetExpenseResponse,
+  ListExpensesQueryParams,
   ListExpensesResponse,
   UpdateExpenseBody,
   UpdateExpenseParams,
@@ -13,47 +27,17 @@ import {
 } from "@workspace/api-zod";
 import {
   categoriesTable,
+  currenciesTable,
   db,
   expenseLabelsTable,
   expensesTable,
   labelsTable,
   projectsTable,
 } from "@workspace/db";
+import { attachLabels, expenseLabelSelection, expenseSelection } from "../lib/expense-records";
+import { sortByCurrencyCode } from "../lib/currency-amounts";
 
 const router: IRouter = Router();
-
-const expenseSelection = {
-  id: expensesTable.id,
-  amount: expensesTable.amount,
-  date: expensesTable.date,
-  projectId: expensesTable.projectId,
-  categoryId: expensesTable.categoryId,
-  description: expensesTable.description,
-  paymentMethod: expensesTable.paymentMethod,
-  notes: expensesTable.notes,
-  createdAt: expensesTable.createdAt,
-  updatedAt: expensesTable.updatedAt,
-  project: {
-    id: projectsTable.id,
-    name: projectsTable.name,
-    color: projectsTable.color,
-    status: projectsTable.status,
-  },
-  category: {
-    id: categoriesTable.id,
-    name: categoriesTable.name,
-    icon: categoriesTable.icon,
-    color: categoriesTable.color,
-    status: categoriesTable.status,
-  },
-};
-
-const expenseLabelSelection = {
-  id: labelsTable.id,
-  name: labelsTable.name,
-  color: labelsTable.color,
-  status: labelsTable.status,
-};
 
 function databaseErrorCode(error: unknown, depth = 0): string | null {
   if (typeof error !== "object" || error === null || depth > 4) return null;
@@ -84,12 +68,38 @@ function hasDuplicateLabelIds(labelIds: string[]): boolean {
   return new Set(labelIds).size !== labelIds.length;
 }
 
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+function expenseOrderBy(sort: string): SQL[] {
+  switch (sort) {
+    case "oldest":
+      return [asc(expensesTable.date), asc(expensesTable.createdAt)];
+    case "highest":
+      return [
+        desc(expensesTable.amount),
+        desc(expensesTable.date),
+        desc(expensesTable.createdAt),
+      ];
+    case "lowest":
+      return [
+        asc(expensesTable.amount),
+        desc(expensesTable.date),
+        desc(expensesTable.createdAt),
+      ];
+    default:
+      return [desc(expensesTable.date), desc(expensesTable.createdAt)];
+  }
+}
+
 async function getExpenseRecord(expenseId: string) {
   const [expense] = await db
     .select(expenseSelection)
     .from(expensesTable)
     .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
     .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
+    .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
     .where(eq(expensesTable.id, expenseId));
 
   if (!expense) return null;
@@ -109,53 +119,117 @@ async function getExpenseRecord(expenseId: string) {
   };
 }
 
-router.get("/expenses", async (_req, res): Promise<void> => {
-  const expenses = await db
-    .select(expenseSelection)
-    .from(expensesTable)
-    .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
-    .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
-    .orderBy(desc(expensesTable.date), desc(expensesTable.createdAt));
-
-  const expenseIds = expenses.map((expense) => expense.id);
-  const labelRows = expenseIds.length
-    ? await db
-        .select({
-          expenseId: expenseLabelsTable.expenseId,
-          ...expenseLabelSelection,
-        })
-        .from(expenseLabelsTable)
-        .innerJoin(labelsTable, eq(expenseLabelsTable.labelId, labelsTable.id))
-        .where(inArray(expenseLabelsTable.expenseId, expenseIds))
-        .orderBy(asc(labelsTable.name))
-    : [];
-
-  const labelsByExpenseId = new Map<string, typeof labelRows>();
-  for (const labelRow of labelRows) {
-    const currentLabels = labelsByExpenseId.get(labelRow.expenseId) ?? [];
-    currentLabels.push(labelRow);
-    labelsByExpenseId.set(labelRow.expenseId, currentLabels);
+router.get("/expenses", async (req, res): Promise<void> => {
+  const parsed = ListExpensesQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid expense search, filter, or sort options." });
+    return;
   }
 
-  const response = expenses.map((expense) => {
-    const labels = (labelsByExpenseId.get(expense.id) ?? []).map(
-      ({ expenseId: _expenseId, ...label }) => label,
-    );
-    return {
-      ...expense,
-      amount: String(expense.amount),
-      labelIds: labels.map((label) => label.id),
-      labels,
-    };
-  });
+  const { search, from, to, projectId, categoryId, labelId, paymentMethod, currencyId, sort, limit, offset } =
+    parsed.data;
 
-  res.json(ListExpensesResponse.parse(response));
+  const conditions: SQL[] = [];
+
+  const trimmedSearch = search?.trim();
+  if (trimmedSearch) {
+    const pattern = `%${escapeLikePattern(trimmedSearch)}%`;
+    const searchCondition = or(
+      ilike(expensesTable.description, pattern),
+      ilike(expensesTable.notes, pattern),
+      ilike(categoriesTable.name, pattern),
+      ilike(projectsTable.name, pattern),
+    );
+    if (searchCondition) conditions.push(searchCondition);
+  }
+
+  if (from) conditions.push(gte(expensesTable.date, from));
+  if (to) conditions.push(lte(expensesTable.date, to));
+  if (projectId) conditions.push(eq(expensesTable.projectId, projectId));
+  if (categoryId) conditions.push(eq(expensesTable.categoryId, categoryId));
+  if (paymentMethod) conditions.push(eq(expensesTable.paymentMethod, paymentMethod));
+  if (currencyId) conditions.push(eq(expensesTable.currencyId, currencyId));
+
+  if (labelId) {
+    conditions.push(
+      inArray(
+        expensesTable.id,
+        db
+          .select({ id: expenseLabelsTable.expenseId })
+          .from(expenseLabelsTable)
+          .where(eq(expenseLabelsTable.labelId, labelId)),
+      ),
+    );
+  }
+
+  const where = conditions.length ? and(...conditions) : undefined;
+
+  const [expenses, totalsSummary] = await Promise.all([
+    db
+      .select(expenseSelection)
+      .from(expensesTable)
+      .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
+      .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
+      .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+      .where(where)
+      .orderBy(...expenseOrderBy(sort))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({
+        currencyId: currenciesTable.id,
+        currencyCode: currenciesTable.code,
+        currencyName: currenciesTable.name,
+        currencySymbol: currenciesTable.symbol,
+        currencyDecimalPlaces: currenciesTable.decimalPlaces,
+        currencyIsActive: currenciesTable.isActive,
+        total: sql<string>`coalesce(sum(${expensesTable.amount}), 0)::text`.mapWith(String),
+        count: count(expensesTable.id),
+      })
+      .from(expensesTable)
+      .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
+      .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
+      .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+      .where(where)
+      .groupBy(currenciesTable.id),
+  ]);
+
+  const items = await attachLabels(expenses);
+
+  const totals = sortByCurrencyCode(
+    totalsSummary.map((row) => ({
+      currency: {
+        id: row.currencyId,
+        code: row.currencyCode,
+        name: row.currencyName,
+        symbol: row.currencySymbol,
+        decimalPlaces: row.currencyDecimalPlaces,
+        isActive: row.currencyIsActive,
+      },
+      total: String(row.total),
+      count: Number(row.count),
+    })),
+  );
+
+  // Summing the per-currency counts still yields the exact number of matches.
+  const total = totals.reduce((sum, entry) => sum + entry.count, 0);
+
+  res.json(
+    ListExpensesResponse.parse({
+      items,
+      total,
+      totals,
+      limit,
+      offset,
+      hasMore: offset + items.length < total,
+    }),
+  );
 });
 
 router.post("/expenses", async (req, res): Promise<void> => {
   const parsed = CreateExpenseBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Enter a valid amount, date, category, and optional expense details." });
+    res.status(400).json({ error: "Enter a valid amount, date, category, currency, and optional expense details." });
     return;
   }
 
@@ -179,6 +253,7 @@ router.post("/expenses", async (req, res): Promise<void> => {
           date: expenseDateToDatabase(data.date),
           projectId: data.projectId ?? null,
           categoryId: data.categoryId,
+          currencyId: data.currencyId,
           description: normalizeOptionalText(data.description),
           paymentMethod: data.paymentMethod ?? null,
           notes: normalizeOptionalText(data.notes),
@@ -203,7 +278,7 @@ router.post("/expenses", async (req, res): Promise<void> => {
     res.status(201).json(CreateExpenseResponse.parse(expense));
   } catch (error) {
     if (["23503", "23514"].includes(databaseErrorCode(error) ?? "")) {
-      res.status(400).json({ error: "Check the selected project, category, labels, and amount." });
+      res.status(400).json({ error: "Check the selected project, category, labels, currency, and amount." });
       return;
     }
     throw error;

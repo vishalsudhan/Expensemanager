@@ -23,12 +23,44 @@ import {
   UpdateCategoryParams,
   UpdateCategoryResponse,
 } from "@workspace/api-zod";
-import { categoriesTable, db, expensesTable } from "@workspace/db";
+import { categoriesTable, currenciesTable, db, expensesTable } from "@workspace/db";
+import {
+  currencyAmountSum,
+  currencyColumns,
+  currencyExpenseCount,
+  totalCount,
+} from "../lib/currency-amounts";
+import type { CurrencyAmount } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-const totalSpent = sql<string>`coalesce(sum(${expensesTable.amount}), 0)::text`.mapWith(String);
-const expenseCount = count(expensesTable.id);
+const expenseCurrencyJoin = eq(expensesTable.currencyId, currenciesTable.id);
+
+function toAmounts(rows: {
+  currencyId: string;
+  currencyCode: string;
+  currencyName: string;
+  currencySymbol: string;
+  currencyDecimalPlaces: number;
+  currencyIsActive: boolean;
+  total: string;
+  count: number;
+}[]): CurrencyAmount[] {
+  return rows
+    .map((row) => ({
+      currency: {
+        id: row.currencyId,
+        code: row.currencyCode,
+        name: row.currencyName,
+        symbol: row.currencySymbol,
+        decimalPlaces: row.currencyDecimalPlaces,
+        isActive: row.currencyIsActive,
+      },
+      total: String(row.total),
+      count: Number(row.count),
+    }))
+    .sort((a, b) => a.currency.code.localeCompare(b.currency.code));
+}
 
 function isUniqueConstraintError(error: unknown, depth = 0): boolean {
   if (typeof error !== "object" || error === null || depth > 4) return false;
@@ -68,16 +100,41 @@ router.get("/categories", async (req, res): Promise<void> => {
       status: categoriesTable.status,
       createdAt: categoriesTable.createdAt,
       updatedAt: categoriesTable.updatedAt,
-      totalSpent,
-      expenseCount,
     })
     .from(categoriesTable)
-    .leftJoin(expensesTable, eq(expensesTable.categoryId, categoriesTable.id))
     .where(conditions.length ? and(...conditions) : undefined)
-    .groupBy(categoriesTable.id)
     .orderBy(asc(categoriesTable.name));
 
-  res.json(ListCategoriesResponse.parse(categories));
+  const totalsRows = await db
+    .select({
+      entityId: expensesTable.categoryId,
+      ...currencyColumns,
+      total: currencyAmountSum,
+      count: currencyExpenseCount,
+    })
+    .from(expensesTable)
+    .innerJoin(currenciesTable, expenseCurrencyJoin)
+    .groupBy(expensesTable.categoryId, currenciesTable.id);
+
+  const totalsByCategory = new Map<string, CurrencyAmount[]>();
+  for (const row of totalsRows) {
+    const list = totalsByCategory.get(row.entityId) ?? [];
+    list.push({ currency: toAmounts([row])[0].currency, total: String(row.total), count: Number(row.count) });
+    totalsByCategory.set(row.entityId, list);
+  }
+
+  res.json(
+    ListCategoriesResponse.parse(
+      categories.map((category) => {
+        const totals = totalsByCategory.get(category.id) ?? [];
+        return {
+          ...category,
+          totals: totals.sort((a, b) => a.currency.code.localeCompare(b.currency.code)),
+          expenseCount: totalCount(totals),
+        };
+      }),
+    ),
+  );
 });
 
 router.post("/categories", async (req, res): Promise<void> => {
@@ -127,25 +184,25 @@ router.get("/categories/:categoryId", async (req, res): Promise<void> => {
     return;
   }
 
-  const [totals] = await db
-    .select({
-      totalSpent,
-      expenseCount,
-    })
-    .from(expensesTable)
-    .where(eq(expensesTable.categoryId, category.id));
-
-  const recentExpenses = await db
-    .select({
-      id: expensesTable.id,
-      amount: expensesTable.amount,
-      date: expensesTable.date,
-      description: expensesTable.description,
-    })
-    .from(expensesTable)
-    .where(eq(expensesTable.categoryId, category.id))
-    .orderBy(desc(expensesTable.date), desc(expensesTable.createdAt))
-    .limit(5);
+  const [totalsRows, recentExpenses] = await Promise.all([
+    db
+      .select({ ...currencyColumns, total: currencyAmountSum, count: currencyExpenseCount })
+      .from(expensesTable)
+      .innerJoin(currenciesTable, expenseCurrencyJoin)
+      .where(eq(expensesTable.categoryId, category.id))
+      .groupBy(currenciesTable.id),
+    db
+      .select({
+        id: expensesTable.id,
+        amount: expensesTable.amount,
+        date: expensesTable.date,
+        description: expensesTable.description,
+      })
+      .from(expensesTable)
+      .where(eq(expensesTable.categoryId, category.id))
+      .orderBy(desc(expensesTable.date), desc(expensesTable.createdAt))
+      .limit(5),
+  ]);
 
   const now = new Date();
   const currentYear = now.getUTCFullYear();
@@ -165,10 +222,12 @@ router.get("/categories/:categoryId", async (req, res): Promise<void> => {
   const monthlyTotals = await db
     .select({
       month: sql<string>`to_char(date_trunc('month', ${expensesTable.date}::date), 'YYYY-MM')`,
-      totalSpent: sql<string>`coalesce(sum(${expensesTable.amount}), 0)::text`.mapWith(String),
-      expenseCount: count(expensesTable.id),
+      ...currencyColumns,
+      total: currencyAmountSum,
+      count: currencyExpenseCount,
     })
     .from(expensesTable)
+    .innerJoin(currenciesTable, expenseCurrencyJoin)
     .where(
       and(
         eq(expensesTable.categoryId, category.id),
@@ -176,25 +235,38 @@ router.get("/categories/:categoryId", async (req, res): Promise<void> => {
         lt(expensesTable.date, months[months.length - 1].nextMonthStart),
       ),
     )
-    .groupBy(sql`date_trunc('month', ${expensesTable.date}::date)`)
+    .groupBy(
+      sql`date_trunc('month', ${expensesTable.date}::date)`,
+      currenciesTable.id,
+    )
     .orderBy(asc(sql`date_trunc('month', ${expensesTable.date}::date)`));
 
-  const totalsByMonth = new Map(monthlyTotals.map((entry) => [entry.month, entry]));
+  const totalsByMonth = new Map<string, CurrencyAmount[]>();
+  for (const entry of monthlyTotals) {
+    const [amount] = toAmounts([entry]);
+    totalsByMonth.set(entry.month, [...(totalsByMonth.get(entry.month) ?? []), amount]);
+  }
+
   const monthlySpending = months.map(({ month }) => {
-    const entry = totalsByMonth.get(month);
+    const totals = totalsByMonth.get(month) ?? [];
     return {
       month,
-      totalSpent: entry?.totalSpent ?? "0",
-      expenseCount: entry?.expenseCount ?? 0,
+      totals: totals.sort((a, b) => a.currency.code.localeCompare(b.currency.code)),
+      expenseCount: totalCount(totals),
     };
   });
+
+  const totals = toAmounts(totalsRows);
 
   res.json(
     GetCategoryResponse.parse({
       category,
-      totalSpent: totals?.totalSpent ?? "0",
-      expenseCount: totals?.expenseCount ?? 0,
-      recentExpenses,
+      totals,
+      expenseCount: totalCount(totals),
+      recentExpenses: recentExpenses.map((expense) => ({
+        ...expense,
+        amount: String(expense.amount),
+      })),
       monthlySpending,
     }),
   );

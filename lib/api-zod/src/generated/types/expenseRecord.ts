@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { Currency } from './currency';
 import type { ExpenseCategory } from './expenseCategory';
 import type { ExpenseLabel } from './expenseLabel';
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
@@ -30,4 +31,5 @@ export interface ExpenseRecord {
   project: ExpenseProject | null;
   category: ExpenseCategory;
   labels: ExpenseLabel[];
+  currency: Currency;
 }

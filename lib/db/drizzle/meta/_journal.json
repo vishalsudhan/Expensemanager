@@ -8,6 +8,13 @@
       "when": 1790851912127,
       "tag": "0000_opposite_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790947444763,
+      "tag": "0001_outstanding_zombie",
+      "breakpoints": true
     }
   ]
 }

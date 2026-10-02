@@ -12,6 +12,10 @@ tags:
     description: Health operations
   - name: projects
     description: Project management and spending summaries
+  - name: currencies
+    description: Currency management
+  - name: backup
+    description: Data export and backup management
 paths:
   /healthz:
     get:
@@ -167,6 +171,92 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /currencies:
+    get:
+      operationId: listCurrencies
+      tags: [currencies]
+      summary: List currencies
+      parameters:
+        - name: isActive
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of currencies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Currency"
+    post:
+      operationId: createCurrency
+      tags: [currencies]
+      summary: Create a currency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CurrencyInput"
+      responses:
+        "201":
+          description: Created currency
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Currency"
+        "400":
+          description: Invalid currency data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A currency with this code already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /currencies/{currencyId}:
+    parameters:
+      - name: currencyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateCurrency
+      tags: [currencies]
+      summary: Update a currency (enable/disable)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CurrencyUpdate"
+      responses:
+        "200":
+          description: Updated currency
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Currency"
+        "400":
+          description: Invalid currency data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Currency not found
           content:
             application/json:
               schema:
@@ -454,14 +544,89 @@ paths:
     get:
       operationId: listExpenses
       tags: [expenses]
-      summary: List expenses
+      summary: Search, filter, sort, and page through expenses
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: Case-insensitive match on description, notes, category, or project name
+          schema:
+            type: string
+            maxLength: 80
+        - name: from
+          in: query
+          required: false
+          description: Include expenses on or after this date
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: to
+          in: query
+          required: false
+          description: Include expenses on or before this date
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: labelId
+          in: query
+          required: false
+          description: Only expenses carrying this label
+          schema:
+            type: string
+            format: uuid
+        - name: paymentMethod
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ExpensePaymentMethod"
+        - name: currencyId
+          in: query
+          required: false
+          description: Filter expenses by currency
+          schema:
+            type: string
+            format: uuid
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [newest, oldest, highest, lowest]
+            default: newest
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
       responses:
         "200":
-          description: Expenses ordered by date, newest first
+          description: A page of expenses matching the search, filters, and sort
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ExpenseCollection"
+                $ref: "#/components/schemas/ExpensePage"
     post:
       operationId: createExpense
       tags: [expenses]
@@ -564,6 +729,237 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Aggregated spending overview for the home dashboard
+      description: Returns period totals, recent expenses, category and project breakdowns for the current month, and a spending trend series.
+      parameters:
+        - name: granularity
+          in: query
+          required: false
+          description: Bucket size for the spending trend
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: month
+        - name: recentLimit
+          in: query
+          required: false
+          description: How many recent expenses to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+      responses:
+        "200":
+          description: Dashboard totals, recent expenses, breakdowns, and trend
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+  /reports/period:
+    get:
+      operationId: getPeriodReport
+      tags: [reports]
+      summary: Spending report for a date range
+      description: Returns totals, category/project/label breakdowns, and a daily spending trend for an inclusive date range.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Inclusive start date
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: to
+          in: query
+          required: true
+          description: Inclusive end date
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+      responses:
+        "200":
+          description: Totals, breakdowns, and a daily trend for the range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodReport"
+        "400":
+          description: Invalid or inverted date range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /reports/projects:
+    get:
+      operationId: getProjectReports
+      tags: [reports]
+      summary: Per-project spending reports
+      description: Returns every project with its total spending, expense count, category breakdown, and monthly trend.
+      parameters:
+        - name: months
+          in: query
+          required: false
+          description: Number of trailing months to include in each monthly trend
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 24
+            default: 6
+      responses:
+        "200":
+          description: A report for every project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectReportCollection"
+  /reports/categories:
+    get:
+      operationId: getCategoryReports
+      tags: [reports]
+      summary: Per-category spending reports
+      description: Returns every category with its total spending, expense count, project distribution, and monthly trend.
+      parameters:
+        - name: months
+          in: query
+          required: false
+          description: Number of trailing months to include in each monthly trend
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 24
+            default: 6
+      responses:
+        "200":
+          description: A report for every category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryReportCollection"
+  /reports/labels:
+    get:
+      operationId: getLabelReports
+      tags: [reports]
+      summary: Per-label spending reports
+      description: Returns every label with its total spending, expense count, and monthly trend.
+      parameters:
+        - name: months
+          in: query
+          required: false
+          description: Number of trailing months to include in each monthly trend
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 24
+            default: 6
+      responses:
+        "200":
+          description: A report for every label
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelReportCollection"
+
+  /export/expenses:
+    get:
+      operationId: exportExpensesCsv
+      tags: [backup]
+      summary: Export expenses as CSV
+      description: Returns every expense as a comma-separated values document.
+      responses:
+        "200":
+          description: Expenses in CSV format
+          content:
+            text/csv:
+              schema:
+                type: string
+  /export/projects:
+    get:
+      operationId: exportProjectsCsv
+      tags: [backup]
+      summary: Export projects as CSV
+      description: Returns every project as a comma-separated values document.
+      responses:
+        "200":
+          description: Projects in CSV format
+          content:
+            text/csv:
+              schema:
+                type: string
+  /export/categories:
+    get:
+      operationId: exportCategoriesCsv
+      tags: [backup]
+      summary: Export categories as CSV
+      description: Returns every category as a comma-separated values document.
+      responses:
+        "200":
+          description: Categories in CSV format
+          content:
+            text/csv:
+              schema:
+                type: string
+  /export/labels:
+    get:
+      operationId: exportLabelsCsv
+      tags: [backup]
+      summary: Export labels as CSV
+      description: Returns every label as a comma-separated values document.
+      responses:
+        "200":
+          description: Labels in CSV format
+          content:
+            text/csv:
+              schema:
+                type: string
+  /backup:
+    get:
+      operationId: getBackup
+      tags: [backup]
+      summary: Download a complete backup
+      description: Returns a portable JSON document containing every project, category, label, expense, and expense-label relationship.
+      responses:
+        "200":
+          description: A complete backup document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupDocument"
+  /backup/import:
+    post:
+      operationId: importBackup
+      tags: [backup]
+      summary: Import a backup
+      description: Validates and merges a previously exported backup document. Existing records with matching identifiers are updated; new records are created. Nothing is deleted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackupDocument"
+      responses:
+        "200":
+          description: Summary of what was imported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupImportResult"
+        "400":
+          description: The backup failed validation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The backup conflicts with existing data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   schemas:
@@ -581,6 +977,113 @@ components:
           type: string
       required:
         - error
+    Currency:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          minLength: 3
+          maxLength: 3
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 8
+        decimalPlaces:
+          type: integer
+          minimum: 0
+          maximum: 4
+        isActive:
+          type: boolean
+      required:
+        - id
+        - code
+        - name
+        - symbol
+        - decimalPlaces
+        - isActive
+    CurrencyAmount:
+      type: object
+      properties:
+        currency:
+          $ref: "#/components/schemas/Currency"
+        total:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        count:
+          type: integer
+          minimum: 0
+        share:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Share of the matching same-currency total. Never compares across currencies.
+      required:
+        - currency
+        - total
+        - count
+    CurrencyAverage:
+      type: object
+      properties:
+        currency:
+          $ref: "#/components/schemas/Currency"
+        amount:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+      required:
+        - currency
+        - amount
+    CurrencyInput:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          minLength: 3
+          maxLength: 3
+          pattern: "^[A-Z]{3}$"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 8
+        decimalPlaces:
+          type: integer
+          minimum: 0
+          maximum: 4
+        isActive:
+          type: boolean
+      required:
+        - code
+        - name
+        - symbol
+    CurrencyUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 8
+        decimalPlaces:
+          type: integer
+          minimum: 0
+          maximum: 4
+        isActive:
+          type: boolean
     Project:
       type: object
       properties:
@@ -601,6 +1104,8 @@ components:
         status:
           type: string
           enum: [active, archived]
+        defaultCurrency:
+          $ref: "#/components/schemas/Currency"
         createdAt:
           type: string
           format: date-time
@@ -614,6 +1119,7 @@ components:
         - color
         - icon
         - status
+        - defaultCurrency
         - createdAt
         - updatedAt
     ProjectInput:
@@ -633,8 +1139,12 @@ components:
         icon:
           type: string
           maxLength: 64
+        defaultCurrencyId:
+          type: string
+          format: uuid
       required:
         - name
+        - defaultCurrencyId
     ProjectUpdate:
       type: object
       additionalProperties: false
@@ -652,19 +1162,23 @@ components:
         icon:
           type: [string, "null"]
           maxLength: 64
+        defaultCurrencyId:
+          type: string
+          format: uuid
     ProjectListItem:
       allOf:
         - $ref: "#/components/schemas/Project"
         - type: object
           properties:
-            totalSpent:
-              type: string
-              pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+            totals:
+              type: array
+              items:
+                $ref: "#/components/schemas/CurrencyAmount"
             expenseCount:
               type: integer
               minimum: 0
           required:
-            - totalSpent
+            - totals
             - expenseCount
     ProjectCollection:
       type: array
@@ -682,9 +1196,10 @@ components:
           type: string
         categoryIcon:
           type: [string, "null"]
-        totalSpent:
-          type: string
-          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
         expenseCount:
           type: integer
           minimum: 0
@@ -693,7 +1208,7 @@ components:
         - categoryName
         - categoryColor
         - categoryIcon
-        - totalSpent
+        - totals
         - expenseCount
     ProjectRecentExpense:
       type: object
@@ -721,6 +1236,8 @@ components:
         paymentMethod:
           type: [string, "null"]
           enum: [cash, credit_card, debit_card, bank_transfer, upi, other, null]
+        currency:
+          $ref: "#/components/schemas/Currency"
       required:
         - id
         - amount
@@ -731,14 +1248,16 @@ components:
         - categoryColor
         - categoryIcon
         - paymentMethod
+        - currency
     ProjectDetail:
       type: object
       properties:
         project:
           $ref: "#/components/schemas/Project"
-        totalSpent:
-          type: string
-          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
         expenseCount:
           type: integer
           minimum: 0
@@ -752,7 +1271,7 @@ components:
             $ref: "#/components/schemas/ProjectRecentExpense"
       required:
         - project
-        - totalSpent
+        - totals
         - expenseCount
         - categoryBreakdown
         - recentExpenses
@@ -823,14 +1342,15 @@ components:
         - $ref: "#/components/schemas/Category"
         - type: object
           properties:
-            totalSpent:
-              type: string
-              pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+            totals:
+              type: array
+              items:
+                $ref: "#/components/schemas/CurrencyAmount"
             expenseCount:
               type: integer
               minimum: 0
           required:
-            - totalSpent
+            - totals
             - expenseCount
     CategoryCollection:
       type: array
@@ -861,24 +1381,26 @@ components:
         month:
           type: string
           pattern: "^\\d{4}-\\d{2}$"
-        totalSpent:
-          type: string
-          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
         expenseCount:
           type: integer
           minimum: 0
       required:
         - month
-        - totalSpent
+        - totals
         - expenseCount
     CategoryDetail:
       type: object
       properties:
         category:
           $ref: "#/components/schemas/Category"
-        totalSpent:
-          type: string
-          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
         expenseCount:
           type: integer
           minimum: 0
@@ -892,7 +1414,7 @@ components:
             $ref: "#/components/schemas/CategoryMonthlySpending"
       required:
         - category
-        - totalSpent
+        - totals
         - expenseCount
         - recentExpenses
         - monthlySpending
@@ -1048,6 +1570,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ExpenseLabel"
+        currency:
+          $ref: "#/components/schemas/Currency"
       required:
         - id
         - amount
@@ -1063,10 +1587,343 @@ components:
         - project
         - category
         - labels
-    ExpenseCollection:
+        - currency
+    ExpensePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExpenseRecord"
+        total:
+          type: integer
+          description: Total expenses matching the current search and filters
+        totals:
+          type: array
+          description: Sum of all matching expenses grouped by currency
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        hasMore:
+          type: boolean
+      required: [items, total, totals, limit, offset, hasMore]
+    DashboardSummary:
+      type: object
+      properties:
+        today:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        week:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        month:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        allTime:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+      required: [today, week, month, allTime]
+    DashboardCategorySpending:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/ExpenseCategory"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [category, totals, count]
+    DashboardProjectSpending:
+      type: object
+      properties:
+        project:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseProject"
+            - type: "null"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [project, totals, count]
+    DashboardTrendBucket:
+      type: object
+      properties:
+        start:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [start, totals, count]
+    DashboardTrend:
+      type: object
+      properties:
+        granularity:
+          type: string
+          enum: [day, week, month]
+        buckets:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardTrendBucket"
+      required: [granularity, buckets]
+    Dashboard:
+      type: object
+      properties:
+        summary:
+          $ref: "#/components/schemas/DashboardSummary"
+        recentExpenses:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExpenseRecord"
+        categorySpending:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardCategorySpending"
+        projectSpending:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardProjectSpending"
+        trend:
+          $ref: "#/components/schemas/DashboardTrend"
+      required: [summary, recentExpenses, categorySpending, projectSpending, trend]
+    ReportRange:
+      type: object
+      properties:
+        from:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        to:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+      required: [from, to]
+    ReportSummary:
+      type: object
+      properties:
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+        averages:
+          type: array
+          description: Average expense amount per currency
+          items:
+            $ref: "#/components/schemas/CurrencyAverage"
+        days:
+          type: integer
+          minimum: 1
+      required: [totals, count, averages, days]
+    ReportCategoryBreakdown:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/ExpenseCategory"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [category, totals, count]
+    ReportProjectBreakdown:
+      type: object
+      properties:
+        project:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseProject"
+            - type: "null"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [project, totals, count]
+    ReportLabelBreakdown:
+      type: object
+      properties:
+        label:
+          $ref: "#/components/schemas/ExpenseLabel"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [label, totals, count]
+    ReportDayBucket:
+      type: object
+      properties:
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [date, totals, count]
+    PeriodReport:
+      type: object
+      properties:
+        range:
+          $ref: "#/components/schemas/ReportRange"
+        summary:
+          $ref: "#/components/schemas/ReportSummary"
+        categoryBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportCategoryBreakdown"
+        projectBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportProjectBreakdown"
+        labelBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportLabelBreakdown"
+        dailyTrend:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportDayBucket"
+      required: [range, summary, categoryBreakdown, projectBreakdown, labelBreakdown, dailyTrend]
+    ReportMonthlyBucket:
+      type: object
+      properties:
+        month:
+          type: string
+          pattern: "^\\d{4}-\\d{2}$"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [month, totals, count]
+    ReportCategoryRow:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/ExpenseCategory"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [category, totals, count]
+    ReportProject:
+      type: object
+      properties:
+        project:
+          $ref: "#/components/schemas/Project"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+        categoryBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportCategoryRow"
+        monthlyTrend:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportMonthlyBucket"
+      required: [project, totals, count, categoryBreakdown, monthlyTrend]
+    ProjectReportCollection:
       type: array
       items:
-        $ref: "#/components/schemas/ExpenseRecord"
+        $ref: "#/components/schemas/ReportProject"
+    ReportProjectDistributionRow:
+      type: object
+      properties:
+        project:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseProject"
+            - type: "null"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [project, totals, count]
+    ReportCategory:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/Category"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+        projectDistribution:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportProjectDistributionRow"
+        monthlyTrend:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportMonthlyBucket"
+      required: [category, totals, count, projectDistribution, monthlyTrend]
+    CategoryReportCollection:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReportCategory"
+    ReportLabel:
+      type: object
+      properties:
+        label:
+          $ref: "#/components/schemas/Label"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+        monthlyTrend:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportMonthlyBucket"
+      required: [label, totals, count, monthlyTrend]
+    LabelReportCollection:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReportLabel"
     ExpenseInput:
       type: object
       additionalProperties: false
@@ -1100,7 +1957,10 @@ components:
         notes:
           type: [string, "null"]
           maxLength: 4000
-      required: [amount, date, categoryId]
+        currencyId:
+          type: string
+          format: uuid
+      required: [amount, date, categoryId, currencyId]
     ExpenseUpdate:
       type: object
       additionalProperties: false
@@ -1134,4 +1994,224 @@ components:
         notes:
           type: [string, "null"]
           maxLength: 4000
+        currencyId:
+          type: string
+          format: uuid
+    BackupProject:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: [string, "null"]
+          maxLength: 4000
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        icon:
+          type: [string, "null"]
+          maxLength: 64
+        status:
+          type: string
+          enum: [active, archived]
+        defaultCurrency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, color, status, defaultCurrency]
+    BackupCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        icon:
+          type: [string, "null"]
+          maxLength: 64
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, color, status]
+    BackupLabel:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, color, status]
+    BackupExpense:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        amount:
+          type: string
+          pattern: "^[0-9]{1,12}(\\.[0-9]{1,2})?$"
+          maxLength: 15
+        date:
+          type: string
+          format: date
+        projectId:
+          type: [string, "null"]
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        description:
+          type: [string, "null"]
+          maxLength: 1000
+        paymentMethod:
+          anyOf:
+            - $ref: "#/components/schemas/ExpensePaymentMethod"
+            - type: "null"
+        notes:
+          type: [string, "null"]
+          maxLength: 4000
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, amount, date, categoryId, currency]
+    BackupExpenseLabel:
+      type: object
+      properties:
+        expenseId:
+          type: string
+          format: uuid
+        labelId:
+          type: string
+          format: uuid
+      required: [expenseId, labelId]
+    BackupDocumentCounts:
+      type: object
+      properties:
+        projects:
+          type: integer
+          minimum: 0
+        categories:
+          type: integer
+          minimum: 0
+        labels:
+          type: integer
+          minimum: 0
+        expenses:
+          type: integer
+          minimum: 0
+        expenseLabels:
+          type: integer
+          minimum: 0
+    BackupDocument:
+      type: object
+      properties:
+        format:
+          type: string
+          enum: [pocketful-backup]
+        version:
+          type: integer
+          minimum: 1
+        exportedAt:
+          type: string
+          format: date-time
+        counts:
+          $ref: "#/components/schemas/BackupDocumentCounts"
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/BackupProject"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/BackupCategory"
+        labels:
+          type: array
+          items:
+            $ref: "#/components/schemas/BackupLabel"
+        expenses:
+          type: array
+          items:
+            $ref: "#/components/schemas/BackupExpense"
+        expenseLabels:
+          type: array
+          items:
+            $ref: "#/components/schemas/BackupExpenseLabel"
+      required: [format, version, projects, categories, labels, expenses, expenseLabels]
+    BackupImportCount:
+      type: object
+      properties:
+        created:
+          type: integer
+          minimum: 0
+        updated:
+          type: integer
+          minimum: 0
+        skipped:
+          type: integer
+          minimum: 0
+      required: [created, updated, skipped]
+    BackupImportResult:
+      type: object
+      properties:
+        projects:
+          $ref: "#/components/schemas/BackupImportCount"
+        categories:
+          $ref: "#/components/schemas/BackupImportCount"
+        labels:
+          $ref: "#/components/schemas/BackupImportCount"
+        expenses:
+          $ref: "#/components/schemas/BackupImportCount"
+        expenseLabels:
+          type: integer
+          minimum: 0
+        warnings:
+          type: array
+          items:
+            type: string
+      required: [projects, categories, labels, expenses, expenseLabels, warnings]
 

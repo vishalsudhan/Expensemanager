@@ -11,6 +11,7 @@ import {
 } from '@workspace/api-client-react';
 import type { Label, LabelInput, LabelUpdate, ListLabelsParams } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
+import { errorText } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -30,11 +31,6 @@ const formSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Choose a valid color.'),
 });
 type FormValues = z.infer<typeof formSchema>;
-
-const errorText = (error: unknown) => {
-  if (error && typeof error === 'object' && 'error' in error && typeof error.error === 'string') return error.error;
-  return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
-};
 
 function LabelFormDialog({ open, onOpenChange, label }: {
   open: boolean; onOpenChange: (open: boolean) => void; label?: Label | null;
@@ -179,7 +175,6 @@ function ArchiveConfirmation({ label, open, onOpenChange }: {
           <AlertDialogAction
             disabled={archive.isPending}
             onClick={(event) => { event.preventDefault(); confirm(); }}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             data-testid="button-confirm-archive-label"
           >
             {archive.isPending ? 'Archiving…' : 'Archive label'}
@@ -239,7 +234,7 @@ export function LabelListPage() {
       ) : query.data?.length ? (
         <div className="mt-5 space-y-3" data-testid="list-labels">
           {query.data.map((label) => (
-            <article key={label.id} className="flex flex-col gap-4 rounded-[20px] border border-border/70 bg-card px-4 py-4 transition-all hover:border-primary/25 hover:shadow-[0_12px_36px_-30px_hsl(163_18%_19%/.4)] sm:flex-row sm:items-center sm:px-5" data-testid={`card-label-${label.id}`}>
+            <article key={label.id} className="flex flex-col gap-4 rounded-[20px] border border-border/70 bg-card px-4 py-4 transition-all hover:border-primary/25 hover:shadow-[0_12px_36px_-30px_var(--hover-shadow)] sm:flex-row sm:items-center sm:px-5" data-testid={`card-label-${label.id}`}>
               <div className="flex min-w-0 flex-1 items-center gap-4">
                 <div className="grid size-10 shrink-0 place-items-center rounded-xl" style={{ backgroundColor: `${label.color}1B`, color: label.color }} aria-hidden="true"><Hash size={17} strokeWidth={1.8} /></div>
                 <div className="min-w-0">

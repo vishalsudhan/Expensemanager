@@ -1,11 +1,5 @@
 import { Router, type IRouter } from "express";
-import {
-  asc,
-  count,
-  desc,
-  eq,
-  sql,
-} from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import {
   ArchiveProjectParams,
   ArchiveProjectResponse,
@@ -19,17 +13,61 @@ import {
   UpdateProjectParams,
   UpdateProjectResponse,
 } from "@workspace/api-zod";
+import type { Currency, CurrencyAmount } from "@workspace/api-zod";
 import {
   categoriesTable,
+  currenciesTable,
   db,
   expensesTable,
   projectsTable,
 } from "@workspace/db";
+import {
+  currencyAmountSum,
+  currencyColumns,
+  currencyExpenseCount,
+  totalCount,
+} from "../lib/currency-amounts";
 
 const router: IRouter = Router();
 
-const totalSpent = sql<string>`coalesce(sum(${expensesTable.amount}), 0)::text`.mapWith(String);
-const expenseCount = count(expensesTable.id);
+const projectColumns = {
+  id: projectsTable.id,
+  name: projectsTable.name,
+  description: projectsTable.description,
+  color: projectsTable.color,
+  icon: projectsTable.icon,
+  status: projectsTable.status,
+  defaultCurrencyId: projectsTable.defaultCurrencyId,
+  createdAt: projectsTable.createdAt,
+  updatedAt: projectsTable.updatedAt,
+};
+
+const joinedCurrencySelection = {
+  currencyId: currenciesTable.id,
+  currencyCode: currenciesTable.code,
+  currencyName: currenciesTable.name,
+  currencySymbol: currenciesTable.symbol,
+  currencyDecimalPlaces: currenciesTable.decimalPlaces,
+  currencyIsActive: currenciesTable.isActive,
+};
+
+function toCurrency(row: {
+  currencyId: string;
+  currencyCode: string;
+  currencyName: string;
+  currencySymbol: string;
+  currencyDecimalPlaces: number;
+  currencyIsActive: boolean;
+}): Currency {
+  return {
+    id: row.currencyId,
+    code: row.currencyCode,
+    name: row.currencyName,
+    symbol: row.currencySymbol,
+    decimalPlaces: row.currencyDecimalPlaces,
+    isActive: row.currencyIsActive,
+  };
+}
 
 function isUniqueConstraintError(error: unknown, depth = 0): boolean {
   if (typeof error !== "object" || error === null || depth > 4) return false;
@@ -47,35 +85,61 @@ router.get("/projects", async (req, res): Promise<void> => {
   }
 
   const status = parsed.data.status ?? "active";
-  const statusCondition =
-    status === "all" ? undefined : eq(projectsTable.status, status);
+  const statusCondition = status === "all" ? undefined : eq(projectsTable.status, status);
 
-  const projects = await db
-    .select({
-      id: projectsTable.id,
-      name: projectsTable.name,
-      description: projectsTable.description,
-      color: projectsTable.color,
-      icon: projectsTable.icon,
-      status: projectsTable.status,
-      createdAt: projectsTable.createdAt,
-      updatedAt: projectsTable.updatedAt,
-      totalSpent,
-      expenseCount,
-    })
-    .from(projectsTable)
-    .leftJoin(expensesTable, eq(expensesTable.projectId, projectsTable.id))
-    .where(statusCondition)
-    .groupBy(projectsTable.id)
-    .orderBy(desc(projectsTable.updatedAt), asc(projectsTable.name));
+  const [projects, totalsRows] = await Promise.all([
+    db
+      .select({ ...projectColumns, ...joinedCurrencySelection })
+      .from(projectsTable)
+      .innerJoin(currenciesTable, eq(projectsTable.defaultCurrencyId, currenciesTable.id))
+      .where(statusCondition)
+      .orderBy(desc(projectsTable.updatedAt), asc(projectsTable.name)),
+    db
+      .select({
+        entityId: expensesTable.projectId,
+        ...currencyColumns,
+        total: currencyAmountSum,
+        count: currencyExpenseCount,
+      })
+      .from(expensesTable)
+      .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+      .groupBy(expensesTable.projectId, currenciesTable.id),
+  ]);
 
-  res.json(ListProjectsResponse.parse(projects));
+  const totalsByProject = new Map<string, CurrencyAmount[]>();
+  for (const row of totalsRows) {
+    if (!row.entityId) continue;
+    const list = totalsByProject.get(row.entityId) ?? [];
+    list.push({ currency: toCurrency(row), total: String(row.total), count: Number(row.count) });
+    totalsByProject.set(row.entityId, list);
+  }
+
+  res.json(
+    ListProjectsResponse.parse(
+      projects.map((project) => {
+        const totals = totalsByProject.get(project.id) ?? [];
+        return {
+          id: project.id,
+          name: project.name,
+          description: project.description,
+          color: project.color,
+          icon: project.icon,
+          status: project.status,
+          defaultCurrency: toCurrency(project),
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+          totals: totals.sort((a, b) => a.currency.code.localeCompare(b.currency.code)),
+          expenseCount: totalCount(totals),
+        };
+      }),
+    ),
+  );
 });
 
 router.post("/projects", async (req, res): Promise<void> => {
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Enter a valid project name and details." });
+    res.status(400).json({ error: "Enter a valid project name, default currency, and details." });
     return;
   }
 
@@ -85,16 +149,41 @@ router.post("/projects", async (req, res): Promise<void> => {
     return;
   }
 
-  try {
-    const [project] = await db
-      .insert(projectsTable)
-      .values({ ...parsed.data, name })
-      .returning();
+  const { defaultCurrencyId, ...rest } = parsed.data;
 
-    res.status(201).json(CreateProjectResponse.parse(project));
+  try {
+    const [created] = await db
+      .insert(projectsTable)
+      .values({ ...rest, name, defaultCurrencyId })
+      .returning({ id: projectsTable.id });
+
+    const [project] = await db
+      .select({ ...projectColumns, ...joinedCurrencySelection })
+      .from(projectsTable)
+      .innerJoin(currenciesTable, eq(projectsTable.defaultCurrencyId, currenciesTable.id))
+      .where(eq(projectsTable.id, created!.id))
+      .limit(1);
+
+    res.status(201).json(
+      CreateProjectResponse.parse({
+        id: project!.id,
+        name: project!.name,
+        description: project!.description,
+        color: project!.color,
+        icon: project!.icon,
+        status: project!.status,
+        defaultCurrency: toCurrency(project!),
+        createdAt: project!.createdAt,
+        updatedAt: project!.updatedAt,
+      }),
+    );
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       res.status(409).json({ error: "A project with this name already exists." });
+      return;
+    }
+    if (["23503", "23514"].includes(String((error as { code?: string }).code))) {
+      res.status(400).json({ error: "Check the selected default currency." });
       return;
     }
     throw error;
@@ -109,8 +198,9 @@ router.get("/projects/:projectId", async (req, res): Promise<void> => {
   }
 
   const [project] = await db
-    .select()
+    .select({ ...projectColumns, ...joinedCurrencySelection })
     .from(projectsTable)
+    .innerJoin(currenciesTable, eq(projectsTable.defaultCurrencyId, currenciesTable.id))
     .where(eq(projectsTable.id, params.data.projectId))
     .limit(1);
 
@@ -119,54 +209,111 @@ router.get("/projects/:projectId", async (req, res): Promise<void> => {
     return;
   }
 
-  const [totals] = await db
-    .select({
-      totalSpent: sql<string>`coalesce(sum(${expensesTable.amount}), 0)::text`.mapWith(String),
-      expenseCount: count(expensesTable.id),
-    })
-    .from(expensesTable)
-    .where(eq(expensesTable.projectId, project.id));
+  const [totalsRows, categoryRows, recentExpenses] = await Promise.all([
+    db
+      .select({ ...currencyColumns, total: currencyAmountSum, count: currencyExpenseCount })
+      .from(expensesTable)
+      .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+      .where(eq(expensesTable.projectId, project.id))
+      .groupBy(currenciesTable.id),
+    db
+      .select({
+        entityId: categoriesTable.id,
+        categoryId: categoriesTable.id,
+        categoryName: categoriesTable.name,
+        categoryColor: categoriesTable.color,
+        categoryIcon: categoriesTable.icon,
+        ...currencyColumns,
+        total: currencyAmountSum,
+        count: currencyExpenseCount,
+      })
+      .from(expensesTable)
+      .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
+      .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+      .where(eq(expensesTable.projectId, project.id))
+      .groupBy(categoriesTable.id, currenciesTable.id)
+      .orderBy(desc(sql`sum(${expensesTable.amount})`), asc(categoriesTable.name)),
+    db
+      .select({
+        id: expensesTable.id,
+        amount: expensesTable.amount,
+        date: expensesTable.date,
+        description: expensesTable.description,
+        categoryId: categoriesTable.id,
+        categoryName: categoriesTable.name,
+        categoryColor: categoriesTable.color,
+        categoryIcon: categoriesTable.icon,
+        paymentMethod: expensesTable.paymentMethod,
+        ...joinedCurrencySelection,
+      })
+      .from(expensesTable)
+      .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
+      .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+      .where(eq(expensesTable.projectId, project.id))
+      .orderBy(desc(expensesTable.date), desc(expensesTable.createdAt))
+      .limit(5),
+  ]);
 
-  const categoryBreakdown = await db
-    .select({
-      categoryId: categoriesTable.id,
-      categoryName: categoriesTable.name,
-      categoryColor: categoriesTable.color,
-      categoryIcon: categoriesTable.icon,
-      totalSpent: sql<string>`coalesce(sum(${expensesTable.amount}), 0)::text`.mapWith(String),
-      expenseCount: count(expensesTable.id),
-    })
-    .from(expensesTable)
-    .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
-    .where(eq(expensesTable.projectId, project.id))
-    .groupBy(categoriesTable.id)
-    .orderBy(desc(sql`sum(${expensesTable.amount})`), asc(categoriesTable.name));
+  const totals: CurrencyAmount[] = totalsRows
+    .map((row) => ({ currency: toCurrency(row), total: String(row.total), count: Number(row.count) }))
+    .sort((a, b) => a.currency.code.localeCompare(b.currency.code));
 
-  const recentExpenses = await db
-    .select({
-      id: expensesTable.id,
-      amount: expensesTable.amount,
-      date: expensesTable.date,
-      description: expensesTable.description,
-      categoryId: categoriesTable.id,
-      categoryName: categoriesTable.name,
-      categoryColor: categoriesTable.color,
-      categoryIcon: categoriesTable.icon,
-      paymentMethod: expensesTable.paymentMethod,
+  const categoryTotals = new Map<string, CurrencyAmount[]>();
+  const categorySeen = new Set<string>();
+  const categoryBreakdown = categoryRows
+    .filter((row) => {
+      if (categorySeen.has(row.categoryId)) return false;
+      categorySeen.add(row.categoryId);
+      return true;
     })
-    .from(expensesTable)
-    .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
-    .where(eq(expensesTable.projectId, project.id))
-    .orderBy(desc(expensesTable.date), desc(expensesTable.createdAt))
-    .limit(5);
+    .map((row) => {
+      const entryTotals: CurrencyAmount[] = categoryRows
+        .filter((candidate) => candidate.categoryId === row.categoryId)
+        .map((candidate) => ({
+          currency: toCurrency(candidate),
+          total: String(candidate.total),
+          count: Number(candidate.count),
+        }))
+        .sort((a, b) => a.currency.code.localeCompare(b.currency.code));
+      categoryTotals.set(row.categoryId, entryTotals);
+      return {
+        categoryId: row.categoryId,
+        categoryName: row.categoryName,
+        categoryColor: row.categoryColor,
+        categoryIcon: row.categoryIcon,
+        totals: entryTotals,
+        expenseCount: totalCount(entryTotals),
+      };
+    });
 
   res.json(
     GetProjectResponse.parse({
-      project,
-      totalSpent: totals?.totalSpent ?? "0",
-      expenseCount: totals?.expenseCount ?? 0,
+      project: {
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        color: project.color,
+        icon: project.icon,
+        status: project.status,
+        defaultCurrency: toCurrency(project),
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+      },
+      totals,
+      expenseCount: totalCount(totals),
       categoryBreakdown,
-      recentExpenses,
+      recentExpenses: recentExpenses.map((expense) => ({
+        id: expense.id,
+        amount: String(expense.amount),
+        date: expense.date,
+        description: expense.description,
+        categoryId: expense.categoryId,
+        categoryName: expense.categoryName,
+        categoryColor: expense.categoryColor,
+        categoryIcon: expense.categoryIcon,
+        paymentMethod: expense.paymentMethod,
+        currency: toCurrency(expense),
+      })),
     }),
   );
 });
@@ -198,17 +345,40 @@ router.patch("/projects/:projectId", async (req, res): Promise<void> => {
       .update(projectsTable)
       .set(changes)
       .where(eq(projectsTable.id, params.data.projectId))
-      .returning();
+      .returning({ id: projectsTable.id });
 
     if (!project) {
       res.status(404).json({ error: "Project not found." });
       return;
     }
 
-    res.json(UpdateProjectResponse.parse(project));
+    const [updated] = await db
+      .select({ ...projectColumns, ...joinedCurrencySelection })
+      .from(projectsTable)
+      .innerJoin(currenciesTable, eq(projectsTable.defaultCurrencyId, currenciesTable.id))
+      .where(eq(projectsTable.id, params.data.projectId))
+      .limit(1);
+
+    res.json(
+      UpdateProjectResponse.parse({
+        id: updated!.id,
+        name: updated!.name,
+        description: updated!.description,
+        color: updated!.color,
+        icon: updated!.icon,
+        status: updated!.status,
+        defaultCurrency: toCurrency(updated!),
+        createdAt: updated!.createdAt,
+        updatedAt: updated!.updatedAt,
+      }),
+    );
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       res.status(409).json({ error: "A project with this name already exists." });
+      return;
+    }
+    if (["23503", "23514"].includes(String((error as { code?: string }).code))) {
+      res.status(400).json({ error: "Check the selected default currency." });
       return;
     }
     throw error;
@@ -226,14 +396,33 @@ router.patch("/projects/:projectId/archive", async (req, res): Promise<void> => 
     .update(projectsTable)
     .set({ status: "archived" })
     .where(eq(projectsTable.id, params.data.projectId))
-    .returning();
+    .returning({ id: projectsTable.id });
 
   if (!project) {
     res.status(404).json({ error: "Project not found." });
     return;
   }
 
-  res.json(ArchiveProjectResponse.parse(project));
+  const [archived] = await db
+    .select({ ...projectColumns, ...joinedCurrencySelection })
+    .from(projectsTable)
+    .innerJoin(currenciesTable, eq(projectsTable.defaultCurrencyId, currenciesTable.id))
+    .where(eq(projectsTable.id, params.data.projectId))
+    .limit(1);
+
+  res.json(
+    ArchiveProjectResponse.parse({
+      id: archived!.id,
+      name: archived!.name,
+      description: archived!.description,
+      color: archived!.color,
+      icon: archived!.icon,
+      status: archived!.status,
+      defaultCurrency: toCurrency(archived!),
+      createdAt: archived!.createdAt,
+      updatedAt: archived!.updatedAt,
+    }),
+  );
 });
 
 export default router;

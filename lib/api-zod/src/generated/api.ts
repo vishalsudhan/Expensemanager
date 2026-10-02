@@ -27,7 +27,32 @@ export const ListProjectsQueryParams = zod.object({
 export const listProjectsResponseOneNameMax = 120;
 
 export const listProjectsResponseOneColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const listProjectsResponseTwoTotalSpentRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const listProjectsResponseOneDefaultCurrencyCodeMin = 3;
+export const listProjectsResponseOneDefaultCurrencyCodeMax = 3;
+
+export const listProjectsResponseOneDefaultCurrencyNameMax = 80;
+
+export const listProjectsResponseOneDefaultCurrencySymbolMax = 8;
+
+export const listProjectsResponseOneDefaultCurrencyDecimalPlacesMin = 0;
+export const listProjectsResponseOneDefaultCurrencyDecimalPlacesMax = 4;
+
+export const listProjectsResponseTwoTotalsItemCurrencyCodeMin = 3;
+export const listProjectsResponseTwoTotalsItemCurrencyCodeMax = 3;
+
+export const listProjectsResponseTwoTotalsItemCurrencyNameMax = 80;
+
+export const listProjectsResponseTwoTotalsItemCurrencySymbolMax = 8;
+
+export const listProjectsResponseTwoTotalsItemCurrencyDecimalPlacesMin = 0;
+export const listProjectsResponseTwoTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const listProjectsResponseTwoTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const listProjectsResponseTwoTotalsItemCountMin = 0;
+
+export const listProjectsResponseTwoTotalsItemShareMin = 0;
+export const listProjectsResponseTwoTotalsItemShareMax = 1;
+
 export const listProjectsResponseTwoExpenseCountMin = 0;
 
 
@@ -39,10 +64,30 @@ export const ListProjectsResponseItem = zod.object({
   "color": zod.string().regex(listProjectsResponseOneColorRegExp),
   "icon": zod.string().nullable(),
   "status": zod.enum(['active', 'archived']),
+  "defaultCurrency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(listProjectsResponseOneDefaultCurrencyCodeMin).max(listProjectsResponseOneDefaultCurrencyCodeMax),
+  "name": zod.string().min(1).max(listProjectsResponseOneDefaultCurrencyNameMax),
+  "symbol": zod.string().min(1).max(listProjectsResponseOneDefaultCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(listProjectsResponseOneDefaultCurrencyDecimalPlacesMin).max(listProjectsResponseOneDefaultCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).and(zod.object({
-  "totalSpent": zod.string().regex(listProjectsResponseTwoTotalSpentRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(listProjectsResponseTwoTotalsItemCurrencyCodeMin).max(listProjectsResponseTwoTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(listProjectsResponseTwoTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(listProjectsResponseTwoTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(listProjectsResponseTwoTotalsItemCurrencyDecimalPlacesMin).max(listProjectsResponseTwoTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(listProjectsResponseTwoTotalsItemTotalRegExp),
+  "count": zod.number().int().min(listProjectsResponseTwoTotalsItemCountMin),
+  "share": zod.number().min(listProjectsResponseTwoTotalsItemShareMin).max(listProjectsResponseTwoTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
   "expenseCount": zod.number().int().min(listProjectsResponseTwoExpenseCountMin)
 }))
 export const ListProjectsResponse = zod.array(ListProjectsResponseItem)
@@ -64,12 +109,23 @@ export const CreateProjectBody = zod.object({
   "name": zod.string().min(1).max(createProjectBodyNameMax),
   "description": zod.string().max(createProjectBodyDescriptionMax).optional(),
   "color": zod.string().regex(createProjectBodyColorRegExp).optional(),
-  "icon": zod.string().max(createProjectBodyIconMax).optional()
+  "icon": zod.string().max(createProjectBodyIconMax).optional(),
+  "defaultCurrencyId": zod.string().uuid()
 })
 
 export const createProjectResponseNameMax = 120;
 
 export const createProjectResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const createProjectResponseDefaultCurrencyCodeMin = 3;
+export const createProjectResponseDefaultCurrencyCodeMax = 3;
+
+export const createProjectResponseDefaultCurrencyNameMax = 80;
+
+export const createProjectResponseDefaultCurrencySymbolMax = 8;
+
+export const createProjectResponseDefaultCurrencyDecimalPlacesMin = 0;
+export const createProjectResponseDefaultCurrencyDecimalPlacesMax = 4;
+
 
 
 export const CreateProjectResponse = zod.object({
@@ -79,6 +135,14 @@ export const CreateProjectResponse = zod.object({
   "color": zod.string().regex(createProjectResponseColorRegExp),
   "icon": zod.string().nullable(),
   "status": zod.enum(['active', 'archived']),
+  "defaultCurrency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(createProjectResponseDefaultCurrencyCodeMin).max(createProjectResponseDefaultCurrencyCodeMax),
+  "name": zod.string().min(1).max(createProjectResponseDefaultCurrencyNameMax),
+  "symbol": zod.string().min(1).max(createProjectResponseDefaultCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(createProjectResponseDefaultCurrencyDecimalPlacesMin).max(createProjectResponseDefaultCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -94,14 +158,64 @@ export const GetProjectParams = zod.object({
 export const getProjectResponseProjectNameMax = 120;
 
 export const getProjectResponseProjectColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const getProjectResponseTotalSpentRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getProjectResponseProjectDefaultCurrencyCodeMin = 3;
+export const getProjectResponseProjectDefaultCurrencyCodeMax = 3;
+
+export const getProjectResponseProjectDefaultCurrencyNameMax = 80;
+
+export const getProjectResponseProjectDefaultCurrencySymbolMax = 8;
+
+export const getProjectResponseProjectDefaultCurrencyDecimalPlacesMin = 0;
+export const getProjectResponseProjectDefaultCurrencyDecimalPlacesMax = 4;
+
+export const getProjectResponseTotalsItemCurrencyCodeMin = 3;
+export const getProjectResponseTotalsItemCurrencyCodeMax = 3;
+
+export const getProjectResponseTotalsItemCurrencyNameMax = 80;
+
+export const getProjectResponseTotalsItemCurrencySymbolMax = 8;
+
+export const getProjectResponseTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getProjectResponseTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getProjectResponseTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getProjectResponseTotalsItemCountMin = 0;
+
+export const getProjectResponseTotalsItemShareMin = 0;
+export const getProjectResponseTotalsItemShareMax = 1;
+
 export const getProjectResponseExpenseCountMin = 0;
 
-export const getProjectResponseCategoryBreakdownItemTotalSpentRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getProjectResponseCategoryBreakdownItemTotalsItemCurrencyCodeMin = 3;
+export const getProjectResponseCategoryBreakdownItemTotalsItemCurrencyCodeMax = 3;
+
+export const getProjectResponseCategoryBreakdownItemTotalsItemCurrencyNameMax = 80;
+
+export const getProjectResponseCategoryBreakdownItemTotalsItemCurrencySymbolMax = 8;
+
+export const getProjectResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getProjectResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getProjectResponseCategoryBreakdownItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getProjectResponseCategoryBreakdownItemTotalsItemCountMin = 0;
+
+export const getProjectResponseCategoryBreakdownItemTotalsItemShareMin = 0;
+export const getProjectResponseCategoryBreakdownItemTotalsItemShareMax = 1;
+
 export const getProjectResponseCategoryBreakdownItemExpenseCountMin = 0;
 
 export const getProjectResponseRecentExpensesItemAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
 export const getProjectResponseRecentExpensesItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getProjectResponseRecentExpensesItemCurrencyCodeMin = 3;
+export const getProjectResponseRecentExpensesItemCurrencyCodeMax = 3;
+
+export const getProjectResponseRecentExpensesItemCurrencyNameMax = 80;
+
+export const getProjectResponseRecentExpensesItemCurrencySymbolMax = 8;
+
+export const getProjectResponseRecentExpensesItemCurrencyDecimalPlacesMin = 0;
+export const getProjectResponseRecentExpensesItemCurrencyDecimalPlacesMax = 4;
+
 
 
 export const GetProjectResponse = zod.object({
@@ -112,17 +226,49 @@ export const GetProjectResponse = zod.object({
   "color": zod.string().regex(getProjectResponseProjectColorRegExp),
   "icon": zod.string().nullable(),
   "status": zod.enum(['active', 'archived']),
+  "defaultCurrency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getProjectResponseProjectDefaultCurrencyCodeMin).max(getProjectResponseProjectDefaultCurrencyCodeMax),
+  "name": zod.string().min(1).max(getProjectResponseProjectDefaultCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getProjectResponseProjectDefaultCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getProjectResponseProjectDefaultCurrencyDecimalPlacesMin).max(getProjectResponseProjectDefaultCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
-  "totalSpent": zod.string().regex(getProjectResponseTotalSpentRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getProjectResponseTotalsItemCurrencyCodeMin).max(getProjectResponseTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getProjectResponseTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getProjectResponseTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getProjectResponseTotalsItemCurrencyDecimalPlacesMin).max(getProjectResponseTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getProjectResponseTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getProjectResponseTotalsItemCountMin),
+  "share": zod.number().min(getProjectResponseTotalsItemShareMin).max(getProjectResponseTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
   "expenseCount": zod.number().int().min(getProjectResponseExpenseCountMin),
   "categoryBreakdown": zod.array(zod.object({
   "categoryId": zod.string().uuid(),
   "categoryName": zod.string(),
   "categoryColor": zod.string(),
   "categoryIcon": zod.string().nullable(),
-  "totalSpent": zod.string().regex(getProjectResponseCategoryBreakdownItemTotalSpentRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getProjectResponseCategoryBreakdownItemTotalsItemCurrencyCodeMin).max(getProjectResponseCategoryBreakdownItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getProjectResponseCategoryBreakdownItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getProjectResponseCategoryBreakdownItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getProjectResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMin).max(getProjectResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getProjectResponseCategoryBreakdownItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getProjectResponseCategoryBreakdownItemTotalsItemCountMin),
+  "share": zod.number().min(getProjectResponseCategoryBreakdownItemTotalsItemShareMin).max(getProjectResponseCategoryBreakdownItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
   "expenseCount": zod.number().int().min(getProjectResponseCategoryBreakdownItemExpenseCountMin)
 })),
   "recentExpenses": zod.array(zod.object({
@@ -134,7 +280,15 @@ export const GetProjectResponse = zod.object({
   "categoryName": zod.string(),
   "categoryColor": zod.string(),
   "categoryIcon": zod.string().nullable(),
-  "paymentMethod": zod.union([zod.literal('cash'),zod.literal('credit_card'),zod.literal('debit_card'),zod.literal('bank_transfer'),zod.literal('upi'),zod.literal('other'),zod.literal(null)]).nullable()
+  "paymentMethod": zod.union([zod.literal('cash'),zod.literal('credit_card'),zod.literal('debit_card'),zod.literal('bank_transfer'),zod.literal('upi'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getProjectResponseRecentExpensesItemCurrencyCodeMin).max(getProjectResponseRecentExpensesItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getProjectResponseRecentExpensesItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getProjectResponseRecentExpensesItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getProjectResponseRecentExpensesItemCurrencyDecimalPlacesMin).max(getProjectResponseRecentExpensesItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+})
 }))
 })
 
@@ -159,12 +313,23 @@ export const UpdateProjectBody = zod.object({
   "name": zod.string().min(1).max(updateProjectBodyNameMax).optional(),
   "description": zod.string().max(updateProjectBodyDescriptionMax).nullish(),
   "color": zod.string().regex(updateProjectBodyColorRegExp).optional(),
-  "icon": zod.string().max(updateProjectBodyIconMax).nullish()
+  "icon": zod.string().max(updateProjectBodyIconMax).nullish(),
+  "defaultCurrencyId": zod.string().uuid().optional()
 })
 
 export const updateProjectResponseNameMax = 120;
 
 export const updateProjectResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateProjectResponseDefaultCurrencyCodeMin = 3;
+export const updateProjectResponseDefaultCurrencyCodeMax = 3;
+
+export const updateProjectResponseDefaultCurrencyNameMax = 80;
+
+export const updateProjectResponseDefaultCurrencySymbolMax = 8;
+
+export const updateProjectResponseDefaultCurrencyDecimalPlacesMin = 0;
+export const updateProjectResponseDefaultCurrencyDecimalPlacesMax = 4;
+
 
 
 export const UpdateProjectResponse = zod.object({
@@ -174,6 +339,14 @@ export const UpdateProjectResponse = zod.object({
   "color": zod.string().regex(updateProjectResponseColorRegExp),
   "icon": zod.string().nullable(),
   "status": zod.enum(['active', 'archived']),
+  "defaultCurrency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(updateProjectResponseDefaultCurrencyCodeMin).max(updateProjectResponseDefaultCurrencyCodeMax),
+  "name": zod.string().min(1).max(updateProjectResponseDefaultCurrencyNameMax),
+  "symbol": zod.string().min(1).max(updateProjectResponseDefaultCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(updateProjectResponseDefaultCurrencyDecimalPlacesMin).max(updateProjectResponseDefaultCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -189,6 +362,16 @@ export const ArchiveProjectParams = zod.object({
 export const archiveProjectResponseNameMax = 120;
 
 export const archiveProjectResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const archiveProjectResponseDefaultCurrencyCodeMin = 3;
+export const archiveProjectResponseDefaultCurrencyCodeMax = 3;
+
+export const archiveProjectResponseDefaultCurrencyNameMax = 80;
+
+export const archiveProjectResponseDefaultCurrencySymbolMax = 8;
+
+export const archiveProjectResponseDefaultCurrencyDecimalPlacesMin = 0;
+export const archiveProjectResponseDefaultCurrencyDecimalPlacesMax = 4;
+
 
 
 export const ArchiveProjectResponse = zod.object({
@@ -198,8 +381,138 @@ export const ArchiveProjectResponse = zod.object({
   "color": zod.string().regex(archiveProjectResponseColorRegExp),
   "icon": zod.string().nullable(),
   "status": zod.enum(['active', 'archived']),
+  "defaultCurrency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(archiveProjectResponseDefaultCurrencyCodeMin).max(archiveProjectResponseDefaultCurrencyCodeMax),
+  "name": zod.string().min(1).max(archiveProjectResponseDefaultCurrencyNameMax),
+  "symbol": zod.string().min(1).max(archiveProjectResponseDefaultCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(archiveProjectResponseDefaultCurrencyDecimalPlacesMin).max(archiveProjectResponseDefaultCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List currencies
+ */
+export const ListCurrenciesQueryParams = zod.object({
+  "isActive": zod.coerce.boolean().optional()
+})
+
+export const listCurrenciesResponseCodeMin = 3;
+export const listCurrenciesResponseCodeMax = 3;
+
+export const listCurrenciesResponseNameMax = 80;
+
+export const listCurrenciesResponseSymbolMax = 8;
+
+export const listCurrenciesResponseDecimalPlacesMin = 0;
+export const listCurrenciesResponseDecimalPlacesMax = 4;
+
+
+
+export const ListCurrenciesResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(listCurrenciesResponseCodeMin).max(listCurrenciesResponseCodeMax),
+  "name": zod.string().min(1).max(listCurrenciesResponseNameMax),
+  "symbol": zod.string().min(1).max(listCurrenciesResponseSymbolMax),
+  "decimalPlaces": zod.number().int().min(listCurrenciesResponseDecimalPlacesMin).max(listCurrenciesResponseDecimalPlacesMax),
+  "isActive": zod.boolean()
+})
+export const ListCurrenciesResponse = zod.array(ListCurrenciesResponseItem)
+
+
+/**
+ * @summary Create a currency
+ */
+export const createCurrencyBodyCodeMin = 3;
+export const createCurrencyBodyCodeMax = 3;
+
+
+export const createCurrencyBodyCodeRegExp = new RegExp('^[A-Z]{3}$');
+export const createCurrencyBodyNameMax = 80;
+
+export const createCurrencyBodySymbolMax = 8;
+
+export const createCurrencyBodyDecimalPlacesMin = 0;
+export const createCurrencyBodyDecimalPlacesMax = 4;
+
+
+
+export const CreateCurrencyBody = zod.object({
+  "code": zod.string().min(createCurrencyBodyCodeMin).max(createCurrencyBodyCodeMax).regex(createCurrencyBodyCodeRegExp),
+  "name": zod.string().min(1).max(createCurrencyBodyNameMax),
+  "symbol": zod.string().min(1).max(createCurrencyBodySymbolMax),
+  "decimalPlaces": zod.number().int().min(createCurrencyBodyDecimalPlacesMin).max(createCurrencyBodyDecimalPlacesMax).optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const createCurrencyResponseCodeMin = 3;
+export const createCurrencyResponseCodeMax = 3;
+
+export const createCurrencyResponseNameMax = 80;
+
+export const createCurrencyResponseSymbolMax = 8;
+
+export const createCurrencyResponseDecimalPlacesMin = 0;
+export const createCurrencyResponseDecimalPlacesMax = 4;
+
+
+
+export const CreateCurrencyResponse = zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(createCurrencyResponseCodeMin).max(createCurrencyResponseCodeMax),
+  "name": zod.string().min(1).max(createCurrencyResponseNameMax),
+  "symbol": zod.string().min(1).max(createCurrencyResponseSymbolMax),
+  "decimalPlaces": zod.number().int().min(createCurrencyResponseDecimalPlacesMin).max(createCurrencyResponseDecimalPlacesMax),
+  "isActive": zod.boolean()
+})
+
+
+/**
+ * @summary Update a currency (enable/disable)
+ */
+export const UpdateCurrencyParams = zod.object({
+  "currencyId": zod.coerce.string().uuid()
+})
+
+export const updateCurrencyBodyNameMax = 80;
+
+export const updateCurrencyBodySymbolMax = 8;
+
+export const updateCurrencyBodyDecimalPlacesMin = 0;
+export const updateCurrencyBodyDecimalPlacesMax = 4;
+
+
+
+export const UpdateCurrencyBody = zod.object({
+  "name": zod.string().min(1).max(updateCurrencyBodyNameMax).optional(),
+  "symbol": zod.string().min(1).max(updateCurrencyBodySymbolMax).optional(),
+  "decimalPlaces": zod.number().int().min(updateCurrencyBodyDecimalPlacesMin).max(updateCurrencyBodyDecimalPlacesMax).optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const updateCurrencyResponseCodeMin = 3;
+export const updateCurrencyResponseCodeMax = 3;
+
+export const updateCurrencyResponseNameMax = 80;
+
+export const updateCurrencyResponseSymbolMax = 8;
+
+export const updateCurrencyResponseDecimalPlacesMin = 0;
+export const updateCurrencyResponseDecimalPlacesMax = 4;
+
+
+
+export const UpdateCurrencyResponse = zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(updateCurrencyResponseCodeMin).max(updateCurrencyResponseCodeMax),
+  "name": zod.string().min(1).max(updateCurrencyResponseNameMax),
+  "symbol": zod.string().min(1).max(updateCurrencyResponseSymbolMax),
+  "decimalPlaces": zod.number().int().min(updateCurrencyResponseDecimalPlacesMin).max(updateCurrencyResponseDecimalPlacesMax),
+  "isActive": zod.boolean()
 })
 
 
@@ -218,7 +531,22 @@ export const ListCategoriesQueryParams = zod.object({
 export const listCategoriesResponseOneNameMax = 80;
 
 export const listCategoriesResponseOneColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const listCategoriesResponseTwoTotalSpentRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const listCategoriesResponseTwoTotalsItemCurrencyCodeMin = 3;
+export const listCategoriesResponseTwoTotalsItemCurrencyCodeMax = 3;
+
+export const listCategoriesResponseTwoTotalsItemCurrencyNameMax = 80;
+
+export const listCategoriesResponseTwoTotalsItemCurrencySymbolMax = 8;
+
+export const listCategoriesResponseTwoTotalsItemCurrencyDecimalPlacesMin = 0;
+export const listCategoriesResponseTwoTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const listCategoriesResponseTwoTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const listCategoriesResponseTwoTotalsItemCountMin = 0;
+
+export const listCategoriesResponseTwoTotalsItemShareMin = 0;
+export const listCategoriesResponseTwoTotalsItemShareMax = 1;
+
 export const listCategoriesResponseTwoExpenseCountMin = 0;
 
 
@@ -232,7 +560,19 @@ export const ListCategoriesResponseItem = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).and(zod.object({
-  "totalSpent": zod.string().regex(listCategoriesResponseTwoTotalSpentRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(listCategoriesResponseTwoTotalsItemCurrencyCodeMin).max(listCategoriesResponseTwoTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(listCategoriesResponseTwoTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(listCategoriesResponseTwoTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(listCategoriesResponseTwoTotalsItemCurrencyDecimalPlacesMin).max(listCategoriesResponseTwoTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(listCategoriesResponseTwoTotalsItemTotalRegExp),
+  "count": zod.number().int().min(listCategoriesResponseTwoTotalsItemCountMin),
+  "share": zod.number().min(listCategoriesResponseTwoTotalsItemShareMin).max(listCategoriesResponseTwoTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
   "expenseCount": zod.number().int().min(listCategoriesResponseTwoExpenseCountMin)
 }))
 export const ListCategoriesResponse = zod.array(ListCategoriesResponseItem)
@@ -280,13 +620,43 @@ export const GetCategoryParams = zod.object({
 export const getCategoryResponseCategoryNameMax = 80;
 
 export const getCategoryResponseCategoryColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const getCategoryResponseTotalSpentRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getCategoryResponseTotalsItemCurrencyCodeMin = 3;
+export const getCategoryResponseTotalsItemCurrencyCodeMax = 3;
+
+export const getCategoryResponseTotalsItemCurrencyNameMax = 80;
+
+export const getCategoryResponseTotalsItemCurrencySymbolMax = 8;
+
+export const getCategoryResponseTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getCategoryResponseTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getCategoryResponseTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getCategoryResponseTotalsItemCountMin = 0;
+
+export const getCategoryResponseTotalsItemShareMin = 0;
+export const getCategoryResponseTotalsItemShareMax = 1;
+
 export const getCategoryResponseExpenseCountMin = 0;
 
 export const getCategoryResponseRecentExpensesItemAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
 export const getCategoryResponseRecentExpensesItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 export const getCategoryResponseMonthlySpendingItemMonthRegExp = new RegExp('^\\d{4}-\\d{2}$');
-export const getCategoryResponseMonthlySpendingItemTotalSpentRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getCategoryResponseMonthlySpendingItemTotalsItemCurrencyCodeMin = 3;
+export const getCategoryResponseMonthlySpendingItemTotalsItemCurrencyCodeMax = 3;
+
+export const getCategoryResponseMonthlySpendingItemTotalsItemCurrencyNameMax = 80;
+
+export const getCategoryResponseMonthlySpendingItemTotalsItemCurrencySymbolMax = 8;
+
+export const getCategoryResponseMonthlySpendingItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getCategoryResponseMonthlySpendingItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getCategoryResponseMonthlySpendingItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getCategoryResponseMonthlySpendingItemTotalsItemCountMin = 0;
+
+export const getCategoryResponseMonthlySpendingItemTotalsItemShareMin = 0;
+export const getCategoryResponseMonthlySpendingItemTotalsItemShareMax = 1;
+
 export const getCategoryResponseMonthlySpendingItemExpenseCountMin = 0;
 
 
@@ -301,7 +671,19 @@ export const GetCategoryResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
-  "totalSpent": zod.string().regex(getCategoryResponseTotalSpentRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getCategoryResponseTotalsItemCurrencyCodeMin).max(getCategoryResponseTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getCategoryResponseTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getCategoryResponseTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getCategoryResponseTotalsItemCurrencyDecimalPlacesMin).max(getCategoryResponseTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getCategoryResponseTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getCategoryResponseTotalsItemCountMin),
+  "share": zod.number().min(getCategoryResponseTotalsItemShareMin).max(getCategoryResponseTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
   "expenseCount": zod.number().int().min(getCategoryResponseExpenseCountMin),
   "recentExpenses": zod.array(zod.object({
   "id": zod.string().uuid(),
@@ -311,7 +693,19 @@ export const GetCategoryResponse = zod.object({
 })),
   "monthlySpending": zod.array(zod.object({
   "month": zod.string().regex(getCategoryResponseMonthlySpendingItemMonthRegExp),
-  "totalSpent": zod.string().regex(getCategoryResponseMonthlySpendingItemTotalSpentRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getCategoryResponseMonthlySpendingItemTotalsItemCurrencyCodeMin).max(getCategoryResponseMonthlySpendingItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getCategoryResponseMonthlySpendingItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getCategoryResponseMonthlySpendingItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getCategoryResponseMonthlySpendingItemTotalsItemCurrencyDecimalPlacesMin).max(getCategoryResponseMonthlySpendingItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getCategoryResponseMonthlySpendingItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getCategoryResponseMonthlySpendingItemTotalsItemCountMin),
+  "share": zod.number().min(getCategoryResponseMonthlySpendingItemTotalsItemShareMin).max(getCategoryResponseMonthlySpendingItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
   "expenseCount": zod.number().int().min(getCategoryResponseMonthlySpendingItemExpenseCountMin)
 }))
 })
@@ -487,16 +881,70 @@ export const ArchiveLabelResponse = zod.object({
 
 
 /**
- * @summary List expenses
+ * @summary Search, filter, sort, and page through expenses
  */
-export const listExpensesResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
-export const listExpensesResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listExpensesQuerySearchMax = 80;
+
+export const listExpensesQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listExpensesQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listExpensesQuerySortDefault = `newest`;
+export const listExpensesQueryLimitDefault = 20;
+export const listExpensesQueryLimitMax = 100;
+
+export const listExpensesQueryOffsetDefault = 0;
+export const listExpensesQueryOffsetMin = 0;
 
 
-export const ListExpensesResponseItem = zod.object({
+
+export const ListExpensesQueryParams = zod.object({
+  "search": zod.coerce.string().max(listExpensesQuerySearchMax).optional().describe('Case-insensitive match on description, notes, category, or project name'),
+  "from": zod.coerce.string().regex(listExpensesQueryFromRegExp).optional().describe('Include expenses on or after this date'),
+  "to": zod.coerce.string().regex(listExpensesQueryToRegExp).optional().describe('Include expenses on or before this date'),
+  "projectId": zod.coerce.string().uuid().optional(),
+  "categoryId": zod.coerce.string().uuid().optional(),
+  "labelId": zod.coerce.string().uuid().optional().describe('Only expenses carrying this label'),
+  "paymentMethod": zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']).optional(),
+  "currencyId": zod.coerce.string().uuid().optional().describe('Filter expenses by currency'),
+  "sort": zod.enum(['newest', 'oldest', 'highest', 'lowest']).default(listExpensesQuerySortDefault),
+  "limit": zod.coerce.number().int().min(1).max(listExpensesQueryLimitMax).default(listExpensesQueryLimitDefault),
+  "offset": zod.coerce.number().int().min(listExpensesQueryOffsetMin).default(listExpensesQueryOffsetDefault)
+})
+
+export const listExpensesResponseItemsItemAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
+export const listExpensesResponseItemsItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listExpensesResponseItemsItemCurrencyCodeMin = 3;
+export const listExpensesResponseItemsItemCurrencyCodeMax = 3;
+
+export const listExpensesResponseItemsItemCurrencyNameMax = 80;
+
+export const listExpensesResponseItemsItemCurrencySymbolMax = 8;
+
+export const listExpensesResponseItemsItemCurrencyDecimalPlacesMin = 0;
+export const listExpensesResponseItemsItemCurrencyDecimalPlacesMax = 4;
+
+export const listExpensesResponseTotalsItemCurrencyCodeMin = 3;
+export const listExpensesResponseTotalsItemCurrencyCodeMax = 3;
+
+export const listExpensesResponseTotalsItemCurrencyNameMax = 80;
+
+export const listExpensesResponseTotalsItemCurrencySymbolMax = 8;
+
+export const listExpensesResponseTotalsItemCurrencyDecimalPlacesMin = 0;
+export const listExpensesResponseTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const listExpensesResponseTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const listExpensesResponseTotalsItemCountMin = 0;
+
+export const listExpensesResponseTotalsItemShareMin = 0;
+export const listExpensesResponseTotalsItemShareMax = 1;
+
+
+
+export const ListExpensesResponse = zod.object({
+  "items": zod.array(zod.object({
   "id": zod.string().uuid(),
-  "amount": zod.string().regex(listExpensesResponseAmountRegExp),
-  "date": zod.string().regex(listExpensesResponseDateRegExp),
+  "amount": zod.string().regex(listExpensesResponseItemsItemAmountRegExp),
+  "date": zod.string().regex(listExpensesResponseItemsItemDateRegExp),
   "projectId": zod.string().uuid().nullable(),
   "categoryId": zod.string().uuid(),
   "labelIds": zod.array(zod.string().uuid()),
@@ -523,9 +971,34 @@ export const ListExpensesResponseItem = zod.object({
   "name": zod.string(),
   "color": zod.string(),
   "status": zod.enum(['active', 'archived'])
-}))
+})),
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(listExpensesResponseItemsItemCurrencyCodeMin).max(listExpensesResponseItemsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(listExpensesResponseItemsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(listExpensesResponseItemsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(listExpensesResponseItemsItemCurrencyDecimalPlacesMin).max(listExpensesResponseItemsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
 })
-export const ListExpensesResponse = zod.array(ListExpensesResponseItem)
+})),
+  "total": zod.number().int().describe('Total expenses matching the current search and filters'),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(listExpensesResponseTotalsItemCurrencyCodeMin).max(listExpensesResponseTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(listExpensesResponseTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(listExpensesResponseTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(listExpensesResponseTotalsItemCurrencyDecimalPlacesMin).max(listExpensesResponseTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(listExpensesResponseTotalsItemTotalRegExp),
+  "count": zod.number().int().min(listExpensesResponseTotalsItemCountMin),
+  "share": zod.number().min(listExpensesResponseTotalsItemShareMin).max(listExpensesResponseTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})).describe('Sum of all matching expenses grouped by currency'),
+  "limit": zod.number().int(),
+  "offset": zod.number().int(),
+  "hasMore": zod.boolean()
+})
 
 
 /**
@@ -549,11 +1022,22 @@ export const CreateExpenseBody = zod.object({
   "labelIds": zod.array(zod.string().uuid()).optional(),
   "description": zod.string().max(createExpenseBodyDescriptionMax).nullish(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
-  "notes": zod.string().max(createExpenseBodyNotesMax).nullish()
+  "notes": zod.string().max(createExpenseBodyNotesMax).nullish(),
+  "currencyId": zod.string().uuid()
 })
 
 export const createExpenseResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const createExpenseResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const createExpenseResponseCurrencyCodeMin = 3;
+export const createExpenseResponseCurrencyCodeMax = 3;
+
+export const createExpenseResponseCurrencyNameMax = 80;
+
+export const createExpenseResponseCurrencySymbolMax = 8;
+
+export const createExpenseResponseCurrencyDecimalPlacesMin = 0;
+export const createExpenseResponseCurrencyDecimalPlacesMax = 4;
+
 
 
 export const CreateExpenseResponse = zod.object({
@@ -586,7 +1070,15 @@ export const CreateExpenseResponse = zod.object({
   "name": zod.string(),
   "color": zod.string(),
   "status": zod.enum(['active', 'archived'])
-}))
+})),
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(createExpenseResponseCurrencyCodeMin).max(createExpenseResponseCurrencyCodeMax),
+  "name": zod.string().min(1).max(createExpenseResponseCurrencyNameMax),
+  "symbol": zod.string().min(1).max(createExpenseResponseCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(createExpenseResponseCurrencyDecimalPlacesMin).max(createExpenseResponseCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+})
 })
 
 
@@ -599,6 +1091,16 @@ export const GetExpenseParams = zod.object({
 
 export const getExpenseResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const getExpenseResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getExpenseResponseCurrencyCodeMin = 3;
+export const getExpenseResponseCurrencyCodeMax = 3;
+
+export const getExpenseResponseCurrencyNameMax = 80;
+
+export const getExpenseResponseCurrencySymbolMax = 8;
+
+export const getExpenseResponseCurrencyDecimalPlacesMin = 0;
+export const getExpenseResponseCurrencyDecimalPlacesMax = 4;
+
 
 
 export const GetExpenseResponse = zod.object({
@@ -631,7 +1133,15 @@ export const GetExpenseResponse = zod.object({
   "name": zod.string(),
   "color": zod.string(),
   "status": zod.enum(['active', 'archived'])
-}))
+})),
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getExpenseResponseCurrencyCodeMin).max(getExpenseResponseCurrencyCodeMax),
+  "name": zod.string().min(1).max(getExpenseResponseCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getExpenseResponseCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getExpenseResponseCurrencyDecimalPlacesMin).max(getExpenseResponseCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+})
 })
 
 
@@ -660,11 +1170,22 @@ export const UpdateExpenseBody = zod.object({
   "labelIds": zod.array(zod.string().uuid()).optional(),
   "description": zod.string().max(updateExpenseBodyDescriptionMax).nullish(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
-  "notes": zod.string().max(updateExpenseBodyNotesMax).nullish()
+  "notes": zod.string().max(updateExpenseBodyNotesMax).nullish(),
+  "currencyId": zod.string().uuid().optional()
 })
 
 export const updateExpenseResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const updateExpenseResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const updateExpenseResponseCurrencyCodeMin = 3;
+export const updateExpenseResponseCurrencyCodeMax = 3;
+
+export const updateExpenseResponseCurrencyNameMax = 80;
+
+export const updateExpenseResponseCurrencySymbolMax = 8;
+
+export const updateExpenseResponseCurrencyDecimalPlacesMin = 0;
+export const updateExpenseResponseCurrencyDecimalPlacesMax = 4;
+
 
 
 export const UpdateExpenseResponse = zod.object({
@@ -697,7 +1218,15 @@ export const UpdateExpenseResponse = zod.object({
   "name": zod.string(),
   "color": zod.string(),
   "status": zod.enum(['active', 'archived'])
-}))
+})),
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(updateExpenseResponseCurrencyCodeMin).max(updateExpenseResponseCurrencyCodeMax),
+  "name": zod.string().min(1).max(updateExpenseResponseCurrencyNameMax),
+  "symbol": zod.string().min(1).max(updateExpenseResponseCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(updateExpenseResponseCurrencyDecimalPlacesMin).max(updateExpenseResponseCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+})
 })
 
 
@@ -709,5 +1238,1246 @@ export const DeleteExpenseParams = zod.object({
 })
 
 export const DeleteExpenseResponse = zod.void()
+
+
+/**
+ * Returns period totals, recent expenses, category and project breakdowns for the current month, and a spending trend series.
+ * @summary Aggregated spending overview for the home dashboard
+ */
+export const getDashboardQueryGranularityDefault = `month`;
+export const getDashboardQueryRecentLimitDefault = 5;
+export const getDashboardQueryRecentLimitMax = 20;
+
+
+
+export const GetDashboardQueryParams = zod.object({
+  "granularity": zod.enum(['day', 'week', 'month']).default(getDashboardQueryGranularityDefault).describe('Bucket size for the spending trend'),
+  "recentLimit": zod.coerce.number().int().min(1).max(getDashboardQueryRecentLimitMax).default(getDashboardQueryRecentLimitDefault).describe('How many recent expenses to return')
+})
+
+export const getDashboardResponseSummaryTodayItemCurrencyCodeMin = 3;
+export const getDashboardResponseSummaryTodayItemCurrencyCodeMax = 3;
+
+export const getDashboardResponseSummaryTodayItemCurrencyNameMax = 80;
+
+export const getDashboardResponseSummaryTodayItemCurrencySymbolMax = 8;
+
+export const getDashboardResponseSummaryTodayItemCurrencyDecimalPlacesMin = 0;
+export const getDashboardResponseSummaryTodayItemCurrencyDecimalPlacesMax = 4;
+
+export const getDashboardResponseSummaryTodayItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getDashboardResponseSummaryTodayItemCountMin = 0;
+
+export const getDashboardResponseSummaryTodayItemShareMin = 0;
+export const getDashboardResponseSummaryTodayItemShareMax = 1;
+
+export const getDashboardResponseSummaryWeekItemCurrencyCodeMin = 3;
+export const getDashboardResponseSummaryWeekItemCurrencyCodeMax = 3;
+
+export const getDashboardResponseSummaryWeekItemCurrencyNameMax = 80;
+
+export const getDashboardResponseSummaryWeekItemCurrencySymbolMax = 8;
+
+export const getDashboardResponseSummaryWeekItemCurrencyDecimalPlacesMin = 0;
+export const getDashboardResponseSummaryWeekItemCurrencyDecimalPlacesMax = 4;
+
+export const getDashboardResponseSummaryWeekItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getDashboardResponseSummaryWeekItemCountMin = 0;
+
+export const getDashboardResponseSummaryWeekItemShareMin = 0;
+export const getDashboardResponseSummaryWeekItemShareMax = 1;
+
+export const getDashboardResponseSummaryMonthItemCurrencyCodeMin = 3;
+export const getDashboardResponseSummaryMonthItemCurrencyCodeMax = 3;
+
+export const getDashboardResponseSummaryMonthItemCurrencyNameMax = 80;
+
+export const getDashboardResponseSummaryMonthItemCurrencySymbolMax = 8;
+
+export const getDashboardResponseSummaryMonthItemCurrencyDecimalPlacesMin = 0;
+export const getDashboardResponseSummaryMonthItemCurrencyDecimalPlacesMax = 4;
+
+export const getDashboardResponseSummaryMonthItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getDashboardResponseSummaryMonthItemCountMin = 0;
+
+export const getDashboardResponseSummaryMonthItemShareMin = 0;
+export const getDashboardResponseSummaryMonthItemShareMax = 1;
+
+export const getDashboardResponseSummaryAllTimeItemCurrencyCodeMin = 3;
+export const getDashboardResponseSummaryAllTimeItemCurrencyCodeMax = 3;
+
+export const getDashboardResponseSummaryAllTimeItemCurrencyNameMax = 80;
+
+export const getDashboardResponseSummaryAllTimeItemCurrencySymbolMax = 8;
+
+export const getDashboardResponseSummaryAllTimeItemCurrencyDecimalPlacesMin = 0;
+export const getDashboardResponseSummaryAllTimeItemCurrencyDecimalPlacesMax = 4;
+
+export const getDashboardResponseSummaryAllTimeItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getDashboardResponseSummaryAllTimeItemCountMin = 0;
+
+export const getDashboardResponseSummaryAllTimeItemShareMin = 0;
+export const getDashboardResponseSummaryAllTimeItemShareMax = 1;
+
+export const getDashboardResponseRecentExpensesItemAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
+export const getDashboardResponseRecentExpensesItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getDashboardResponseRecentExpensesItemCurrencyCodeMin = 3;
+export const getDashboardResponseRecentExpensesItemCurrencyCodeMax = 3;
+
+export const getDashboardResponseRecentExpensesItemCurrencyNameMax = 80;
+
+export const getDashboardResponseRecentExpensesItemCurrencySymbolMax = 8;
+
+export const getDashboardResponseRecentExpensesItemCurrencyDecimalPlacesMin = 0;
+export const getDashboardResponseRecentExpensesItemCurrencyDecimalPlacesMax = 4;
+
+export const getDashboardResponseCategorySpendingItemTotalsItemCurrencyCodeMin = 3;
+export const getDashboardResponseCategorySpendingItemTotalsItemCurrencyCodeMax = 3;
+
+export const getDashboardResponseCategorySpendingItemTotalsItemCurrencyNameMax = 80;
+
+export const getDashboardResponseCategorySpendingItemTotalsItemCurrencySymbolMax = 8;
+
+export const getDashboardResponseCategorySpendingItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getDashboardResponseCategorySpendingItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getDashboardResponseCategorySpendingItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getDashboardResponseCategorySpendingItemTotalsItemCountMin = 0;
+
+export const getDashboardResponseCategorySpendingItemTotalsItemShareMin = 0;
+export const getDashboardResponseCategorySpendingItemTotalsItemShareMax = 1;
+
+export const getDashboardResponseCategorySpendingItemCountMin = 0;
+
+export const getDashboardResponseProjectSpendingItemTotalsItemCurrencyCodeMin = 3;
+export const getDashboardResponseProjectSpendingItemTotalsItemCurrencyCodeMax = 3;
+
+export const getDashboardResponseProjectSpendingItemTotalsItemCurrencyNameMax = 80;
+
+export const getDashboardResponseProjectSpendingItemTotalsItemCurrencySymbolMax = 8;
+
+export const getDashboardResponseProjectSpendingItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getDashboardResponseProjectSpendingItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getDashboardResponseProjectSpendingItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getDashboardResponseProjectSpendingItemTotalsItemCountMin = 0;
+
+export const getDashboardResponseProjectSpendingItemTotalsItemShareMin = 0;
+export const getDashboardResponseProjectSpendingItemTotalsItemShareMax = 1;
+
+export const getDashboardResponseProjectSpendingItemCountMin = 0;
+
+export const getDashboardResponseTrendBucketsItemStartRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getDashboardResponseTrendBucketsItemTotalsItemCurrencyCodeMin = 3;
+export const getDashboardResponseTrendBucketsItemTotalsItemCurrencyCodeMax = 3;
+
+export const getDashboardResponseTrendBucketsItemTotalsItemCurrencyNameMax = 80;
+
+export const getDashboardResponseTrendBucketsItemTotalsItemCurrencySymbolMax = 8;
+
+export const getDashboardResponseTrendBucketsItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getDashboardResponseTrendBucketsItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getDashboardResponseTrendBucketsItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getDashboardResponseTrendBucketsItemTotalsItemCountMin = 0;
+
+export const getDashboardResponseTrendBucketsItemTotalsItemShareMin = 0;
+export const getDashboardResponseTrendBucketsItemTotalsItemShareMax = 1;
+
+export const getDashboardResponseTrendBucketsItemCountMin = 0;
+
+
+
+export const GetDashboardResponse = zod.object({
+  "summary": zod.object({
+  "today": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getDashboardResponseSummaryTodayItemCurrencyCodeMin).max(getDashboardResponseSummaryTodayItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getDashboardResponseSummaryTodayItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getDashboardResponseSummaryTodayItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getDashboardResponseSummaryTodayItemCurrencyDecimalPlacesMin).max(getDashboardResponseSummaryTodayItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getDashboardResponseSummaryTodayItemTotalRegExp),
+  "count": zod.number().int().min(getDashboardResponseSummaryTodayItemCountMin),
+  "share": zod.number().min(getDashboardResponseSummaryTodayItemShareMin).max(getDashboardResponseSummaryTodayItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "week": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getDashboardResponseSummaryWeekItemCurrencyCodeMin).max(getDashboardResponseSummaryWeekItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getDashboardResponseSummaryWeekItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getDashboardResponseSummaryWeekItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getDashboardResponseSummaryWeekItemCurrencyDecimalPlacesMin).max(getDashboardResponseSummaryWeekItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getDashboardResponseSummaryWeekItemTotalRegExp),
+  "count": zod.number().int().min(getDashboardResponseSummaryWeekItemCountMin),
+  "share": zod.number().min(getDashboardResponseSummaryWeekItemShareMin).max(getDashboardResponseSummaryWeekItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "month": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getDashboardResponseSummaryMonthItemCurrencyCodeMin).max(getDashboardResponseSummaryMonthItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getDashboardResponseSummaryMonthItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getDashboardResponseSummaryMonthItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getDashboardResponseSummaryMonthItemCurrencyDecimalPlacesMin).max(getDashboardResponseSummaryMonthItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getDashboardResponseSummaryMonthItemTotalRegExp),
+  "count": zod.number().int().min(getDashboardResponseSummaryMonthItemCountMin),
+  "share": zod.number().min(getDashboardResponseSummaryMonthItemShareMin).max(getDashboardResponseSummaryMonthItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "allTime": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getDashboardResponseSummaryAllTimeItemCurrencyCodeMin).max(getDashboardResponseSummaryAllTimeItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getDashboardResponseSummaryAllTimeItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getDashboardResponseSummaryAllTimeItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getDashboardResponseSummaryAllTimeItemCurrencyDecimalPlacesMin).max(getDashboardResponseSummaryAllTimeItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getDashboardResponseSummaryAllTimeItemTotalRegExp),
+  "count": zod.number().int().min(getDashboardResponseSummaryAllTimeItemCountMin),
+  "share": zod.number().min(getDashboardResponseSummaryAllTimeItemShareMin).max(getDashboardResponseSummaryAllTimeItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+}))
+}),
+  "recentExpenses": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "amount": zod.string().regex(getDashboardResponseRecentExpensesItemAmountRegExp),
+  "date": zod.string().regex(getDashboardResponseRecentExpensesItemDateRegExp),
+  "projectId": zod.string().uuid().nullable(),
+  "categoryId": zod.string().uuid(),
+  "labelIds": zod.array(zod.string().uuid()),
+  "description": zod.string().nullable(),
+  "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "project": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]),
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "labels": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+})),
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getDashboardResponseRecentExpensesItemCurrencyCodeMin).max(getDashboardResponseRecentExpensesItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getDashboardResponseRecentExpensesItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getDashboardResponseRecentExpensesItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getDashboardResponseRecentExpensesItemCurrencyDecimalPlacesMin).max(getDashboardResponseRecentExpensesItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+})
+})),
+  "categorySpending": zod.array(zod.object({
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getDashboardResponseCategorySpendingItemTotalsItemCurrencyCodeMin).max(getDashboardResponseCategorySpendingItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getDashboardResponseCategorySpendingItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getDashboardResponseCategorySpendingItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getDashboardResponseCategorySpendingItemTotalsItemCurrencyDecimalPlacesMin).max(getDashboardResponseCategorySpendingItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getDashboardResponseCategorySpendingItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getDashboardResponseCategorySpendingItemTotalsItemCountMin),
+  "share": zod.number().min(getDashboardResponseCategorySpendingItemTotalsItemShareMin).max(getDashboardResponseCategorySpendingItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getDashboardResponseCategorySpendingItemCountMin)
+})),
+  "projectSpending": zod.array(zod.object({
+  "project": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getDashboardResponseProjectSpendingItemTotalsItemCurrencyCodeMin).max(getDashboardResponseProjectSpendingItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getDashboardResponseProjectSpendingItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getDashboardResponseProjectSpendingItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getDashboardResponseProjectSpendingItemTotalsItemCurrencyDecimalPlacesMin).max(getDashboardResponseProjectSpendingItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getDashboardResponseProjectSpendingItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getDashboardResponseProjectSpendingItemTotalsItemCountMin),
+  "share": zod.number().min(getDashboardResponseProjectSpendingItemTotalsItemShareMin).max(getDashboardResponseProjectSpendingItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getDashboardResponseProjectSpendingItemCountMin)
+})),
+  "trend": zod.object({
+  "granularity": zod.enum(['day', 'week', 'month']),
+  "buckets": zod.array(zod.object({
+  "start": zod.string().regex(getDashboardResponseTrendBucketsItemStartRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getDashboardResponseTrendBucketsItemTotalsItemCurrencyCodeMin).max(getDashboardResponseTrendBucketsItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getDashboardResponseTrendBucketsItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getDashboardResponseTrendBucketsItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getDashboardResponseTrendBucketsItemTotalsItemCurrencyDecimalPlacesMin).max(getDashboardResponseTrendBucketsItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getDashboardResponseTrendBucketsItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getDashboardResponseTrendBucketsItemTotalsItemCountMin),
+  "share": zod.number().min(getDashboardResponseTrendBucketsItemTotalsItemShareMin).max(getDashboardResponseTrendBucketsItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getDashboardResponseTrendBucketsItemCountMin)
+}))
+})
+})
+
+
+/**
+ * Returns totals, category/project/label breakdowns, and a daily spending trend for an inclusive date range.
+ * @summary Spending report for a date range
+ */
+export const getPeriodReportQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getPeriodReportQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetPeriodReportQueryParams = zod.object({
+  "from": zod.coerce.string().regex(getPeriodReportQueryFromRegExp).describe('Inclusive start date'),
+  "to": zod.coerce.string().regex(getPeriodReportQueryToRegExp).describe('Inclusive end date')
+})
+
+export const getPeriodReportResponseRangeFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getPeriodReportResponseRangeToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getPeriodReportResponseSummaryTotalsItemCurrencyCodeMin = 3;
+export const getPeriodReportResponseSummaryTotalsItemCurrencyCodeMax = 3;
+
+export const getPeriodReportResponseSummaryTotalsItemCurrencyNameMax = 80;
+
+export const getPeriodReportResponseSummaryTotalsItemCurrencySymbolMax = 8;
+
+export const getPeriodReportResponseSummaryTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getPeriodReportResponseSummaryTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getPeriodReportResponseSummaryTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getPeriodReportResponseSummaryTotalsItemCountMin = 0;
+
+export const getPeriodReportResponseSummaryTotalsItemShareMin = 0;
+export const getPeriodReportResponseSummaryTotalsItemShareMax = 1;
+
+export const getPeriodReportResponseSummaryCountMin = 0;
+
+export const getPeriodReportResponseSummaryAveragesItemCurrencyCodeMin = 3;
+export const getPeriodReportResponseSummaryAveragesItemCurrencyCodeMax = 3;
+
+export const getPeriodReportResponseSummaryAveragesItemCurrencyNameMax = 80;
+
+export const getPeriodReportResponseSummaryAveragesItemCurrencySymbolMax = 8;
+
+export const getPeriodReportResponseSummaryAveragesItemCurrencyDecimalPlacesMin = 0;
+export const getPeriodReportResponseSummaryAveragesItemCurrencyDecimalPlacesMax = 4;
+
+export const getPeriodReportResponseSummaryAveragesItemAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+
+export const getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencyCodeMin = 3;
+export const getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencyCodeMax = 3;
+
+export const getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencyNameMax = 80;
+
+export const getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencySymbolMax = 8;
+
+export const getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getPeriodReportResponseCategoryBreakdownItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getPeriodReportResponseCategoryBreakdownItemTotalsItemCountMin = 0;
+
+export const getPeriodReportResponseCategoryBreakdownItemTotalsItemShareMin = 0;
+export const getPeriodReportResponseCategoryBreakdownItemTotalsItemShareMax = 1;
+
+export const getPeriodReportResponseCategoryBreakdownItemCountMin = 0;
+
+export const getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencyCodeMin = 3;
+export const getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencyCodeMax = 3;
+
+export const getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencyNameMax = 80;
+
+export const getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencySymbolMax = 8;
+
+export const getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getPeriodReportResponseProjectBreakdownItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getPeriodReportResponseProjectBreakdownItemTotalsItemCountMin = 0;
+
+export const getPeriodReportResponseProjectBreakdownItemTotalsItemShareMin = 0;
+export const getPeriodReportResponseProjectBreakdownItemTotalsItemShareMax = 1;
+
+export const getPeriodReportResponseProjectBreakdownItemCountMin = 0;
+
+export const getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencyCodeMin = 3;
+export const getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencyCodeMax = 3;
+
+export const getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencyNameMax = 80;
+
+export const getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencySymbolMax = 8;
+
+export const getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getPeriodReportResponseLabelBreakdownItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getPeriodReportResponseLabelBreakdownItemTotalsItemCountMin = 0;
+
+export const getPeriodReportResponseLabelBreakdownItemTotalsItemShareMin = 0;
+export const getPeriodReportResponseLabelBreakdownItemTotalsItemShareMax = 1;
+
+export const getPeriodReportResponseLabelBreakdownItemCountMin = 0;
+
+export const getPeriodReportResponseDailyTrendItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getPeriodReportResponseDailyTrendItemTotalsItemCurrencyCodeMin = 3;
+export const getPeriodReportResponseDailyTrendItemTotalsItemCurrencyCodeMax = 3;
+
+export const getPeriodReportResponseDailyTrendItemTotalsItemCurrencyNameMax = 80;
+
+export const getPeriodReportResponseDailyTrendItemTotalsItemCurrencySymbolMax = 8;
+
+export const getPeriodReportResponseDailyTrendItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getPeriodReportResponseDailyTrendItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getPeriodReportResponseDailyTrendItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getPeriodReportResponseDailyTrendItemTotalsItemCountMin = 0;
+
+export const getPeriodReportResponseDailyTrendItemTotalsItemShareMin = 0;
+export const getPeriodReportResponseDailyTrendItemTotalsItemShareMax = 1;
+
+export const getPeriodReportResponseDailyTrendItemCountMin = 0;
+
+
+
+export const GetPeriodReportResponse = zod.object({
+  "range": zod.object({
+  "from": zod.string().regex(getPeriodReportResponseRangeFromRegExp),
+  "to": zod.string().regex(getPeriodReportResponseRangeToRegExp)
+}),
+  "summary": zod.object({
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getPeriodReportResponseSummaryTotalsItemCurrencyCodeMin).max(getPeriodReportResponseSummaryTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getPeriodReportResponseSummaryTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getPeriodReportResponseSummaryTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getPeriodReportResponseSummaryTotalsItemCurrencyDecimalPlacesMin).max(getPeriodReportResponseSummaryTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getPeriodReportResponseSummaryTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getPeriodReportResponseSummaryTotalsItemCountMin),
+  "share": zod.number().min(getPeriodReportResponseSummaryTotalsItemShareMin).max(getPeriodReportResponseSummaryTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getPeriodReportResponseSummaryCountMin),
+  "averages": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getPeriodReportResponseSummaryAveragesItemCurrencyCodeMin).max(getPeriodReportResponseSummaryAveragesItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getPeriodReportResponseSummaryAveragesItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getPeriodReportResponseSummaryAveragesItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getPeriodReportResponseSummaryAveragesItemCurrencyDecimalPlacesMin).max(getPeriodReportResponseSummaryAveragesItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "amount": zod.string().regex(getPeriodReportResponseSummaryAveragesItemAmountRegExp)
+})).describe('Average expense amount per currency'),
+  "days": zod.number().int().min(1)
+}),
+  "categoryBreakdown": zod.array(zod.object({
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencyCodeMin).max(getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMin).max(getPeriodReportResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getPeriodReportResponseCategoryBreakdownItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getPeriodReportResponseCategoryBreakdownItemTotalsItemCountMin),
+  "share": zod.number().min(getPeriodReportResponseCategoryBreakdownItemTotalsItemShareMin).max(getPeriodReportResponseCategoryBreakdownItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getPeriodReportResponseCategoryBreakdownItemCountMin)
+})),
+  "projectBreakdown": zod.array(zod.object({
+  "project": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencyCodeMin).max(getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencyDecimalPlacesMin).max(getPeriodReportResponseProjectBreakdownItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getPeriodReportResponseProjectBreakdownItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getPeriodReportResponseProjectBreakdownItemTotalsItemCountMin),
+  "share": zod.number().min(getPeriodReportResponseProjectBreakdownItemTotalsItemShareMin).max(getPeriodReportResponseProjectBreakdownItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getPeriodReportResponseProjectBreakdownItemCountMin)
+})),
+  "labelBreakdown": zod.array(zod.object({
+  "label": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencyCodeMin).max(getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencyDecimalPlacesMin).max(getPeriodReportResponseLabelBreakdownItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getPeriodReportResponseLabelBreakdownItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getPeriodReportResponseLabelBreakdownItemTotalsItemCountMin),
+  "share": zod.number().min(getPeriodReportResponseLabelBreakdownItemTotalsItemShareMin).max(getPeriodReportResponseLabelBreakdownItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getPeriodReportResponseLabelBreakdownItemCountMin)
+})),
+  "dailyTrend": zod.array(zod.object({
+  "date": zod.string().regex(getPeriodReportResponseDailyTrendItemDateRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getPeriodReportResponseDailyTrendItemTotalsItemCurrencyCodeMin).max(getPeriodReportResponseDailyTrendItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getPeriodReportResponseDailyTrendItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getPeriodReportResponseDailyTrendItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getPeriodReportResponseDailyTrendItemTotalsItemCurrencyDecimalPlacesMin).max(getPeriodReportResponseDailyTrendItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getPeriodReportResponseDailyTrendItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getPeriodReportResponseDailyTrendItemTotalsItemCountMin),
+  "share": zod.number().min(getPeriodReportResponseDailyTrendItemTotalsItemShareMin).max(getPeriodReportResponseDailyTrendItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getPeriodReportResponseDailyTrendItemCountMin)
+}))
+})
+
+
+/**
+ * Returns every project with its total spending, expense count, category breakdown, and monthly trend.
+ * @summary Per-project spending reports
+ */
+export const getProjectReportsQueryMonthsDefault = 6;
+export const getProjectReportsQueryMonthsMax = 24;
+
+
+
+export const GetProjectReportsQueryParams = zod.object({
+  "months": zod.coerce.number().int().min(1).max(getProjectReportsQueryMonthsMax).default(getProjectReportsQueryMonthsDefault).describe('Number of trailing months to include in each monthly trend')
+})
+
+export const getProjectReportsResponseProjectNameMax = 120;
+
+export const getProjectReportsResponseProjectColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getProjectReportsResponseProjectDefaultCurrencyCodeMin = 3;
+export const getProjectReportsResponseProjectDefaultCurrencyCodeMax = 3;
+
+export const getProjectReportsResponseProjectDefaultCurrencyNameMax = 80;
+
+export const getProjectReportsResponseProjectDefaultCurrencySymbolMax = 8;
+
+export const getProjectReportsResponseProjectDefaultCurrencyDecimalPlacesMin = 0;
+export const getProjectReportsResponseProjectDefaultCurrencyDecimalPlacesMax = 4;
+
+export const getProjectReportsResponseTotalsItemCurrencyCodeMin = 3;
+export const getProjectReportsResponseTotalsItemCurrencyCodeMax = 3;
+
+export const getProjectReportsResponseTotalsItemCurrencyNameMax = 80;
+
+export const getProjectReportsResponseTotalsItemCurrencySymbolMax = 8;
+
+export const getProjectReportsResponseTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getProjectReportsResponseTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getProjectReportsResponseTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getProjectReportsResponseTotalsItemCountMin = 0;
+
+export const getProjectReportsResponseTotalsItemShareMin = 0;
+export const getProjectReportsResponseTotalsItemShareMax = 1;
+
+export const getProjectReportsResponseCountMin = 0;
+
+export const getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencyCodeMin = 3;
+export const getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencyCodeMax = 3;
+
+export const getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencyNameMax = 80;
+
+export const getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencySymbolMax = 8;
+
+export const getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getProjectReportsResponseCategoryBreakdownItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getProjectReportsResponseCategoryBreakdownItemTotalsItemCountMin = 0;
+
+export const getProjectReportsResponseCategoryBreakdownItemTotalsItemShareMin = 0;
+export const getProjectReportsResponseCategoryBreakdownItemTotalsItemShareMax = 1;
+
+export const getProjectReportsResponseCategoryBreakdownItemCountMin = 0;
+
+export const getProjectReportsResponseMonthlyTrendItemMonthRegExp = new RegExp('^\\d{4}-\\d{2}$');
+export const getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMin = 3;
+export const getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMax = 3;
+
+export const getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencyNameMax = 80;
+
+export const getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencySymbolMax = 8;
+
+export const getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getProjectReportsResponseMonthlyTrendItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getProjectReportsResponseMonthlyTrendItemTotalsItemCountMin = 0;
+
+export const getProjectReportsResponseMonthlyTrendItemTotalsItemShareMin = 0;
+export const getProjectReportsResponseMonthlyTrendItemTotalsItemShareMax = 1;
+
+export const getProjectReportsResponseMonthlyTrendItemCountMin = 0;
+
+
+
+export const GetProjectReportsResponseItem = zod.object({
+  "project": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(getProjectReportsResponseProjectNameMax),
+  "description": zod.string().nullable(),
+  "color": zod.string().regex(getProjectReportsResponseProjectColorRegExp),
+  "icon": zod.string().nullable(),
+  "status": zod.enum(['active', 'archived']),
+  "defaultCurrency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getProjectReportsResponseProjectDefaultCurrencyCodeMin).max(getProjectReportsResponseProjectDefaultCurrencyCodeMax),
+  "name": zod.string().min(1).max(getProjectReportsResponseProjectDefaultCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getProjectReportsResponseProjectDefaultCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getProjectReportsResponseProjectDefaultCurrencyDecimalPlacesMin).max(getProjectReportsResponseProjectDefaultCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getProjectReportsResponseTotalsItemCurrencyCodeMin).max(getProjectReportsResponseTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getProjectReportsResponseTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getProjectReportsResponseTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getProjectReportsResponseTotalsItemCurrencyDecimalPlacesMin).max(getProjectReportsResponseTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getProjectReportsResponseTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getProjectReportsResponseTotalsItemCountMin),
+  "share": zod.number().min(getProjectReportsResponseTotalsItemShareMin).max(getProjectReportsResponseTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getProjectReportsResponseCountMin),
+  "categoryBreakdown": zod.array(zod.object({
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencyCodeMin).max(getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMin).max(getProjectReportsResponseCategoryBreakdownItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getProjectReportsResponseCategoryBreakdownItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getProjectReportsResponseCategoryBreakdownItemTotalsItemCountMin),
+  "share": zod.number().min(getProjectReportsResponseCategoryBreakdownItemTotalsItemShareMin).max(getProjectReportsResponseCategoryBreakdownItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getProjectReportsResponseCategoryBreakdownItemCountMin)
+})),
+  "monthlyTrend": zod.array(zod.object({
+  "month": zod.string().regex(getProjectReportsResponseMonthlyTrendItemMonthRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMin).max(getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMin).max(getProjectReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getProjectReportsResponseMonthlyTrendItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getProjectReportsResponseMonthlyTrendItemTotalsItemCountMin),
+  "share": zod.number().min(getProjectReportsResponseMonthlyTrendItemTotalsItemShareMin).max(getProjectReportsResponseMonthlyTrendItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getProjectReportsResponseMonthlyTrendItemCountMin)
+}))
+})
+export const GetProjectReportsResponse = zod.array(GetProjectReportsResponseItem)
+
+
+/**
+ * Returns every category with its total spending, expense count, project distribution, and monthly trend.
+ * @summary Per-category spending reports
+ */
+export const getCategoryReportsQueryMonthsDefault = 6;
+export const getCategoryReportsQueryMonthsMax = 24;
+
+
+
+export const GetCategoryReportsQueryParams = zod.object({
+  "months": zod.coerce.number().int().min(1).max(getCategoryReportsQueryMonthsMax).default(getCategoryReportsQueryMonthsDefault).describe('Number of trailing months to include in each monthly trend')
+})
+
+export const getCategoryReportsResponseCategoryNameMax = 80;
+
+export const getCategoryReportsResponseCategoryColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getCategoryReportsResponseTotalsItemCurrencyCodeMin = 3;
+export const getCategoryReportsResponseTotalsItemCurrencyCodeMax = 3;
+
+export const getCategoryReportsResponseTotalsItemCurrencyNameMax = 80;
+
+export const getCategoryReportsResponseTotalsItemCurrencySymbolMax = 8;
+
+export const getCategoryReportsResponseTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getCategoryReportsResponseTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getCategoryReportsResponseTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getCategoryReportsResponseTotalsItemCountMin = 0;
+
+export const getCategoryReportsResponseTotalsItemShareMin = 0;
+export const getCategoryReportsResponseTotalsItemShareMax = 1;
+
+export const getCategoryReportsResponseCountMin = 0;
+
+export const getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencyCodeMin = 3;
+export const getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencyCodeMax = 3;
+
+export const getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencyNameMax = 80;
+
+export const getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencySymbolMax = 8;
+
+export const getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getCategoryReportsResponseProjectDistributionItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getCategoryReportsResponseProjectDistributionItemTotalsItemCountMin = 0;
+
+export const getCategoryReportsResponseProjectDistributionItemTotalsItemShareMin = 0;
+export const getCategoryReportsResponseProjectDistributionItemTotalsItemShareMax = 1;
+
+export const getCategoryReportsResponseProjectDistributionItemCountMin = 0;
+
+export const getCategoryReportsResponseMonthlyTrendItemMonthRegExp = new RegExp('^\\d{4}-\\d{2}$');
+export const getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMin = 3;
+export const getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMax = 3;
+
+export const getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencyNameMax = 80;
+
+export const getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencySymbolMax = 8;
+
+export const getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getCategoryReportsResponseMonthlyTrendItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getCategoryReportsResponseMonthlyTrendItemTotalsItemCountMin = 0;
+
+export const getCategoryReportsResponseMonthlyTrendItemTotalsItemShareMin = 0;
+export const getCategoryReportsResponseMonthlyTrendItemTotalsItemShareMax = 1;
+
+export const getCategoryReportsResponseMonthlyTrendItemCountMin = 0;
+
+
+
+export const GetCategoryReportsResponseItem = zod.object({
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(getCategoryReportsResponseCategoryNameMax),
+  "icon": zod.string().nullable(),
+  "color": zod.string().regex(getCategoryReportsResponseCategoryColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getCategoryReportsResponseTotalsItemCurrencyCodeMin).max(getCategoryReportsResponseTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getCategoryReportsResponseTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getCategoryReportsResponseTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getCategoryReportsResponseTotalsItemCurrencyDecimalPlacesMin).max(getCategoryReportsResponseTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getCategoryReportsResponseTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getCategoryReportsResponseTotalsItemCountMin),
+  "share": zod.number().min(getCategoryReportsResponseTotalsItemShareMin).max(getCategoryReportsResponseTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getCategoryReportsResponseCountMin),
+  "projectDistribution": zod.array(zod.object({
+  "project": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencyCodeMin).max(getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencyDecimalPlacesMin).max(getCategoryReportsResponseProjectDistributionItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getCategoryReportsResponseProjectDistributionItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getCategoryReportsResponseProjectDistributionItemTotalsItemCountMin),
+  "share": zod.number().min(getCategoryReportsResponseProjectDistributionItemTotalsItemShareMin).max(getCategoryReportsResponseProjectDistributionItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getCategoryReportsResponseProjectDistributionItemCountMin)
+})),
+  "monthlyTrend": zod.array(zod.object({
+  "month": zod.string().regex(getCategoryReportsResponseMonthlyTrendItemMonthRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMin).max(getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMin).max(getCategoryReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getCategoryReportsResponseMonthlyTrendItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getCategoryReportsResponseMonthlyTrendItemTotalsItemCountMin),
+  "share": zod.number().min(getCategoryReportsResponseMonthlyTrendItemTotalsItemShareMin).max(getCategoryReportsResponseMonthlyTrendItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getCategoryReportsResponseMonthlyTrendItemCountMin)
+}))
+})
+export const GetCategoryReportsResponse = zod.array(GetCategoryReportsResponseItem)
+
+
+/**
+ * Returns every label with its total spending, expense count, and monthly trend.
+ * @summary Per-label spending reports
+ */
+export const getLabelReportsQueryMonthsDefault = 6;
+export const getLabelReportsQueryMonthsMax = 24;
+
+
+
+export const GetLabelReportsQueryParams = zod.object({
+  "months": zod.coerce.number().int().min(1).max(getLabelReportsQueryMonthsMax).default(getLabelReportsQueryMonthsDefault).describe('Number of trailing months to include in each monthly trend')
+})
+
+export const getLabelReportsResponseLabelNameMax = 80;
+
+export const getLabelReportsResponseLabelColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getLabelReportsResponseTotalsItemCurrencyCodeMin = 3;
+export const getLabelReportsResponseTotalsItemCurrencyCodeMax = 3;
+
+export const getLabelReportsResponseTotalsItemCurrencyNameMax = 80;
+
+export const getLabelReportsResponseTotalsItemCurrencySymbolMax = 8;
+
+export const getLabelReportsResponseTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getLabelReportsResponseTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getLabelReportsResponseTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getLabelReportsResponseTotalsItemCountMin = 0;
+
+export const getLabelReportsResponseTotalsItemShareMin = 0;
+export const getLabelReportsResponseTotalsItemShareMax = 1;
+
+export const getLabelReportsResponseCountMin = 0;
+
+export const getLabelReportsResponseMonthlyTrendItemMonthRegExp = new RegExp('^\\d{4}-\\d{2}$');
+export const getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMin = 3;
+export const getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMax = 3;
+
+export const getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencyNameMax = 80;
+
+export const getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencySymbolMax = 8;
+
+export const getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getLabelReportsResponseMonthlyTrendItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getLabelReportsResponseMonthlyTrendItemTotalsItemCountMin = 0;
+
+export const getLabelReportsResponseMonthlyTrendItemTotalsItemShareMin = 0;
+export const getLabelReportsResponseMonthlyTrendItemTotalsItemShareMax = 1;
+
+export const getLabelReportsResponseMonthlyTrendItemCountMin = 0;
+
+
+
+export const GetLabelReportsResponseItem = zod.object({
+  "label": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(getLabelReportsResponseLabelNameMax),
+  "color": zod.string().regex(getLabelReportsResponseLabelColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getLabelReportsResponseTotalsItemCurrencyCodeMin).max(getLabelReportsResponseTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getLabelReportsResponseTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getLabelReportsResponseTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getLabelReportsResponseTotalsItemCurrencyDecimalPlacesMin).max(getLabelReportsResponseTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getLabelReportsResponseTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getLabelReportsResponseTotalsItemCountMin),
+  "share": zod.number().min(getLabelReportsResponseTotalsItemShareMin).max(getLabelReportsResponseTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getLabelReportsResponseCountMin),
+  "monthlyTrend": zod.array(zod.object({
+  "month": zod.string().regex(getLabelReportsResponseMonthlyTrendItemMonthRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMin).max(getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMin).max(getLabelReportsResponseMonthlyTrendItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getLabelReportsResponseMonthlyTrendItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getLabelReportsResponseMonthlyTrendItemTotalsItemCountMin),
+  "share": zod.number().min(getLabelReportsResponseMonthlyTrendItemTotalsItemShareMin).max(getLabelReportsResponseMonthlyTrendItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getLabelReportsResponseMonthlyTrendItemCountMin)
+}))
+})
+export const GetLabelReportsResponse = zod.array(GetLabelReportsResponseItem)
+
+
+/**
+ * Returns every expense as a comma-separated values document.
+ * @summary Export expenses as CSV
+ */
+export const ExportExpensesCsvResponse = zod.unknown()
+
+
+/**
+ * Returns every project as a comma-separated values document.
+ * @summary Export projects as CSV
+ */
+export const ExportProjectsCsvResponse = zod.unknown()
+
+
+/**
+ * Returns every category as a comma-separated values document.
+ * @summary Export categories as CSV
+ */
+export const ExportCategoriesCsvResponse = zod.unknown()
+
+
+/**
+ * Returns every label as a comma-separated values document.
+ * @summary Export labels as CSV
+ */
+export const ExportLabelsCsvResponse = zod.unknown()
+
+
+/**
+ * Returns a portable JSON document containing every project, category, label, expense, and expense-label relationship.
+ * @summary Download a complete backup
+ */
+
+export const getBackupResponseCountsProjectsMin = 0;
+
+export const getBackupResponseCountsCategoriesMin = 0;
+
+export const getBackupResponseCountsLabelsMin = 0;
+
+export const getBackupResponseCountsExpensesMin = 0;
+
+export const getBackupResponseCountsExpenseLabelsMin = 0;
+
+export const getBackupResponseProjectsItemNameMax = 120;
+
+export const getBackupResponseProjectsItemDescriptionMax = 4000;
+
+export const getBackupResponseProjectsItemColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getBackupResponseProjectsItemIconMax = 64;
+
+export const getBackupResponseProjectsItemDefaultCurrencyMin = 3;
+export const getBackupResponseProjectsItemDefaultCurrencyMax = 3;
+
+export const getBackupResponseCategoriesItemNameMax = 80;
+
+export const getBackupResponseCategoriesItemIconMax = 64;
+
+export const getBackupResponseCategoriesItemColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getBackupResponseLabelsItemNameMax = 80;
+
+export const getBackupResponseLabelsItemColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getBackupResponseExpensesItemAmountMax = 15;
+
+
+export const getBackupResponseExpensesItemAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
+export const getBackupResponseExpensesItemDescriptionMax = 1000;
+
+export const getBackupResponseExpensesItemNotesMax = 4000;
+
+export const getBackupResponseExpensesItemCurrencyMin = 3;
+export const getBackupResponseExpensesItemCurrencyMax = 3;
+
+
+
+export const GetBackupResponse = zod.object({
+  "format": zod.enum(['pocketful-backup']),
+  "version": zod.number().int().min(1),
+  "exportedAt": zod.coerce.date().optional(),
+  "counts": zod.object({
+  "projects": zod.number().int().min(getBackupResponseCountsProjectsMin).optional(),
+  "categories": zod.number().int().min(getBackupResponseCountsCategoriesMin).optional(),
+  "labels": zod.number().int().min(getBackupResponseCountsLabelsMin).optional(),
+  "expenses": zod.number().int().min(getBackupResponseCountsExpensesMin).optional(),
+  "expenseLabels": zod.number().int().min(getBackupResponseCountsExpenseLabelsMin).optional()
+}).optional(),
+  "projects": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(getBackupResponseProjectsItemNameMax),
+  "description": zod.string().max(getBackupResponseProjectsItemDescriptionMax).nullish(),
+  "color": zod.string().regex(getBackupResponseProjectsItemColorRegExp),
+  "icon": zod.string().max(getBackupResponseProjectsItemIconMax).nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "defaultCurrency": zod.string().min(getBackupResponseProjectsItemDefaultCurrencyMin).max(getBackupResponseProjectsItemDefaultCurrencyMax),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})),
+  "categories": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(getBackupResponseCategoriesItemNameMax),
+  "icon": zod.string().max(getBackupResponseCategoriesItemIconMax).nullish(),
+  "color": zod.string().regex(getBackupResponseCategoriesItemColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})),
+  "labels": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(getBackupResponseLabelsItemNameMax),
+  "color": zod.string().regex(getBackupResponseLabelsItemColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})),
+  "expenses": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "amount": zod.string().max(getBackupResponseExpensesItemAmountMax).regex(getBackupResponseExpensesItemAmountRegExp),
+  "date": zod.coerce.date(),
+  "projectId": zod.string().uuid().nullish(),
+  "categoryId": zod.string().uuid(),
+  "description": zod.string().max(getBackupResponseExpensesItemDescriptionMax).nullish(),
+  "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
+  "notes": zod.string().max(getBackupResponseExpensesItemNotesMax).nullish(),
+  "currency": zod.string().min(getBackupResponseExpensesItemCurrencyMin).max(getBackupResponseExpensesItemCurrencyMax),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})),
+  "expenseLabels": zod.array(zod.object({
+  "expenseId": zod.string().uuid(),
+  "labelId": zod.string().uuid()
+}))
+})
+
+
+/**
+ * Validates and merges a previously exported backup document. Existing records with matching identifiers are updated; new records are created. Nothing is deleted.
+ * @summary Import a backup
+ */
+
+export const importBackupBodyCountsProjectsMin = 0;
+
+export const importBackupBodyCountsCategoriesMin = 0;
+
+export const importBackupBodyCountsLabelsMin = 0;
+
+export const importBackupBodyCountsExpensesMin = 0;
+
+export const importBackupBodyCountsExpenseLabelsMin = 0;
+
+export const importBackupBodyProjectsItemNameMax = 120;
+
+export const importBackupBodyProjectsItemDescriptionMax = 4000;
+
+export const importBackupBodyProjectsItemColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const importBackupBodyProjectsItemIconMax = 64;
+
+export const importBackupBodyProjectsItemDefaultCurrencyMin = 3;
+export const importBackupBodyProjectsItemDefaultCurrencyMax = 3;
+
+export const importBackupBodyCategoriesItemNameMax = 80;
+
+export const importBackupBodyCategoriesItemIconMax = 64;
+
+export const importBackupBodyCategoriesItemColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const importBackupBodyLabelsItemNameMax = 80;
+
+export const importBackupBodyLabelsItemColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const importBackupBodyExpensesItemAmountMax = 15;
+
+
+export const importBackupBodyExpensesItemAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
+export const importBackupBodyExpensesItemDescriptionMax = 1000;
+
+export const importBackupBodyExpensesItemNotesMax = 4000;
+
+export const importBackupBodyExpensesItemCurrencyMin = 3;
+export const importBackupBodyExpensesItemCurrencyMax = 3;
+
+
+
+export const ImportBackupBody = zod.object({
+  "format": zod.enum(['pocketful-backup']),
+  "version": zod.number().int().min(1),
+  "exportedAt": zod.coerce.date().optional(),
+  "counts": zod.object({
+  "projects": zod.number().int().min(importBackupBodyCountsProjectsMin).optional(),
+  "categories": zod.number().int().min(importBackupBodyCountsCategoriesMin).optional(),
+  "labels": zod.number().int().min(importBackupBodyCountsLabelsMin).optional(),
+  "expenses": zod.number().int().min(importBackupBodyCountsExpensesMin).optional(),
+  "expenseLabels": zod.number().int().min(importBackupBodyCountsExpenseLabelsMin).optional()
+}).optional(),
+  "projects": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(importBackupBodyProjectsItemNameMax),
+  "description": zod.string().max(importBackupBodyProjectsItemDescriptionMax).nullish(),
+  "color": zod.string().regex(importBackupBodyProjectsItemColorRegExp),
+  "icon": zod.string().max(importBackupBodyProjectsItemIconMax).nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "defaultCurrency": zod.string().min(importBackupBodyProjectsItemDefaultCurrencyMin).max(importBackupBodyProjectsItemDefaultCurrencyMax),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})),
+  "categories": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(importBackupBodyCategoriesItemNameMax),
+  "icon": zod.string().max(importBackupBodyCategoriesItemIconMax).nullish(),
+  "color": zod.string().regex(importBackupBodyCategoriesItemColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})),
+  "labels": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(importBackupBodyLabelsItemNameMax),
+  "color": zod.string().regex(importBackupBodyLabelsItemColorRegExp),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})),
+  "expenses": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "amount": zod.string().max(importBackupBodyExpensesItemAmountMax).regex(importBackupBodyExpensesItemAmountRegExp),
+  "date": zod.coerce.date(),
+  "projectId": zod.string().uuid().nullish(),
+  "categoryId": zod.string().uuid(),
+  "description": zod.string().max(importBackupBodyExpensesItemDescriptionMax).nullish(),
+  "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
+  "notes": zod.string().max(importBackupBodyExpensesItemNotesMax).nullish(),
+  "currency": zod.string().min(importBackupBodyExpensesItemCurrencyMin).max(importBackupBodyExpensesItemCurrencyMax),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})),
+  "expenseLabels": zod.array(zod.object({
+  "expenseId": zod.string().uuid(),
+  "labelId": zod.string().uuid()
+}))
+})
+
+export const importBackupResponseProjectsCreatedMin = 0;
+
+export const importBackupResponseProjectsUpdatedMin = 0;
+
+export const importBackupResponseProjectsSkippedMin = 0;
+
+export const importBackupResponseCategoriesCreatedMin = 0;
+
+export const importBackupResponseCategoriesUpdatedMin = 0;
+
+export const importBackupResponseCategoriesSkippedMin = 0;
+
+export const importBackupResponseLabelsCreatedMin = 0;
+
+export const importBackupResponseLabelsUpdatedMin = 0;
+
+export const importBackupResponseLabelsSkippedMin = 0;
+
+export const importBackupResponseExpensesCreatedMin = 0;
+
+export const importBackupResponseExpensesUpdatedMin = 0;
+
+export const importBackupResponseExpensesSkippedMin = 0;
+
+export const importBackupResponseExpenseLabelsMin = 0;
+
+
+
+export const ImportBackupResponse = zod.object({
+  "projects": zod.object({
+  "created": zod.number().int().min(importBackupResponseProjectsCreatedMin),
+  "updated": zod.number().int().min(importBackupResponseProjectsUpdatedMin),
+  "skipped": zod.number().int().min(importBackupResponseProjectsSkippedMin)
+}),
+  "categories": zod.object({
+  "created": zod.number().int().min(importBackupResponseCategoriesCreatedMin),
+  "updated": zod.number().int().min(importBackupResponseCategoriesUpdatedMin),
+  "skipped": zod.number().int().min(importBackupResponseCategoriesSkippedMin)
+}),
+  "labels": zod.object({
+  "created": zod.number().int().min(importBackupResponseLabelsCreatedMin),
+  "updated": zod.number().int().min(importBackupResponseLabelsUpdatedMin),
+  "skipped": zod.number().int().min(importBackupResponseLabelsSkippedMin)
+}),
+  "expenses": zod.object({
+  "created": zod.number().int().min(importBackupResponseExpensesCreatedMin),
+  "updated": zod.number().int().min(importBackupResponseExpensesUpdatedMin),
+  "skipped": zod.number().int().min(importBackupResponseExpensesSkippedMin)
+}),
+  "expenseLabels": zod.number().int().min(importBackupResponseExpenseLabelsMin),
+  "warnings": zod.array(zod.string())
+})
 
 

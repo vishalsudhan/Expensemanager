@@ -13,6 +13,95 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface Currency {
+  id: string;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  code: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 8
+     */
+  symbol: string;
+  /**
+     * @minimum 0
+     * @maximum 4
+     */
+  decimalPlaces: number;
+  isActive: boolean;
+}
+
+export interface CurrencyAmount {
+  currency: Currency;
+  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
+  total: string;
+  /** @minimum 0 */
+  count: number;
+  /**
+     * Share of the matching same-currency total. Never compares across currencies.
+     * @minimum 0
+     * @maximum 1
+     */
+  share?: number;
+}
+
+export interface CurrencyAverage {
+  currency: Currency;
+  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
+  amount: string;
+}
+
+export interface CurrencyInput {
+  /**
+     * @minLength 3
+     * @maxLength 3
+     * @pattern ^[A-Z]{3}$
+     */
+  code: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 8
+     */
+  symbol: string;
+  /**
+     * @minimum 0
+     * @maximum 4
+     */
+  decimalPlaces?: number;
+  isActive?: boolean;
+}
+
+export interface CurrencyUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name?: string;
+  /**
+     * @minLength 1
+     * @maxLength 8
+     */
+  symbol?: string;
+  /**
+     * @minimum 0
+     * @maximum 4
+     */
+  decimalPlaces?: number;
+  isActive?: boolean;
+}
+
 export type ProjectStatus = typeof ProjectStatus[keyof typeof ProjectStatus];
 
 
@@ -35,6 +124,7 @@ export interface Project {
   /** @nullable */
   icon: string | null;
   status: ProjectStatus;
+  defaultCurrency: Currency;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,6 +141,7 @@ export interface ProjectInput {
   color?: string;
   /** @maxLength 64 */
   icon?: string;
+  defaultCurrencyId: string;
 }
 
 export interface ProjectUpdate {
@@ -71,11 +162,11 @@ export interface ProjectUpdate {
      * @nullable
      */
   icon?: string | null;
+  defaultCurrencyId?: string;
 }
 
 export type ProjectListItem = Project & {
-  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
-  totalSpent: string;
+  totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
 };
@@ -88,8 +179,7 @@ export interface ProjectCategoryBreakdown {
   categoryColor: string;
   /** @nullable */
   categoryIcon: string | null;
-  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
-  totalSpent: string;
+  totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
 }
@@ -124,12 +214,12 @@ export interface ProjectRecentExpense {
   categoryIcon: string | null;
   /** @nullable */
   paymentMethod: ProjectRecentExpensePaymentMethod;
+  currency: Currency;
 }
 
 export interface ProjectDetail {
   project: Project;
-  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
-  totalSpent: string;
+  totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
   categoryBreakdown: ProjectCategoryBreakdown[];
@@ -188,8 +278,7 @@ export interface CategoryUpdate {
 }
 
 export type CategoryListItem = Category & {
-  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
-  totalSpent: string;
+  totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
 };
@@ -209,16 +298,14 @@ export interface CategoryRecentExpense {
 export interface CategoryMonthlySpending {
   /** @pattern ^\d{4}-\d{2}$ */
   month: string;
-  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
-  totalSpent: string;
+  totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
 }
 
 export interface CategoryDetail {
   category: Category;
-  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
-  totalSpent: string;
+  totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
   recentExpenses: CategoryRecentExpense[];
@@ -348,9 +435,179 @@ export interface ExpenseRecord {
   project: ExpenseProject | null;
   category: ExpenseCategory;
   labels: ExpenseLabel[];
+  currency: Currency;
 }
 
-export type ExpenseCollection = ExpenseRecord[];
+export interface ExpensePage {
+  items: ExpenseRecord[];
+  /** Total expenses matching the current search and filters */
+  total: number;
+  /** Sum of all matching expenses grouped by currency */
+  totals: CurrencyAmount[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+export interface DashboardSummary {
+  today: CurrencyAmount[];
+  week: CurrencyAmount[];
+  month: CurrencyAmount[];
+  allTime: CurrencyAmount[];
+}
+
+export interface DashboardCategorySpending {
+  category: ExpenseCategory;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface DashboardProjectSpending {
+  project: ExpenseProject | null;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface DashboardTrendBucket {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  start: string;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+}
+
+export type DashboardTrendGranularity = typeof DashboardTrendGranularity[keyof typeof DashboardTrendGranularity];
+
+
+export const DashboardTrendGranularity = {
+  day: 'day',
+  week: 'week',
+  month: 'month',
+} as const;
+
+export interface DashboardTrend {
+  granularity: DashboardTrendGranularity;
+  buckets: DashboardTrendBucket[];
+}
+
+export interface Dashboard {
+  summary: DashboardSummary;
+  recentExpenses: ExpenseRecord[];
+  categorySpending: DashboardCategorySpending[];
+  projectSpending: DashboardProjectSpending[];
+  trend: DashboardTrend;
+}
+
+export interface ReportRange {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  from: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  to: string;
+}
+
+export interface ReportSummary {
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+  /** Average expense amount per currency */
+  averages: CurrencyAverage[];
+  /** @minimum 1 */
+  days: number;
+}
+
+export interface ReportCategoryBreakdown {
+  category: ExpenseCategory;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface ReportProjectBreakdown {
+  project: ExpenseProject | null;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface ReportLabelBreakdown {
+  label: ExpenseLabel;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface ReportDayBucket {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface PeriodReport {
+  range: ReportRange;
+  summary: ReportSummary;
+  categoryBreakdown: ReportCategoryBreakdown[];
+  projectBreakdown: ReportProjectBreakdown[];
+  labelBreakdown: ReportLabelBreakdown[];
+  dailyTrend: ReportDayBucket[];
+}
+
+export interface ReportMonthlyBucket {
+  /** @pattern ^\d{4}-\d{2}$ */
+  month: string;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface ReportCategoryRow {
+  category: ExpenseCategory;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface ReportProject {
+  project: Project;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+  categoryBreakdown: ReportCategoryRow[];
+  monthlyTrend: ReportMonthlyBucket[];
+}
+
+export type ProjectReportCollection = ReportProject[];
+
+export interface ReportProjectDistributionRow {
+  project: ExpenseProject | null;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface ReportCategory {
+  category: Category;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+  projectDistribution: ReportProjectDistributionRow[];
+  monthlyTrend: ReportMonthlyBucket[];
+}
+
+export type CategoryReportCollection = ReportCategory[];
+
+export interface ReportLabel {
+  label: Label;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+  monthlyTrend: ReportMonthlyBucket[];
+}
+
+export type LabelReportCollection = ReportLabel[];
 
 export interface ExpenseInput {
   /**
@@ -374,6 +631,7 @@ export interface ExpenseInput {
      * @nullable
      */
   notes?: string | null;
+  currencyId: string;
 }
 
 export interface ExpenseUpdate {
@@ -398,6 +656,181 @@ export interface ExpenseUpdate {
      * @nullable
      */
   notes?: string | null;
+  currencyId?: string;
+}
+
+export type BackupProjectStatus = typeof BackupProjectStatus[keyof typeof BackupProjectStatus];
+
+
+export const BackupProjectStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface BackupProject {
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  /**
+     * @maxLength 4000
+     * @nullable
+     */
+  description?: string | null;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  color: string;
+  /**
+     * @maxLength 64
+     * @nullable
+     */
+  icon?: string | null;
+  status: BackupProjectStatus;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  defaultCurrency: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type BackupCategoryStatus = typeof BackupCategoryStatus[keyof typeof BackupCategoryStatus];
+
+
+export const BackupCategoryStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface BackupCategory {
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /**
+     * @maxLength 64
+     * @nullable
+     */
+  icon?: string | null;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  color: string;
+  status: BackupCategoryStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type BackupLabelStatus = typeof BackupLabelStatus[keyof typeof BackupLabelStatus];
+
+
+export const BackupLabelStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface BackupLabel {
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  color: string;
+  status: BackupLabelStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BackupExpense {
+  id: string;
+  /**
+     * @maxLength 15
+     * @pattern ^[0-9]{1,12}(\.[0-9]{1,2})?$
+     */
+  amount: string;
+  date: string;
+  /** @nullable */
+  projectId?: string | null;
+  categoryId: string;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  description?: string | null;
+  paymentMethod?: ExpensePaymentMethod | null;
+  /**
+     * @maxLength 4000
+     * @nullable
+     */
+  notes?: string | null;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BackupExpenseLabel {
+  expenseId: string;
+  labelId: string;
+}
+
+export interface BackupDocumentCounts {
+  /** @minimum 0 */
+  projects?: number;
+  /** @minimum 0 */
+  categories?: number;
+  /** @minimum 0 */
+  labels?: number;
+  /** @minimum 0 */
+  expenses?: number;
+  /** @minimum 0 */
+  expenseLabels?: number;
+}
+
+export type BackupDocumentFormat = typeof BackupDocumentFormat[keyof typeof BackupDocumentFormat];
+
+
+export const BackupDocumentFormat = {
+  'pocketful-backup': 'pocketful-backup',
+} as const;
+
+export interface BackupDocument {
+  format: BackupDocumentFormat;
+  /** @minimum 1 */
+  version: number;
+  exportedAt?: string;
+  counts?: BackupDocumentCounts;
+  projects: BackupProject[];
+  categories: BackupCategory[];
+  labels: BackupLabel[];
+  expenses: BackupExpense[];
+  expenseLabels: BackupExpenseLabel[];
+}
+
+export interface BackupImportCount {
+  /** @minimum 0 */
+  created: number;
+  /** @minimum 0 */
+  updated: number;
+  /** @minimum 0 */
+  skipped: number;
+}
+
+export interface BackupImportResult {
+  projects: BackupImportCount;
+  categories: BackupImportCount;
+  labels: BackupImportCount;
+  expenses: BackupImportCount;
+  /** @minimum 0 */
+  expenseLabels: number;
+  warnings: string[];
 }
 
 export type ListProjectsParams = {
@@ -412,6 +845,10 @@ export const ListProjectsStatus = {
   archived: 'archived',
   all: 'all',
 } as const;
+
+export type ListCurrenciesParams = {
+isActive?: boolean;
+};
 
 export type ListCategoriesParams = {
 status?: ListCategoriesStatus;
@@ -446,4 +883,115 @@ export const ListLabelsStatus = {
   archived: 'archived',
   all: 'all',
 } as const;
+
+export type ListExpensesParams = {
+/**
+ * Case-insensitive match on description, notes, category, or project name
+ * @maxLength 80
+ */
+search?: string;
+/**
+ * Include expenses on or after this date
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from?: string;
+/**
+ * Include expenses on or before this date
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to?: string;
+projectId?: string;
+categoryId?: string;
+/**
+ * Only expenses carrying this label
+ */
+labelId?: string;
+paymentMethod?: ExpensePaymentMethod;
+/**
+ * Filter expenses by currency
+ */
+currencyId?: string;
+sort?: ListExpensesSort;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListExpensesSort = typeof ListExpensesSort[keyof typeof ListExpensesSort];
+
+
+export const ListExpensesSort = {
+  newest: 'newest',
+  oldest: 'oldest',
+  highest: 'highest',
+  lowest: 'lowest',
+} as const;
+
+export type GetDashboardParams = {
+/**
+ * Bucket size for the spending trend
+ */
+granularity?: GetDashboardGranularity;
+/**
+ * How many recent expenses to return
+ * @minimum 1
+ * @maximum 20
+ */
+recentLimit?: number;
+};
+
+export type GetDashboardGranularity = typeof GetDashboardGranularity[keyof typeof GetDashboardGranularity];
+
+
+export const GetDashboardGranularity = {
+  day: 'day',
+  week: 'week',
+  month: 'month',
+} as const;
+
+export type GetPeriodReportParams = {
+/**
+ * Inclusive start date
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from: string;
+/**
+ * Inclusive end date
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to: string;
+};
+
+export type GetProjectReportsParams = {
+/**
+ * Number of trailing months to include in each monthly trend
+ * @minimum 1
+ * @maximum 24
+ */
+months?: number;
+};
+
+export type GetCategoryReportsParams = {
+/**
+ * Number of trailing months to include in each monthly trend
+ * @minimum 1
+ * @maximum 24
+ */
+months?: number;
+};
+
+export type GetLabelReportsParams = {
+/**
+ * Number of trailing months to include in each monthly trend
+ * @minimum 1
+ * @maximum 24
+ */
+months?: number;
+};
 

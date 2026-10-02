@@ -29,4 +29,5 @@ export interface ExpenseInput {
      * @nullable
      */
   notes?: string | null;
+  currencyId: string;
 }

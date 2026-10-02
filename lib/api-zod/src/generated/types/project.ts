@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { Currency } from './currency';
 import type { ProjectStatus } from './projectStatus';
 
 export interface Project {
@@ -21,6 +22,7 @@ export interface Project {
   /** @nullable */
   icon: string | null;
   status: ProjectStatus;
+  defaultCurrency: Currency;
   createdAt: Date;
   updatedAt: Date;
 }

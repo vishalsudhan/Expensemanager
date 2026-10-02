@@ -1,6 +1,7 @@
 import { createInsertSchema } from "drizzle-zod";
 import { check, index, pgTable, text, timestamp, unique, uuid, varchar } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { currenciesTable } from "./currencies";
 import { recordStatusEnum } from "./shared";
 import { z } from "zod/v4";
 
@@ -13,6 +14,9 @@ export const projectsTable = pgTable(
     color: varchar("color", { length: 7 }).notNull().default("#1F6B55"),
     icon: varchar("icon", { length: 64 }),
     status: recordStatusEnum("status").notNull().default("active"),
+    defaultCurrencyId: uuid("default_currency_id")
+      .notNull()
+      .references(() => currenciesTable.id, { onDelete: "restrict" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -22,6 +26,7 @@ export const projectsTable = pgTable(
   (table) => [
     unique("projects_name_unique").on(table.name),
     index("projects_status_idx").on(table.status),
+    index("projects_default_currency_id_idx").on(table.defaultCurrencyId),
     check("projects_color_hex_check", sql`${table.color} ~ '^#[0-9A-Fa-f]{6}$'`),
   ],
 );

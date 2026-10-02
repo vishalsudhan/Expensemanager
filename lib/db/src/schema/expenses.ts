@@ -12,6 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { categoriesTable } from "./categories";
+import { currenciesTable } from "./currencies";
 import { projectsTable } from "./projects";
 import { z } from "zod/v4";
 
@@ -36,6 +37,9 @@ export const expensesTable = pgTable(
     categoryId: uuid("category_id")
       .notNull()
       .references(() => categoriesTable.id, { onDelete: "restrict" }),
+    currencyId: uuid("currency_id")
+      .notNull()
+      .references(() => currenciesTable.id, { onDelete: "restrict" }),
     description: text("description"),
     paymentMethod: paymentMethodEnum("payment_method"),
     notes: text("notes"),
@@ -48,8 +52,11 @@ export const expensesTable = pgTable(
   (table) => [
     index("expenses_date_idx").on(table.date),
     index("expenses_project_id_idx").on(table.projectId),
+    index("expenses_project_id_date_idx").on(table.projectId, table.date),
     index("expenses_category_id_idx").on(table.categoryId),
     index("expenses_category_date_idx").on(table.categoryId, table.date),
+    index("expenses_currency_id_idx").on(table.currencyId),
+    index("expenses_amount_idx").on(table.amount),
     check("expenses_amount_positive_check", sql`${table.amount} > 0`),
   ],
 );

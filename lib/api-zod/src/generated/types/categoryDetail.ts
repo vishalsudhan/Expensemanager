@@ -8,11 +8,11 @@
 import type { Category } from './category';
 import type { CategoryMonthlySpending } from './categoryMonthlySpending';
 import type { CategoryRecentExpense } from './categoryRecentExpense';
+import type { CurrencyAmount } from './currencyAmount';
 
 export interface CategoryDetail {
   category: Category;
-  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
-  totalSpent: string;
+  totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
   recentExpenses: CategoryRecentExpense[];

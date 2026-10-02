@@ -24,4 +24,5 @@ export interface ProjectUpdate {
      * @nullable
      */
   icon?: string | null;
+  defaultCurrencyId?: string;
 }

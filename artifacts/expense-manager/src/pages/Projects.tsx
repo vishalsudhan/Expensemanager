@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'wouter';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -15,6 +15,8 @@ import {
 } from '@workspace/api-client-react';
 import type { Project, ProjectInput, ProjectUpdate } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrencyOptions } from '@/hooks/use-currencies';
+import { errorText, formatDate, formatTotals, money } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,6 +38,7 @@ const formSchema = z.object({
   description: z.string().max(4000, 'Keep the description under 4,000 characters.'),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Choose a valid project color.'),
   icon: z.string().max(64),
+  defaultCurrencyId: z.string().min(1, 'Choose a default currency.'),
 });
 type FormValues = z.infer<typeof formSchema>;
 const palette = ['#47796A', '#B9795E', '#66869A', '#9C8050', '#7D7397', '#71834E'];
@@ -56,19 +59,37 @@ function ProjectMark({ name }: { name: string | null }) {
   return <Icon size={21} strokeWidth={1.8} />;
 }
 
-const money = (amount: string | number) =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount || 0));
-const shortDate = (value: string) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
-};
-const errorText = (error: unknown) => error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+const shortDate = formatDate;
+
+/**
+ * Refreshes the project lists after a write.
+ *
+ * `invalidateQueries` alone can be swallowed by a list fetch that was already in
+ * flight when the mutation completed: the stale response then lands in the cache
+ * and nothing refetches, so a newly created project stays invisible until a
+ * reload. Cancelling first discards that in-flight response, and the refetch
+ * guarantees fresh data.
+ */
+async function refreshProjectLists(
+  queryClient: QueryClient,
+  projectId?: string,
+): Promise<void> {
+  await queryClient.cancelQueries({ queryKey: getListProjectsQueryKey() });
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() }),
+    queryClient.refetchQueries({ queryKey: getListProjectsQueryKey() }),
+    ...(projectId
+      ? [queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(projectId) })]
+      : []),
+  ]);
+}
 
 function ProjectFormDialog({ open, onOpenChange, project }: {
   open: boolean; onOpenChange: (open: boolean) => void; project?: Project | null;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { activeCurrencies: currencies, isLoading: currenciesLoading } = useCurrencyOptions();
   const createProject = useCreateProject();
   const updateProject = useUpdateProject();
   const isEditing = Boolean(project);
@@ -79,20 +100,27 @@ function ProjectFormDialog({ open, onOpenChange, project }: {
       description: project?.description ?? '',
       color: project?.color ?? palette[0],
       icon: project?.icon ?? 'FolderKanban',
+      defaultCurrencyId: project?.defaultCurrency?.id ?? '',
     },
   });
 
   // Dialog forms are mounted only while open, so current project values seed each new session.
+  useEffect(() => {
+    const current = form.getValues('defaultCurrencyId');
+    if (current && currencies.some((currency) => currency.id === current)) return;
+    const fallback = project?.defaultCurrency?.id ?? currencies[0]?.id ?? '';
+    if (fallback && fallback !== current) {
+      form.setValue('defaultCurrencyId', fallback, { shouldValidate: false });
+    }
+  }, [currencies, form, project]);
+
   const busy = createProject.isPending || updateProject.isPending;
   const onSubmit = (values: FormValues) => {
     if (project) {
-      const data: ProjectUpdate = { name: values.name, description: values.description || null, color: values.color, icon: values.icon };
+      const data: ProjectUpdate = { name: values.name, description: values.description || null, color: values.color, icon: values.icon, defaultCurrencyId: values.defaultCurrencyId };
       updateProject.mutate({ projectId: project.id, data }, {
         onSuccess: async () => {
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() }),
-            queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(project.id) }),
-          ]);
+          await refreshProjectLists(queryClient, project.id);
           toast({ title: 'Project updated', description: 'Your changes are saved.' });
           onOpenChange(false);
         },
@@ -100,12 +128,12 @@ function ProjectFormDialog({ open, onOpenChange, project }: {
       });
       return;
     }
-    const data: ProjectInput = { name: values.name, description: values.description || undefined, color: values.color, icon: values.icon };
+    const data: ProjectInput = { name: values.name, description: values.description || undefined, color: values.color, icon: values.icon, defaultCurrencyId: values.defaultCurrencyId };
     createProject.mutate({ data }, {
       onSuccess: async () => {
-        await queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+        await refreshProjectLists(queryClient);
         toast({ title: 'Project created', description: 'A new place for related expenses is ready.' });
-        form.reset({ name: '', description: '', color: palette[0] });
+        form.reset({ name: '', description: '', color: palette[0], icon: 'FolderKanban', defaultCurrencyId: currencies[0]?.id ?? '' });
         onOpenChange(false);
       },
       onError: (error) => toast({ title: 'Could not create project', description: errorText(error), variant: 'destructive' }),
@@ -133,6 +161,31 @@ function ProjectFormDialog({ open, onOpenChange, project }: {
               <FormItem>
                 <FormLabel>Description <span className="font-normal text-muted-foreground">(optional)</span></FormLabel>
                 <FormControl><Textarea {...field} maxLength={4000} rows={3} placeholder="A little context for future you…" data-testid="input-project-description" className="resize-y rounded-xl bg-background" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="defaultCurrencyId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Default currency <span className="text-destructive">*</span></FormLabel>
+                <FormControl>
+                  <select
+                    {...field}
+                    aria-label="Default currency"
+                    className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
+                    data-testid="select-project-currency"
+                    disabled={currenciesLoading}
+                  >
+                    <option value="">{currenciesLoading ? 'Loading currencies…' : 'Choose a currency'}</option>
+                    {currencies.map((currency) => (
+                      <option key={currency.id} value={currency.id}>
+                        {currency.symbol} {currency.code} · {currency.name}
+                      </option>
+                    ))}
+                  </select>
+                </FormControl>
+                <p className="text-[11px] text-muted-foreground" data-testid="text-project-currency-hint">
+                  New expenses in this project start with this currency. Every expense keeps its own currency and nothing is converted.
+                </p>
                 <FormMessage />
               </FormItem>
             )} />
@@ -172,7 +225,7 @@ function ProjectFormDialog({ open, onOpenChange, project }: {
             )} />
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-project">Cancel</Button>
-              <Button type="submit" disabled={busy} className="gap-2" data-testid="button-save-project">
+              <Button type="submit" disabled={busy || currenciesLoading} className="gap-2" data-testid="button-save-project">
                 {busy && <LoaderCircle size={15} className="animate-spin" />}{isEditing ? 'Save changes' : 'Create project'}
               </Button>
             </DialogFooter>
@@ -198,10 +251,7 @@ function ProjectListPage() {
     const project = archiving;
     archiveProject.mutate({ projectId: project.id }, {
       onSuccess: async () => {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() }),
-          queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(project.id) }),
-        ]);
+        await refreshProjectLists(queryClient, project.id);
         toast({ title: 'Project archived', description: `${project.name} is now in your archive.` });
         setArchiving(null);
       },
@@ -240,7 +290,7 @@ function ProjectListPage() {
       ) : projectsQuery.data?.length ? (
         <div className="mt-5 space-y-3" data-testid="list-projects">
           {projectsQuery.data.map((project, index) => (
-            <article key={project.id} className="group relative flex flex-col gap-4 rounded-[20px] border border-border/70 bg-card px-4 py-4 transition-all hover:border-primary/25 hover:shadow-[0_12px_36px_-30px_hsl(163_18%_19%/.4)] sm:flex-row sm:items-center sm:px-5" data-testid={`card-project-${project.id}`}>
+            <article key={project.id} className="group relative flex flex-col gap-4 rounded-[20px] border border-border/70 bg-card px-4 py-4 transition-all hover:border-primary/25 hover:shadow-[0_12px_36px_-30px_var(--hover-shadow)] sm:flex-row sm:items-center sm:px-5" data-testid={`card-project-${project.id}`}>
               <div className="flex min-w-0 flex-1 items-center gap-4">
                 <div className="grid size-12 shrink-0 place-items-center rounded-[16px]" style={{ backgroundColor: `${project.color}1B`, color: project.color }} data-testid={`icon-project-${project.id}`}><ProjectMark name={project.icon} /></div>
                 <div className="min-w-0">
@@ -248,11 +298,15 @@ function ProjectListPage() {
                     <span className="truncate">{project.name}</span><ArrowUpRight size={14} className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
                   </Link>
                   <p className="mt-1 line-clamp-1 text-xs text-muted-foreground" data-testid={`text-project-description-${project.id}`}>{project.description || 'A space for related spending'}</p>
+                  <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-secondary/60 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground" data-testid={`text-project-default-currency-${project.id}`}>
+                    <span data-testid={`text-project-default-currency-code-${project.id}`}>{project.defaultCurrency?.symbol} {project.defaultCurrency?.code}</span>
+                    <span className="font-normal">default</span>
+                  </p>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-3 sm:justify-end sm:border-0 sm:pt-0">
                 <div className="flex gap-6 sm:gap-8">
-                  <div><p className="font-display text-[16px] font-semibold tracking-[-.03em]" data-testid={`text-project-spent-${project.id}`}>{money(project.totalSpent)}</p><p className="mt-0.5 text-[10px] uppercase tracking-[.12em] text-muted-foreground">spent</p></div>
+                  <div><p className="font-display text-[16px] font-semibold tracking-[-.03em]" data-testid={`text-project-spent-${project.id}`}>{formatTotals(project.totals)}</p><p className="mt-0.5 text-[10px] uppercase tracking-[.12em] text-muted-foreground">spent</p></div>
                   <div><p className="font-display text-[16px] font-semibold tracking-[-.03em]" data-testid={`text-project-expenses-${project.id}`}>{project.expenseCount}</p><p className="mt-0.5 text-[10px] uppercase tracking-[.12em] text-muted-foreground">expenses</p></div>
                 </div>
                 {status === 'active' ? <div className="flex items-center gap-1">
@@ -277,7 +331,7 @@ function ProjectListPage() {
       <AlertDialog open={Boolean(archiving)} onOpenChange={(open) => { if (!open && !archiveProject.isPending) setArchiving(null); }}>
         <AlertDialogContent className="rounded-[22px] border-border bg-card" data-testid="dialog-archive-project">
           <AlertDialogHeader><AlertDialogTitle className="font-display text-xl tracking-[-.03em]">Archive {archiving?.name}?</AlertDialogTitle><AlertDialogDescription>This keeps its history and expenses intact. You can still find it from the Archived tab.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel disabled={archiveProject.isPending} data-testid="button-cancel-archive">Keep project</AlertDialogCancel><AlertDialogAction disabled={archiveProject.isPending} onClick={(event) => { event.preventDefault(); confirmArchive(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="button-confirm-archive">{archiveProject.isPending ? 'Archiving…' : 'Archive project'}</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogCancel disabled={archiveProject.isPending} data-testid="button-cancel-archive">Keep project</AlertDialogCancel><AlertDialogAction disabled={archiveProject.isPending} onClick={(event) => { event.preventDefault(); confirmArchive(); }} data-testid="button-confirm-archive">{archiveProject.isPending ? 'Archiving…' : 'Archive project'}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
@@ -298,10 +352,7 @@ function ProjectDetailPage() {
     if (!project) return;
     archiveProject.mutate({ projectId: project.id }, {
       onSuccess: async () => {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() }),
-          queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(project.id) }),
-        ]);
+        await refreshProjectLists(queryClient, project.id);
         toast({ title: 'Project archived', description: `${project.name} is now in your archive.` });
         setConfirmArchive(false);
       },
@@ -326,7 +377,8 @@ function ProjectDetailPage() {
   }
   if (!detailQuery.data || !project) return <section className="page-enter" data-testid="status-project-not-found"><h1 className="font-display text-3xl font-semibold">This project isn’t here.</h1><Link href="/projects" className="mt-5 inline-flex text-sm font-bold text-primary" data-testid="link-projects-from-empty-detail">Back to projects</Link></section>;
   const detail = detailQuery.data;
-  const maxCategory = Math.max(...detail.categoryBreakdown.map((item) => Number(item.totalSpent)), 1);
+  const maxCategory = Math.max(...detail.categoryBreakdown.flatMap((item) => item.totals.map((entry) => Number(entry.total))), 1);
+  const categoryTotal = (item: { totals: { total: string }[] }) => item.totals.reduce((sum, entry) => sum + Number(entry.total), 0);
 
   return (
     <div className="page-enter">
@@ -334,9 +386,13 @@ function ProjectDetailPage() {
       <div className="flex flex-col gap-5 border-b border-border/80 pb-7 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <div className="mt-1 grid size-12 shrink-0 place-items-center rounded-[16px]" style={{ color: project.color, backgroundColor: `${project.color}1B` }} data-testid="icon-project-detail"><ProjectMark name={project.icon} /></div>
-          <div><div className="mb-2 text-[10px] font-bold uppercase tracking-[.18em] text-primary">PROJECT OVERVIEW</div>
-            <h1 className="font-display text-[34px] font-semibold leading-tight tracking-[-.055em] sm:text-[44px]" data-testid="heading-project-detail">{project.name}</h1>
+          <div className="min-w-0"><div className="mb-2 text-[10px] font-bold uppercase tracking-[.18em] text-primary">PROJECT OVERVIEW</div>
+            <h1 className="break-words font-display text-[34px] font-semibold leading-tight tracking-[-.055em] sm:text-[44px]" data-testid="heading-project-detail">{project.name}</h1>
             <p className="mt-2 max-w-[580px] text-sm leading-6 text-muted-foreground" data-testid="text-project-detail-description">{project.description || 'A space for related spending, gathered in one place.'}</p>
+            <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-secondary/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground" data-testid="text-project-detail-default-currency">
+              <span data-testid="text-project-detail-default-currency-code">{project.defaultCurrency?.symbol} {project.defaultCurrency?.code}</span>
+              <span className="font-normal">default currency</span>
+            </p>
           </div>
         </div>
         <div className="flex gap-2 sm:pt-1">
@@ -348,8 +404,8 @@ function ProjectDetailPage() {
         <section className="relative overflow-hidden rounded-[22px] border border-border/70 bg-card p-5 sm:p-6" data-testid="card-project-total-spent">
           <div className="absolute -right-6 -top-8 size-32 rounded-full border-[1px] border-primary/10" /><div className="absolute -right-1 -top-2 size-20 rounded-full border-[1px] border-primary/10" />
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground"><CircleDollarSign size={15} className="text-primary" /> Total spent</div>
-          <p className="mt-5 font-display text-[36px] font-semibold leading-none tracking-[-.06em] sm:text-[42px]" data-testid="text-project-total-spent">{money(detail.totalSpent)}</p>
-          <p className="mt-2 text-xs text-muted-foreground">Across all expenses in this project</p>
+          <p className="mt-5 font-display text-[36px] font-semibold leading-none tracking-[-.06em] sm:text-[42px]" data-testid="text-project-total-spent">{formatTotals(detail.totals)}</p>
+          <p className="mt-2 text-xs text-muted-foreground">Across all expenses in this project{detail.totals.length > 1 ? ' · multiple currencies' : ''}</p>
         </section>
         <section className="rounded-[22px] border border-border/70 bg-secondary/50 p-5 sm:p-6" data-testid="card-project-expense-count">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground"><Wallet size={15} className="text-primary" /> Expenses</div>
@@ -362,8 +418,8 @@ function ProjectDetailPage() {
           <div className="flex items-start justify-between gap-3"><div><h2 className="font-display text-[19px] font-semibold tracking-[-.035em]">Spending by category</h2><p className="mt-1 text-xs text-muted-foreground">Your global categories, viewed through this project.</p></div><Tag size={17} className="mt-1 text-primary" /></div>
           {detail.categoryBreakdown.length ? <div className="mt-6 space-y-5" data-testid="list-project-category-breakdown">
             {detail.categoryBreakdown.map((category) => <div key={category.categoryId} data-testid={`row-project-category-${category.categoryId}`}>
-              <div className="mb-2 flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: category.categoryColor }} /><span className="truncate text-[13px] font-semibold" data-testid={`text-project-category-name-${category.categoryId}`}>{category.categoryName}</span><span className="text-[10px] text-muted-foreground">{category.expenseCount}</span></div><span className="shrink-0 text-[13px] font-semibold tabular-nums" data-testid={`text-project-category-spent-${category.categoryId}`}>{money(category.totalSpent)}</span></div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${Math.max((Number(category.totalSpent) / maxCategory) * 100, 2)}%`, backgroundColor: category.categoryColor }} /></div>
+              <div className="mb-2 flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: category.categoryColor }} /><span className="truncate text-[13px] font-semibold" data-testid={`text-project-category-name-${category.categoryId}`}>{category.categoryName}</span><span className="text-[10px] text-muted-foreground">{category.expenseCount}</span></div><span className="shrink-0 text-[13px] font-semibold tabular-nums" data-testid={`text-project-category-spent-${category.categoryId}`}>{formatTotals(category.totals)}</span></div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${Math.max((categoryTotal(category) / maxCategory) * 100, 2)}%`, backgroundColor: category.categoryColor }} /></div>
             </div>)}
           </div> : <div className="mt-6 rounded-xl bg-secondary/45 px-4 py-6 text-center text-sm text-muted-foreground" data-testid="status-project-categories-empty">Category totals will appear when this project has expenses.</div>}
         </section>
@@ -373,7 +429,7 @@ function ProjectDetailPage() {
             {detail.recentExpenses.map((expense) => <div key={expense.id} className="flex items-center gap-3 py-3.5" data-testid={`row-project-expense-${expense.id}`}>
               <div className="grid size-10 shrink-0 place-items-center rounded-xl" style={{ backgroundColor: `${expense.categoryColor}1B`, color: expense.categoryColor }}><span className="size-2 rounded-full" style={{ backgroundColor: expense.categoryColor }} /></div>
               <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold" data-testid={`text-expense-description-${expense.id}`}>{expense.description || expense.categoryName}</p><p className="mt-1 truncate text-[11px] text-muted-foreground">{expense.categoryName}<span className="mx-1.5">·</span>{shortDate(expense.date)}</p></div>
-              <p className="shrink-0 text-[13px] font-semibold tabular-nums" data-testid={`text-expense-amount-${expense.id}`}>{money(expense.amount)}</p>
+              <p className="shrink-0 text-[13px] font-semibold tabular-nums" data-testid={`text-expense-amount-${expense.id}`}>{money(expense.amount, expense.currency)}</p>
             </div>)}
           </div> : <div className="mt-5 rounded-xl bg-secondary/45 px-4 py-7 text-center" data-testid="status-project-expenses-empty"><p className="font-display text-base font-semibold">No expenses just yet</p><p className="mt-1.5 text-xs leading-5 text-muted-foreground">When an expense is linked to this project, it will show up here.</p></div>}
         </section>
@@ -381,7 +437,7 @@ function ProjectDetailPage() {
       {project.status === 'archived' && <div className="mt-6 flex items-center gap-2 rounded-xl border border-border/70 bg-secondary/40 px-4 py-3 text-xs text-muted-foreground" data-testid="status-project-archived"><Archive size={14} /> This project is archived. Its spending history remains available.</div>}
       <ProjectFormDialog key={`${formOpen ? 'open' : 'closed'}-${project.id}`} open={formOpen} onOpenChange={setFormOpen} project={project} />
       <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
-        <AlertDialogContent className="rounded-[22px] border-border bg-card" data-testid="dialog-archive-project-detail"><AlertDialogHeader><AlertDialogTitle className="font-display text-xl">Archive {project.name}?</AlertDialogTitle><AlertDialogDescription>This keeps the project’s history intact and moves it into your archive.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={archiveProject.isPending} data-testid="button-cancel-archive-detail">Keep project</AlertDialogCancel><AlertDialogAction disabled={archiveProject.isPending} onClick={(event) => { event.preventDefault(); archive(); }} className="bg-destructive text-destructive-foreground" data-testid="button-confirm-archive-detail">{archiveProject.isPending ? 'Archiving…' : 'Archive project'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent className="rounded-[22px] border-border bg-card" data-testid="dialog-archive-project-detail"><AlertDialogHeader><AlertDialogTitle className="font-display text-xl">Archive {project.name}?</AlertDialogTitle><AlertDialogDescription>This keeps the project’s history intact and moves it into your archive.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={archiveProject.isPending} data-testid="button-cancel-archive-detail">Keep project</AlertDialogCancel><AlertDialogAction disabled={archiveProject.isPending} onClick={(event) => { event.preventDefault(); archive(); }} data-testid="button-confirm-archive-detail">{archiveProject.isPending ? 'Archiving…' : 'Archive project'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </div>
   );

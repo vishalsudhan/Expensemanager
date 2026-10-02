@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Category } from './category';
+import type { CurrencyAmount } from './currencyAmount';
 
 export type CategoryListItem = Category & {
-  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
-  totalSpent: string;
+  totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
 };

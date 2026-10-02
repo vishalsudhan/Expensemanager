@@ -5,12 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CurrencyAmount } from './currencyAmount';
 
 export interface CategoryMonthlySpending {
   /** @pattern ^\d{4}-\d{2}$ */
   month: string;
-  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
-  totalSpent: string;
+  totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
 }

@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CurrencyAmount } from './currencyAmount';
 
 export interface ProjectCategoryBreakdown {
   categoryId: string;
@@ -12,8 +13,7 @@ export interface ProjectCategoryBreakdown {
   categoryColor: string;
   /** @nullable */
   categoryIcon: string | null;
-  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
-  totalSpent: string;
+  totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
 }

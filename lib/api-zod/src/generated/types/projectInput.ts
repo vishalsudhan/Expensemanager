@@ -18,4 +18,5 @@ export interface ProjectInput {
   color?: string;
   /** @maxLength 64 */
   icon?: string;
+  defaultCurrencyId: string;
 }

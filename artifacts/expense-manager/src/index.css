@@ -69,6 +69,8 @@
 
 /* LIGHT MODE */
 :root {
+  color-scheme: light;
+
   --button-outline: rgba(0, 0, 0, 0.1);
   --badge-outline: rgba(0, 0, 0, 0.05);
 
@@ -78,6 +80,9 @@
   /* Backgrounds applied on top of other backgrounds when hovered/active */
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
+
+  /* Lift shadow used by interactive cards */
+  --hover-shadow: hsl(163 18% 19% / 0.4);
 
   --background: 42 33% 96%;
   --foreground: 163 18% 19%;
@@ -191,6 +196,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --button-outline: rgba(255, 255, 255, 0.1);
   --badge-outline: rgba(255, 255, 255, 0.05);
 
@@ -199,6 +206,9 @@
   /* Backgrounds applied on top of other backgrounds when hovered/active */
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
+
+  /* Lift shadow used by interactive cards */
+  --hover-shadow: hsl(0 0% 0% / 0.55);
 
   --background: 165 15% 12%;
   --foreground: 42 27% 92%;
@@ -285,7 +295,7 @@
 }
 .nav-link { transition: color 180ms ease, background-color 180ms ease, transform 180ms ease; }
 .nav-link:active { transform: scale(.97); }
-.home-orbit { background: radial-gradient(circle at 50% 50%, hsl(155 23% 89%) 0 37%, transparent 37.5%), repeating-radial-gradient(circle at 50% 50%, transparent 0 51px, hsl(162 17% 76% / .55) 52px 53px, transparent 54px 84px); }
+.dark .soft-grain::after { mix-blend-mode: soft-light; opacity: .09; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
