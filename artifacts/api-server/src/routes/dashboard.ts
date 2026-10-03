@@ -2,7 +2,14 @@ import { Router, type IRouter } from "express";
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { GetDashboardQueryParams, GetDashboardResponse } from "@workspace/api-zod";
 import type { Currency, CurrencyAmount } from "@workspace/api-zod";
-import { categoriesTable, currenciesTable, db, expensesTable, projectsTable } from "@workspace/db";
+import {
+  categoriesTable,
+  currenciesTable,
+  db,
+  expensesTable,
+  locationsTable,
+  projectsTable,
+} from "@workspace/db";
 import {
   currencyAmountSum,
   currencyColumns,
@@ -52,6 +59,30 @@ function toAmounts(rows: readonly CurrencyAggregateRow[]): CurrencyAmount[] {
 
 type CurrencySummaryPeriod = "today" | "week" | "month" | "allTime";
 
+const locationSelection = {
+  id: locationsTable.id,
+  name: locationsTable.name,
+  slug: locationsTable.slug,
+  countryCode: locationsTable.countryCode,
+  status: locationsTable.status,
+};
+
+function toLocation(row: {
+  id: string;
+  name: string;
+  slug: string;
+  countryCode: string | null;
+  status: "active" | "archived";
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    countryCode: row.countryCode,
+    status: row.status,
+  };
+}
+
 function periodCondition(period: CurrencySummaryPeriod) {
   switch (period) {
     case "today":
@@ -65,14 +96,106 @@ function periodCondition(period: CurrencySummaryPeriod) {
   }
 }
 
-async function currencySummary(period: CurrencySummaryPeriod): Promise<CurrencyAmount[]> {
+async function currencySummary(
+  period: CurrencySummaryPeriod,
+  transactionType: "expense" | "payment",
+): Promise<CurrencyAmount[]> {
   const rows = await db
     .select({ ...currencyColumns, total: currencyAmountSum, count: currencyExpenseCount })
     .from(expensesTable)
     .innerJoin(currenciesTable, expenseCurrencyJoin)
-    .where(periodCondition(period))
+    .where(and(periodCondition(period), eq(expensesTable.transactionType, transactionType)))
     .groupBy(currenciesTable.id);
   return toAmounts(rows);
+}
+
+/** Spending per location for the current month, kept separated by currency. */
+async function locationSpending(monthTotals: CurrencyAmount[]) {
+  const [rows, categoryRows] = await Promise.all([
+    db
+      .select({
+        location: locationSelection,
+        ...currencyColumns,
+        total: currencyAmountSum,
+        count: currencyExpenseCount,
+      })
+      .from(expensesTable)
+      .innerJoin(currenciesTable, expenseCurrencyJoin)
+      .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
+      .where(and(currentMonth, eq(expensesTable.transactionType, "expense")))
+      .groupBy(locationsTable.id, currenciesTable.id),
+    db
+      .select({
+        location: locationSelection,
+        category: {
+          id: categoriesTable.id,
+          name: categoriesTable.name,
+          // ExpenseCategory carries slug and parentId, so this rollup must too.
+          slug: categoriesTable.slug,
+          parentId: categoriesTable.parentId,
+          icon: categoriesTable.icon,
+          color: categoriesTable.color,
+          status: categoriesTable.status,
+        },
+        ...currencyColumns,
+        total: currencyAmountSum,
+        count: currencyExpenseCount,
+      })
+      .from(expensesTable)
+      .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
+      .innerJoin(currenciesTable, expenseCurrencyJoin)
+      .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
+      .where(and(currentMonth, eq(expensesTable.transactionType, "expense")))
+      .groupBy(locationsTable.id, categoriesTable.id, currenciesTable.id)
+      .orderBy(desc(sql`sum(${amount})`)),
+  ]);
+
+  const byLocation = new Map<string, CurrencyAmount[]>();
+  for (const row of rows) {
+    const [entry] = toAmounts([row]);
+    byLocation.set(row.location.id, [...(byLocation.get(row.location.id) ?? []), entry]);
+  }
+
+  return rows
+    .filter((row, index, all) => all.findIndex((r) => r.location.id === row.location.id) === index)
+    .map((row) => {
+      const totals = (byLocation.get(row.location.id) ?? []).sort((a, b) =>
+        a.currency.code.localeCompare(b.currency.code),
+      );
+
+      // Major categories inside this location, each keeping its own currency split.
+      const seenCategories = new Set<string>();
+      const categories = categoryRows
+        .filter((entry) => entry.location.id === row.location.id)
+        .filter((entry) => {
+          if (seenCategories.has(entry.category.id)) return false;
+          seenCategories.add(entry.category.id);
+          return true;
+        })
+        .map((entry) => {
+          const entryTotals = categoryRows
+            .filter(
+              (candidate) =>
+                candidate.location.id === row.location.id &&
+                candidate.category.id === entry.category.id,
+            )
+            .flatMap((candidate) => toAmounts([candidate]))
+            .sort((a, b) => a.currency.code.localeCompare(b.currency.code));
+          return {
+            category: entry.category,
+            totals: withShares(entryTotals, totals),
+            count: totalCount(entryTotals),
+          };
+        });
+
+      return {
+        location: toLocation(row.location),
+        totals: withShares(totals, monthTotals),
+        count: totals.reduce((sum, entry) => sum + entry.count, 0),
+        categories,
+      };
+    })
+    .sort((a, b) => b.count - a.count);
 }
 
 /** Every trend bucket is returned, even when it has no expenses. */
@@ -120,18 +243,25 @@ router.get("/dashboard", async (req, res): Promise<void> => {
 
   const { granularity, recentLimit } = parsed.data;
 
-  const [today, week, month, allTime, categoryRows, projectRows, recentRows, trendRows] =
+  const [today, week, month, allTime, payToday, payWeek, payMonth, payAllTime, categoryRows, projectRows, recentRows, trendRows] =
     await Promise.all([
-      currencySummary("today"),
-      currencySummary("week"),
-      currencySummary("month"),
-      currencySummary("allTime"),
+      currencySummary("today", "expense"),
+      currencySummary("week", "expense"),
+      currencySummary("month", "expense"),
+      currencySummary("allTime", "expense"),
+      currencySummary("today", "payment"),
+      currencySummary("week", "payment"),
+      currencySummary("month", "payment"),
+      currencySummary("allTime", "payment"),
       db
         .select({
           entityId: categoriesTable.id,
           category: {
             id: categoriesTable.id,
             name: categoriesTable.name,
+            // ExpenseCategory carries slug and parentId.
+            slug: categoriesTable.slug,
+            parentId: categoriesTable.parentId,
             icon: categoriesTable.icon,
             color: categoriesTable.color,
             status: categoriesTable.status,
@@ -143,7 +273,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
         .from(expensesTable)
         .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
         .innerJoin(currenciesTable, expenseCurrencyJoin)
-        .where(currentMonth)
+        .where(and(currentMonth, eq(expensesTable.transactionType, "expense")))
         .groupBy(categoriesTable.id, currenciesTable.id)
         .orderBy(desc(sql`sum(${amount})`)),
       db
@@ -162,7 +292,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
         .from(expensesTable)
         .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
         .innerJoin(currenciesTable, expenseCurrencyJoin)
-        .where(currentMonth)
+        .where(and(currentMonth, eq(expensesTable.transactionType, "expense")))
         .groupBy(projectsTable.id, currenciesTable.id)
         .orderBy(desc(sql`sum(${amount})`)),
       db
@@ -171,10 +301,12 @@ router.get("/dashboard", async (req, res): Promise<void> => {
         .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
         .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
         .innerJoin(currenciesTable, expenseCurrencyJoin)
+        // expenseSelection includes the location, so the join is required.
+        .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
         .orderBy(desc(expensesTable.date), desc(expensesTable.createdAt))
         .limit(recentLimit),
       db.execute(sql`
-        select to_char(g, ${granularity === "month" ? "'YYYY-MM-01'" : "'YYYY-MM-DD'"}) as start,
+        select to_char(g, ${trendDateFormat(granularity)}) as start,
                c.id as "currencyId",
                c.code as "currencyCode",
                c.name as "currencyName",
@@ -184,7 +316,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
                coalesce(sum(e.amount), 0)::text as total,
                count(e.id)::int as count
         from ${trendSeries(granularity)} as g
-        left join expenses e on ${trendJoin(granularity)}
+        left join expenses e on ${trendJoin(granularity)} and e.transaction_type = 'expense'
         left join currencies c on e.currency_id = c.id
         where c.id is not null
         group by g, c.id
@@ -192,7 +324,27 @@ router.get("/dashboard", async (req, res): Promise<void> => {
       `),
     ]);
 
+  const locationTotals = await locationSpending(month);
   const recentExpenses = await attachLabels(recentRows);
+
+  // A few recent expenses per location so each place has its own feed.
+  const recentByLocation = await Promise.all(
+    locationTotals.map(async (entry) => ({
+      location: entry.location,
+      expenses: await attachLabels(
+        await db
+          .select(expenseSelection)
+          .from(expensesTable)
+          .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
+          .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
+          .innerJoin(currenciesTable, expenseCurrencyJoin)
+          .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
+          .where(eq(expensesTable.locationId, entry.location.id))
+          .orderBy(desc(expensesTable.date), desc(expensesTable.createdAt))
+          .limit(3),
+      ),
+    })),
+  );
 
   const trendsByStart = new Map<string, CurrencyAmount[]>();
   for (const row of trendRows.rows as unknown as Array<CurrencyAggregateRow & { start: string }>) {
@@ -247,6 +399,9 @@ router.get("/dashboard", async (req, res): Promise<void> => {
   res.json(
     GetDashboardResponse.parse({
       summary: { today, week, month, allTime },
+      payments: { today: payToday, week: payWeek, month: payMonth, allTime: payAllTime },
+      locationSpending: locationTotals,
+      recentByLocation,
       recentExpenses,
       categorySpending,
       projectSpending,
@@ -260,6 +415,19 @@ router.get("/dashboard", async (req, res): Promise<void> => {
     }),
   );
 });
+
+/**
+ * The `to_char` pattern for a trend bucket label.
+ *
+ * This has to be inlined as SQL rather than passed as a bound parameter. A
+ * bound parameter would be used as a literal format string, so to_char would
+ * emit the quotes as part of the value and every bucket key would carry them,
+ * matching nothing. The value is one of two constants chosen here, never caller
+ * input, so inlining cannot introduce injection.
+ */
+function trendDateFormat(granularity: "day" | "week" | "month") {
+  return granularity === "month" ? sql.raw("'YYYY-MM-01'") : sql.raw("'YYYY-MM-DD'");
+}
 
 function trendSeries(granularity: "day" | "week" | "month") {
   if (granularity === "day") {

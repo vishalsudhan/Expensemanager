@@ -7,6 +7,9 @@
  */
 import type { CurrencyAmount } from './currencyAmount';
 
+/**
+ * Spending only - payment transactions are excluded so a card bill never double-counts its purchases.
+ */
 export interface DashboardSummary {
   today: CurrencyAmount[];
   week: CurrencyAmount[];

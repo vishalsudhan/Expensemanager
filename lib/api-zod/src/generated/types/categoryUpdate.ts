@@ -13,6 +13,13 @@ export interface CategoryUpdate {
      */
   name?: string;
   /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  slug?: string;
+  /** @nullable */
+  parentId?: string | null;
+  /**
      * @maxLength 64
      * @nullable
      */

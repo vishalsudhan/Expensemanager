@@ -3,13 +3,20 @@ import express, {
   type Express,
   type RequestHandler,
 } from "express";
+import cookieParser from "cookie-parser";
 import cors, { type CorsOptions } from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { attachSession } from "./middlewares/auth";
 import {
   apiRateLimit,
+  authRateLimit,
   importRateLimit,
+  loginRateLimit,
+  resetEmailRateLimit,
+  resetIpRateLimit,
+  resetTokenRateLimit,
   securityHeaders,
 } from "./middlewares/security";
 
@@ -22,12 +29,14 @@ const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
 
 const corsOptions: CorsOptions =
   allowedOrigins.length > 0
-    ? { origin: allowedOrigins }
+    ? // Credentials are required for the session cookie when the web app and API
+      // are served from different origins during development.
+      { origin: allowedOrigins, credentials: true }
     : process.env.NODE_ENV === "production"
       ? // The web app and API are served from the same origin in production,
         // so no cross-origin access is needed.
         { origin: false }
-      : {};
+      : { origin: true, credentials: true };
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -55,9 +64,22 @@ app.use(securityHeaders());
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
+// Required to read the session cookie back on every request.
+app.use(cookieParser());
 
+// Tighter limits on the endpoints that can be brute-forced. These are mounted
+// before the broad apiRateLimit so a password attempt is capped far below the
+// general budget.
+app.use("/api/auth/login", loginRateLimit);
+app.use("/api/auth/forgot-password", resetIpRateLimit, resetEmailRateLimit);
+app.use("/api/auth/reset-password", resetTokenRateLimit);
+app.use("/api/auth/setup", authRateLimit);
 app.use("/api/backup/import", importRateLimit);
 app.use("/api", apiRateLimit);
+
+// Resolves the session cookie once, before any route decides whether to allow
+// the request through.
+app.use("/api", attachSession);
 app.use("/api", router);
 
 const apiNotFound: RequestHandler = (_req, res) => {

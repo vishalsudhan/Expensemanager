@@ -10,6 +10,12 @@ import type { ExpenseCategoryStatus } from './expenseCategoryStatus';
 export interface ExpenseCategory {
   id: string;
   name: string;
+  slug: string;
+  /**
+     * Null for a top-level category.
+     * @nullable
+     */
+  parentId: string | null;
   /** @nullable */
   icon: string | null;
   color: string;

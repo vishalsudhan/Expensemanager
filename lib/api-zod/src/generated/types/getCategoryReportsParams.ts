@@ -5,8 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ExpenseTransactionType } from './expenseTransactionType';
 
 export type GetCategoryReportsParams = {
+locationId?: string;
+transactionType?: ExpenseTransactionType;
 /**
  * Number of trailing months to include in each monthly trend
  * @minimum 1

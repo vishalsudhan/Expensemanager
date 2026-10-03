@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import {
   ArchiveProjectParams,
   ArchiveProjectResponse,
@@ -103,6 +103,7 @@ router.get("/projects", async (req, res): Promise<void> => {
       })
       .from(expensesTable)
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+      .where(eq(expensesTable.transactionType, "expense"))
       .groupBy(expensesTable.projectId, currenciesTable.id),
   ]);
 
@@ -214,7 +215,7 @@ router.get("/projects/:projectId", async (req, res): Promise<void> => {
       .select({ ...currencyColumns, total: currencyAmountSum, count: currencyExpenseCount })
       .from(expensesTable)
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
-      .where(eq(expensesTable.projectId, project.id))
+      .where(and(eq(expensesTable.projectId, project.id), eq(expensesTable.transactionType, "expense")))
       .groupBy(currenciesTable.id),
     db
       .select({
@@ -230,7 +231,7 @@ router.get("/projects/:projectId", async (req, res): Promise<void> => {
       .from(expensesTable)
       .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
-      .where(eq(expensesTable.projectId, project.id))
+      .where(and(eq(expensesTable.projectId, project.id), eq(expensesTable.transactionType, "expense")))
       .groupBy(categoriesTable.id, currenciesTable.id)
       .orderBy(desc(sql`sum(${expensesTable.amount})`), asc(categoriesTable.name)),
     db

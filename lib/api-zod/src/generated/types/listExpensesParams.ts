@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
+import type { ExpenseTransactionType } from './expenseTransactionType';
 import type { ListExpensesSort } from './listExpensesSort';
 
 export type ListExpensesParams = {
@@ -35,6 +36,15 @@ paymentMethod?: ExpensePaymentMethod;
  * Filter expenses by currency
  */
 currencyId?: string;
+/**
+ * Filter expenses by location
+ */
+locationId?: string;
+/**
+ * Filter expenses by top-level category, including all of its subcategories
+ */
+parentCategoryId?: string;
+transactionType?: ExpenseTransactionType;
 sort?: ListExpensesSort;
 /**
  * @minimum 1

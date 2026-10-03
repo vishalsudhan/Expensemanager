@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
+import type { ExpenseTransactionType } from './expenseTransactionType';
 
 export interface ExpenseInput {
   /**
@@ -14,6 +15,7 @@ export interface ExpenseInput {
      */
   amount: string;
   date: Date;
+  locationId: string;
   /** @nullable */
   projectId?: string | null;
   categoryId: string;
@@ -24,6 +26,7 @@ export interface ExpenseInput {
      */
   description?: string | null;
   paymentMethod?: ExpensePaymentMethod | null;
+  transactionType?: ExpenseTransactionType | null;
   /**
      * @maxLength 4000
      * @nullable

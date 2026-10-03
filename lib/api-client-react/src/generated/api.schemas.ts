@@ -5,6 +5,103 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface AuthState {
+  /** True while the one-time account setup screen is still open. */
+  needsSetup: boolean;
+  /** True when the request cookie resolves to a live session. */
+  authenticated: boolean;
+}
+
+export interface AuthSession {
+  ok: boolean;
+  /** Present on the setup response only. */
+  email?: string;
+}
+
+export interface AuthOk {
+  ok: boolean;
+}
+
+export interface GenericMessage {
+  message: string;
+}
+
+export type CurrentUserUser = {
+  id: string;
+  email: string;
+  passwordChangedAt?: string;
+};
+
+export interface CurrentUser {
+  user: CurrentUserUser;
+}
+
+export interface SetupAccountRequest {
+  /** @maxLength 254 */
+  email: string;
+  /**
+     * @minLength 12
+     * @maxLength 200
+     */
+  password: string;
+  /**
+     * @minLength 12
+     * @maxLength 200
+     */
+  confirmPassword: string;
+}
+
+export interface LoginRequest {
+  /** @maxLength 254 */
+  email: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  password: string;
+}
+
+export interface ForgotPasswordRequest {
+  /** @maxLength 254 */
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  token: string;
+  /**
+     * @minLength 12
+     * @maxLength 200
+     */
+  password: string;
+  /**
+     * @minLength 12
+     * @maxLength 200
+     */
+  confirmPassword: string;
+}
+
+export interface ChangePasswordRequest {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  currentPassword: string;
+  /**
+     * @minLength 12
+     * @maxLength 200
+     */
+  newPassword: string;
+  /**
+     * @minLength 12
+     * @maxLength 200
+     */
+  confirmPassword: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -241,6 +338,16 @@ export interface Category {
      * @maxLength 80
      */
   name: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  slug: string;
+  /**
+     * Null for a top-level category.
+     * @nullable
+     */
+  parentId: string | null;
   /** @nullable */
   icon: string | null;
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
@@ -256,6 +363,14 @@ export interface CategoryInput {
      * @maxLength 80
      */
   name: string;
+  /**
+     * Derived from the name when omitted.
+     * @minLength 1
+     * @maxLength 100
+     */
+  slug?: string;
+  /** @nullable */
+  parentId?: string | null;
   /** @maxLength 64 */
   icon?: string;
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
@@ -268,6 +383,13 @@ export interface CategoryUpdate {
      * @maxLength 80
      */
   name?: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  slug?: string;
+  /** @nullable */
+  parentId?: string | null;
   /**
      * @maxLength 64
      * @nullable
@@ -305,6 +427,10 @@ export interface CategoryMonthlySpending {
 
 export interface CategoryDetail {
   category: Category;
+  /** Null for a top-level category. */
+  parent: Category | null;
+  /** Subcategories. Always empty for a subcategory. */
+  children: Category[];
   totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
@@ -368,6 +494,17 @@ export const ExpensePaymentMethod = {
   other: 'other',
 } as const;
 
+/**
+ * expense = real consumption. payment = settling a debt, excluded from spending totals.
+ */
+export type ExpenseTransactionType = typeof ExpenseTransactionType[keyof typeof ExpenseTransactionType];
+
+
+export const ExpenseTransactionType = {
+  expense: 'expense',
+  payment: 'payment',
+} as const;
+
 export type ExpenseProjectStatus = typeof ExpenseProjectStatus[keyof typeof ExpenseProjectStatus];
 
 
@@ -383,6 +520,27 @@ export interface ExpenseProject {
   status: ExpenseProjectStatus;
 }
 
+export type ExpenseLocationStatus = typeof ExpenseLocationStatus[keyof typeof ExpenseLocationStatus];
+
+
+export const ExpenseLocationStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface ExpenseLocation {
+  id: string;
+  name: string;
+  slug: string;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     * @nullable
+     */
+  countryCode: string | null;
+  status: ExpenseLocationStatus;
+}
+
 export type ExpenseCategoryStatus = typeof ExpenseCategoryStatus[keyof typeof ExpenseCategoryStatus];
 
 
@@ -394,6 +552,12 @@ export const ExpenseCategoryStatus = {
 export interface ExpenseCategory {
   id: string;
   name: string;
+  slug: string;
+  /**
+     * Null for a top-level category.
+     * @nullable
+     */
+  parentId: string | null;
   /** @nullable */
   icon: string | null;
   color: string;
@@ -413,6 +577,91 @@ export interface ExpenseLabel {
   name: string;
   color: string;
   status: ExpenseLabelStatus;
+}
+
+export type LocationStatus = typeof LocationStatus[keyof typeof LocationStatus];
+
+
+export const LocationStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+/**
+ * Where an expense happened. Independent of project, category and currency.
+ */
+export interface Location {
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  slug: string;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     * @nullable
+     */
+  countryCode: string | null;
+  status: LocationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LocationInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  slug?: string;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     * @nullable
+     */
+  countryCode?: string | null;
+}
+
+/**
+ * Set to archived to disable a location without deleting it.
+ */
+export type LocationUpdateStatus = typeof LocationUpdateStatus[keyof typeof LocationUpdateStatus];
+
+
+export const LocationUpdateStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface LocationUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name?: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  slug?: string;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     * @nullable
+     */
+  countryCode?: string | null;
+  /** Set to archived to disable a location without deleting it. */
+  status?: LocationUpdateStatus;
 }
 
 export interface ExpenseRecord {
@@ -436,19 +685,26 @@ export interface ExpenseRecord {
   category: ExpenseCategory;
   labels: ExpenseLabel[];
   currency: Currency;
+  location: ExpenseLocation;
+  transactionType: ExpenseTransactionType;
 }
 
 export interface ExpensePage {
   items: ExpenseRecord[];
   /** Total expenses matching the current search and filters */
   total: number;
-  /** Sum of all matching expenses grouped by currency */
+  /** Sum of matching expense transactions grouped by currency */
   totals: CurrencyAmount[];
+  /** Sum of matching payment transactions grouped by currency */
+  paymentTotals: CurrencyAmount[];
   limit: number;
   offset: number;
   hasMore: boolean;
 }
 
+/**
+ * Spending only - payment transactions are excluded so a card bill never double-counts its purchases.
+ */
 export interface DashboardSummary {
   today: CurrencyAmount[];
   week: CurrencyAmount[];
@@ -461,6 +717,20 @@ export interface DashboardCategorySpending {
   totals: CurrencyAmount[];
   /** @minimum 0 */
   count: number;
+}
+
+export interface DashboardLocationSpending {
+  location: ExpenseLocation;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+  /** Major categories within this location, for the current month. */
+  categories: DashboardCategorySpending[];
+}
+
+export interface DashboardLocationRecent {
+  location: ExpenseLocation;
+  expenses: ExpenseRecord[];
 }
 
 export interface DashboardProjectSpending {
@@ -494,6 +764,9 @@ export interface DashboardTrend {
 
 export interface Dashboard {
   summary: DashboardSummary;
+  payments: DashboardSummary;
+  locationSpending: DashboardLocationSpending[];
+  recentByLocation: DashboardLocationRecent[];
   recentExpenses: ExpenseRecord[];
   categorySpending: DashboardCategorySpending[];
   projectSpending: DashboardProjectSpending[];
@@ -546,13 +819,11 @@ export interface ReportDayBucket {
   count: number;
 }
 
-export interface PeriodReport {
-  range: ReportRange;
-  summary: ReportSummary;
-  categoryBreakdown: ReportCategoryBreakdown[];
-  projectBreakdown: ReportProjectBreakdown[];
-  labelBreakdown: ReportLabelBreakdown[];
-  dailyTrend: ReportDayBucket[];
+export interface ReportLocationBreakdown {
+  location: ExpenseLocation;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
 }
 
 export interface ReportMonthlyBucket {
@@ -561,6 +832,27 @@ export interface ReportMonthlyBucket {
   totals: CurrencyAmount[];
   /** @minimum 0 */
   count: number;
+}
+
+export interface ReportLocation {
+  location: ExpenseLocation;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+  categorySpending: DashboardCategorySpending[];
+  monthlyTrend: ReportMonthlyBucket[];
+}
+
+export type LocationReportCollection = ReportLocation[];
+
+export interface PeriodReport {
+  range: ReportRange;
+  summary: ReportSummary;
+  locationBreakdown: ReportLocationBreakdown[];
+  categoryBreakdown: ReportCategoryBreakdown[];
+  projectBreakdown: ReportProjectBreakdown[];
+  labelBreakdown: ReportLabelBreakdown[];
+  dailyTrend: ReportDayBucket[];
 }
 
 export interface ReportCategoryRow {
@@ -616,6 +908,7 @@ export interface ExpenseInput {
      */
   amount: string;
   date: string;
+  locationId: string;
   /** @nullable */
   projectId?: string | null;
   categoryId: string;
@@ -626,6 +919,7 @@ export interface ExpenseInput {
      */
   description?: string | null;
   paymentMethod?: ExpensePaymentMethod | null;
+  transactionType?: ExpenseTransactionType | null;
   /**
      * @maxLength 4000
      * @nullable
@@ -641,6 +935,7 @@ export interface ExpenseUpdate {
      */
   amount?: string;
   date?: string;
+  locationId?: string;
   /** @nullable */
   projectId?: string | null;
   categoryId?: string;
@@ -651,6 +946,7 @@ export interface ExpenseUpdate {
      */
   description?: string | null;
   paymentMethod?: ExpensePaymentMethod | null;
+  transactionType?: ExpenseTransactionType | null;
   /**
      * @maxLength 4000
      * @nullable
@@ -772,6 +1068,15 @@ export interface BackupExpense {
      * @maxLength 3
      */
   currency: string;
+  /**
+     * Location slug. Optional so backups exported before locations existed still import; those rows fall back to the default location.
+     * @minLength 1
+     * @maxLength 80
+     * @nullable
+     */
+  location?: string | null;
+  /** Optional so backups exported before transaction types existed still import; those rows are treated as expenses. */
+  transactionType?: ExpenseTransactionType | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -833,6 +1138,21 @@ export interface BackupImportResult {
   warnings: string[];
 }
 
+/**
+ * The request could not be accepted
+ */
+export type BadRequestResponse = ErrorResponse;
+
+/**
+ * Sign in to continue
+ */
+export type UnauthorizedResponse = ErrorResponse;
+
+/**
+ * Too many attempts
+ */
+export type RateLimitedResponse = ErrorResponse;
+
 export type ListProjectsParams = {
 status?: ListProjectsStatus;
 };
@@ -849,6 +1169,23 @@ export const ListProjectsStatus = {
 export type ListCurrenciesParams = {
 isActive?: boolean;
 };
+
+export type ListLocationsParams = {
+status?: ListLocationsStatus;
+/**
+ * @maxLength 80
+ */
+search?: string;
+};
+
+export type ListLocationsStatus = typeof ListLocationsStatus[keyof typeof ListLocationsStatus];
+
+
+export const ListLocationsStatus = {
+  active: 'active',
+  archived: 'archived',
+  all: 'all',
+} as const;
 
 export type ListCategoriesParams = {
 status?: ListCategoriesStatus;
@@ -911,6 +1248,15 @@ paymentMethod?: ExpensePaymentMethod;
  * Filter expenses by currency
  */
 currencyId?: string;
+/**
+ * Filter expenses by location
+ */
+locationId?: string;
+/**
+ * Filter expenses by top-level category, including all of its subcategories
+ */
+parentCategoryId?: string;
+transactionType?: ExpenseTransactionType;
 sort?: ListExpensesSort;
 /**
  * @minimum 1
@@ -956,6 +1302,8 @@ export const GetDashboardGranularity = {
 } as const;
 
 export type GetPeriodReportParams = {
+locationId?: string;
+transactionType?: ExpenseTransactionType;
 /**
  * Inclusive start date
  * @pattern ^\d{4}-\d{2}-\d{2}$
@@ -968,7 +1316,17 @@ from: string;
 to: string;
 };
 
+export type GetLocationReportsParams = {
+/**
+ * @minimum 1
+ * @maximum 24
+ */
+months?: number;
+};
+
 export type GetProjectReportsParams = {
+locationId?: string;
+transactionType?: ExpenseTransactionType;
 /**
  * Number of trailing months to include in each monthly trend
  * @minimum 1
@@ -978,6 +1336,8 @@ months?: number;
 };
 
 export type GetCategoryReportsParams = {
+locationId?: string;
+transactionType?: ExpenseTransactionType;
 /**
  * Number of trailing months to include in each monthly trend
  * @minimum 1
@@ -987,6 +1347,8 @@ months?: number;
 };
 
 export type GetLabelReportsParams = {
+locationId?: string;
+transactionType?: ExpenseTransactionType;
 /**
  * Number of trailing months to include in each monthly trend
  * @minimum 1

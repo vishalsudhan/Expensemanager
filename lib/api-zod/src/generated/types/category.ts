@@ -14,6 +14,16 @@ export interface Category {
      * @maxLength 80
      */
   name: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  slug: string;
+  /**
+     * Null for a top-level category.
+     * @nullable
+     */
+  parentId: string | null;
   /** @nullable */
   icon: string | null;
   /** @pattern ^#[0-9A-Fa-f]{6}$ */

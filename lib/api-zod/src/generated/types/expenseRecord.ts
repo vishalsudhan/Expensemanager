@@ -8,8 +8,10 @@
 import type { Currency } from './currency';
 import type { ExpenseCategory } from './expenseCategory';
 import type { ExpenseLabel } from './expenseLabel';
+import type { ExpenseLocation } from './expenseLocation';
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
 import type { ExpenseProject } from './expenseProject';
+import type { ExpenseTransactionType } from './expenseTransactionType';
 
 export interface ExpenseRecord {
   id: string;
@@ -32,4 +34,6 @@ export interface ExpenseRecord {
   category: ExpenseCategory;
   labels: ExpenseLabel[];
   currency: Currency;
+  location: ExpenseLocation;
+  transactionType: ExpenseTransactionType;
 }

@@ -1,4 +1,4 @@
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler } from "express";
 
 export function securityHeaders(): RequestHandler {
   const isProduction = process.env.NODE_ENV === "production";
@@ -33,6 +33,12 @@ interface RateLimitOptions {
   windowMs: number;
   max: number;
   message: string;
+  /**
+   * Chooses the bucket key. Defaults to the client address, which is the right
+   * choice for general traffic but not for endpoints keyed on an identifier the
+   * caller supplies.
+   */
+  keyBy?: (req: Request) => string;
 }
 
 interface Bucket {
@@ -40,10 +46,15 @@ interface Bucket {
   resetAt: number;
 }
 
+function clientKey(req: Request): string {
+  return req.ip ?? req.socket.remoteAddress ?? "unknown";
+}
+
 export function createRateLimiter({
   windowMs,
   max,
   message,
+  keyBy,
 }: RateLimitOptions): RequestHandler {
   const buckets = new Map<string, Bucket>();
 
@@ -55,7 +66,7 @@ export function createRateLimiter({
   }, windowMs).unref();
 
   return (req, res, next) => {
-    const key = req.ip ?? req.socket.remoteAddress ?? "unknown";
+    const key = keyBy ? keyBy(req) : clientKey(req);
     const now = Date.now();
     const bucket = buckets.get(key);
 
@@ -90,4 +101,63 @@ export const importRateLimit = createRateLimiter({
   windowMs: 60_000,
   max: 20,
   message: "Too many backup imports. Please wait a minute and try again.",
+});
+
+/**
+ * Login is limited hard: 10 attempts a minute per client. Brute-forcing a
+ * 12+ character password is hopeless anyway, so this exists to blunt online
+ * guessing and credential stuffing rather than to make it infeasible.
+ */
+export const loginRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 10,
+  message: "Too many sign-in attempts. Please wait a minute and try again.",
+});
+
+/**
+ * Password reset is limited on two axes, because either alone leaves a hole:
+ *
+ *  - per client address, so one host cannot spray a list of addresses;
+ *  - per submitted address, so many hosts cannot hammer a single account.
+ *
+ * The per-address limiter can only be mounted on forgot-password, since the
+ * redeem endpoint receives a token rather than an email and therefore has no
+ * address to key on.
+ */
+export const resetIpRateLimit = createRateLimiter({
+  windowMs: 15 * 60_000,
+  max: 12,
+  message: "Too many password reset attempts. Please try again later.",
+});
+
+/**
+ * Redeeming a token gets its own budget rather than sharing the forgot-password
+ * one. The two are different problems — spraying addresses versus guessing
+ * tokens — and a legitimate user who requests a link and then redeems it should
+ * not spend one shared allowance doing both.
+ */
+export const resetTokenRateLimit = createRateLimiter({
+  windowMs: 15 * 60_000,
+  max: 12,
+  message: "Too many password reset attempts. Please try again later.",
+});
+
+export const resetEmailRateLimit = createRateLimiter({
+  windowMs: 15 * 60_000,
+  max: 5,
+  message: "Too many password reset attempts. Please try again later.",
+  keyBy: (req) => {
+    const body = req.body as { email?: unknown } | undefined;
+    const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+    // Keying on the address means a caller who omits it cannot bypass the
+    // limit by varying the field; they share one bucket instead.
+    return `email:${email || "none"}`;
+  },
+});
+
+/** One-time account setup: a handful of attempts is plenty. */
+export const authRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 5,
+  message: "Too many attempts. Please wait a minute and try again.",
 });

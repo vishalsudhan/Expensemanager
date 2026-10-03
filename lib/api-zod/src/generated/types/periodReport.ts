@@ -8,6 +8,7 @@
 import type { ReportCategoryBreakdown } from './reportCategoryBreakdown';
 import type { ReportDayBucket } from './reportDayBucket';
 import type { ReportLabelBreakdown } from './reportLabelBreakdown';
+import type { ReportLocationBreakdown } from './reportLocationBreakdown';
 import type { ReportProjectBreakdown } from './reportProjectBreakdown';
 import type { ReportRange } from './reportRange';
 import type { ReportSummary } from './reportSummary';
@@ -15,6 +16,7 @@ import type { ReportSummary } from './reportSummary';
 export interface PeriodReport {
   range: ReportRange;
   summary: ReportSummary;
+  locationBreakdown: ReportLocationBreakdown[];
   categoryBreakdown: ReportCategoryBreakdown[];
   projectBreakdown: ReportProjectBreakdown[];
   labelBreakdown: ReportLabelBreakdown[];

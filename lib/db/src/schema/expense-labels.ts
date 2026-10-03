@@ -3,6 +3,7 @@ import { index, pgTable, primaryKey, timestamp, uuid } from "drizzle-orm/pg-core
 import { categoriesTable } from "./categories";
 import { expensesTable } from "./expenses";
 import { labelsTable } from "./labels";
+import { locationsTable } from "./locations";
 import { projectsTable } from "./projects";
 
 export const expenseLabelsTable = pgTable(
@@ -23,6 +24,10 @@ export const expenseLabelsTable = pgTable(
 );
 
 export const expensesRelations = relations(expensesTable, ({ one, many }) => ({
+  location: one(locationsTable, {
+    fields: [expensesTable.locationId],
+    references: [locationsTable.id],
+  }),
   project: one(projectsTable, {
     fields: [expensesTable.projectId],
     references: [projectsTable.id],
@@ -49,7 +54,17 @@ export const projectsRelations = relations(projectsTable, ({ many }) => ({
   expenses: many(expensesTable),
 }));
 
-export const categoriesRelations = relations(categoriesTable, ({ many }) => ({
+export const categoriesRelations = relations(categoriesTable, ({ one, many }) => ({
+  parent: one(categoriesTable, {
+    fields: [categoriesTable.parentId],
+    references: [categoriesTable.id],
+    relationName: "categoryHierarchy",
+  }),
+  children: many(categoriesTable, { relationName: "categoryHierarchy" }),
+  expenses: many(expensesTable),
+}));
+
+export const locationsRelations = relations(locationsTable, ({ many }) => ({
   expenses: many(expensesTable),
 }));
 

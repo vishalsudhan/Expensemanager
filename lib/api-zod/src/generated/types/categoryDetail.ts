@@ -12,6 +12,10 @@ import type { CurrencyAmount } from './currencyAmount';
 
 export interface CategoryDetail {
   category: Category;
+  /** Null for a top-level category. */
+  parent: Category | null;
+  /** Subcategories. Always empty for a subcategory. */
+  children: Category[];
   totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;

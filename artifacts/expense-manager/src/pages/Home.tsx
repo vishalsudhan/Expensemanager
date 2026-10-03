@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import {
-  ArrowRight, ArrowUpRight, CircleAlert, Plus, RotateCcw, TrendingUp, Wallet,
+  ArrowRight, ArrowUpRight, CircleAlert, MapPin, Plus, RotateCcw, TrendingUp, Wallet,
 } from 'lucide-react';
 import { getGetDashboardQueryKey, useGetDashboard } from '@workspace/api-client-react';
 import type {
   CurrencyAmount, DashboardCategorySpending, DashboardProjectSpending, DashboardTrendBucket, ExpenseRecord,
+  ExpenseLocation as ApiLocation,
 } from '@workspace/api-client-react';
 import { errorText, formatShortDate, formatTotals, money } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useLocations } from '@/hooks/use-locations';
 
 type Granularity = 'day' | 'week' | 'month';
 
@@ -44,6 +46,104 @@ function CategoryMark({ color, icon }: { color: string; icon: string | null }) {
     <span className="grid size-10 shrink-0 place-items-center rounded-[13px] text-[13px]" style={{ backgroundColor: `${color}1F`, color }}>
       {icon ? <span className="size-2.5 rounded-full" style={{ backgroundColor: color }} /> : <Wallet size={16} strokeWidth={1.8} />}
     </span>
+  );
+}
+
+function LocationCard({
+  location, totals, categories, recent,
+}: {
+  location: ApiLocation;
+  totals: CurrencyAmount[];
+  categories: {
+    category: { name: string; color: string };
+    totals: CurrencyAmount[];
+    count: number;
+  }[];
+  recent: ExpenseRecord[];
+}) {
+  const lead = totals.reduce(
+    (best, entry) => (Number(entry.total) > Number(best?.total ?? 0) ? entry : best),
+    totals[0],
+  );
+
+  return (
+    <section
+      className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-6"
+      data-testid={`section-location-${location.slug}`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <MapPin size={15} className="shrink-0 text-primary" />
+            <h2 className="font-display text-[19px] font-semibold tracking-[-0.03em]" data-testid={`heading-location-${location.slug}`}>
+              {location.name}
+            </h2>
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {lead ? lead.currency.name : 'No spending yet'}
+          </p>
+        </div>
+        {/* Never a combined figure: each currency is reported on its own line. */}
+        <div className="text-right" data-testid={`text-location-totals-${location.slug}`}>
+          {totals.length ? (
+            totals.map((entry) => (
+              <p key={entry.currency.id} className="font-display text-[19px] font-semibold tabular-nums">
+                {money(entry.total, entry.currency)}
+              </p>
+            ))
+          ) : (
+            <p className="font-display text-[19px] font-semibold tabular-nums text-muted-foreground">
+              {formatTotals([])}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {categories.length > 0 && (
+        <div className="mt-5 space-y-3">
+          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">
+            Major categories
+          </p>
+          {categories.map((row) => (
+            <div key={row.category.name}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: row.category.color }} />
+                  <span className="truncate text-[13px] font-semibold">{row.category.name}</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">{row.count}</span>
+                </div>
+                <span className="shrink-0 text-[12px] font-semibold tabular-nums">
+                  {formatTotals(row.totals)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {recent.length > 0 && (
+        <div className="mt-5 space-y-2 border-t border-border/60 pt-4">
+          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">
+            Recent in {location.name}
+          </p>
+          {recent.map((expense) => (
+            <Link
+              key={expense.id}
+              href={`/expenses/${expense.id}`}
+              className="flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 transition-colors hover:bg-secondary/50"
+              data-testid={`link-location-recent-${expense.id}`}
+            >
+              <span className="min-w-0 truncate text-[13px] font-medium">
+                {expense.description || expense.category.name}
+              </span>
+              <span className="shrink-0 text-[13px] font-semibold tabular-nums">
+                {money(expense.amount, expense.currency)}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -119,6 +219,7 @@ function RecentExpenseRow({ expense }: { expense: ExpenseRecord }) {
 
 export function HomePage() {
   const [granularity, setGranularity] = useState<Granularity>('month');
+  const { locations } = useLocations();
   const params = { granularity, recentLimit: 5 };
   const query = useGetDashboard(
     params,
@@ -249,6 +350,59 @@ export function HomePage() {
               <span>{bucketLabel(dashboard.trend.buckets[dashboard.trend.buckets.length - 1]?.start ?? '', dashboard.trend.granularity)}</span>
             </div>
           </section>
+
+          {dashboard.locationSpending.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2.5">
+                <MapPin size={15} className="text-primary" />
+                <h2 className="font-display text-[17px] font-semibold tracking-[-0.03em]" data-testid="heading-locations">
+                  Where you spent
+                </h2>
+              </div>
+              <div className="grid gap-5 lg:grid-cols-2">
+                {dashboard.locationSpending.map((entry) => {
+                  const recent =
+                    dashboard.recentByLocation.find(
+                      (item) => item.location.id === entry.location.id,
+                    )?.expenses ?? [];
+                  return (
+                    <LocationCard
+                      key={entry.location.id}
+                      location={entry.location}
+                      totals={entry.totals}
+                      categories={entry.categories ?? []}
+                      recent={recent}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {dashboard.payments.month.length > 0 && (
+            <section
+              className="rounded-[24px] border border-border/70 bg-secondary/40 p-5 sm:p-6"
+              data-testid="section-payments"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-[17px] font-semibold tracking-[-0.03em]" data-testid="heading-payments">
+                    Bill payments
+                  </h2>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Settled debt, kept out of spending so purchases are not counted twice.
+                  </p>
+                </div>
+                <div className="text-right" data-testid="text-payments-month">
+                  {dashboard.payments.month.map((entry) => (
+                    <p key={entry.currency.id} className="font-display text-[17px] font-semibold tabular-nums">
+                      {money(entry.total, entry.currency)}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
 
           <div className="grid gap-5 lg:grid-cols-2">
             <section className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-6" data-testid="section-category-spending">

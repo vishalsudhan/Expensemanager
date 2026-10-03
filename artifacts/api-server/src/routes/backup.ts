@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Response } from "express";
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   categoriesTable,
   currenciesTable,
@@ -7,10 +8,12 @@ import {
   expenseLabelsTable,
   expensesTable,
   labelsTable,
+  locationsTable,
   projectsTable,
 } from "@workspace/db";
 import { ImportBackupBody } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
+import { slugify } from "../lib/slug";
 
 type ParsedBackup = ReturnType<typeof ImportBackupBody.parse>;
 type BackupCount = { created: number; updated: number; skipped: number };
@@ -54,6 +57,8 @@ type WireExpense = {
   paymentMethod: ParsedBackup["expenses"][number]["paymentMethod"];
   notes: string | null;
   currency: string;
+  location: string;
+  transactionType: "expense" | "payment" | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -134,9 +139,11 @@ export async function loadBackup(): Promise<WireBackup> {
       .select({
         expense: expensesTable,
         currencyCode: currenciesTable.code,
+        locationSlug: locationsTable.slug,
       })
       .from(expensesTable)
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+      .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
       .orderBy(asc(expensesTable.date), asc(expensesTable.createdAt)),
     db
       .select()
@@ -175,7 +182,7 @@ export async function loadBackup(): Promise<WireBackup> {
     updatedAt: label.updatedAt.toISOString(),
   }));
 
-  const expenseRecords = expenses.map(({ expense, currencyCode }) => ({
+  const expenseRecords = expenses.map(({ expense, currencyCode, locationSlug }) => ({
     id: expense.id,
     amount: String(expense.amount),
     date: expense.date,
@@ -185,6 +192,8 @@ export async function loadBackup(): Promise<WireBackup> {
     paymentMethod: expense.paymentMethod,
     notes: expense.notes,
     currency: currencyCode,
+    location: locationSlug,
+    transactionType: expense.transactionType,
     createdAt: expense.createdAt.toISOString(),
     updatedAt: expense.updatedAt.toISOString(),
   }));
@@ -240,6 +249,7 @@ export function validateBackup(doc: ParsedBackup, known: {
   labelIds: Set<string>;
   expenseIds: Set<string>;
   currencyCodes: Set<string>;
+  locationSlugs: Set<string>;
 }): string[] {
   const errors: string[] = [];
 
@@ -286,6 +296,13 @@ export function validateBackup(doc: ParsedBackup, known: {
         `Expense ${index + 1} uses the currency ${expense.currency}, which is not an available currency.`,
       );
     }
+    // A missing location means the backup predates locations; it falls back to
+    // the default location. Only a present-but-unknown slug is an error.
+    if (expense.location && !known.locationSlugs.has(expense.location)) {
+      errors.push(
+        `Expense ${index + 1} uses the location ${expense.location}, which is not an available location.`,
+      );
+    }
     if (!backupCategoryIds.has(expense.categoryId) && !known.categoryIds.has(expense.categoryId)) {
       errors.push(`Expense ${index + 1} references a category that is missing from the backup.`);
     }
@@ -319,12 +336,13 @@ export function validateBackup(doc: ParsedBackup, known: {
 }
 
 async function loadKnownIds(tx: Transaction) {
-  const [projects, categories, labels, expenses, currencies] = await Promise.all([
+  const [projects, categories, labels, expenses, currencies, locations] = await Promise.all([
     tx.select({ id: projectsTable.id }).from(projectsTable),
     tx.select({ id: categoriesTable.id }).from(categoriesTable),
     tx.select({ id: labelsTable.id }).from(labelsTable),
     tx.select({ id: expensesTable.id }).from(expensesTable),
     tx.select({ code: currenciesTable.code }).from(currenciesTable),
+    tx.select({ slug: locationsTable.slug }).from(locationsTable),
   ]);
 
   return {
@@ -333,12 +351,33 @@ async function loadKnownIds(tx: Transaction) {
     labelIds: new Set(labels.map((label) => label.id)),
     expenseIds: new Set(expenses.map((expense) => expense.id)),
     currencyCodes: new Set(currencies.map((currency) => currency.code)),
+    locationSlugs: new Set(locations.map((location) => location.slug)),
   };
 }
 
 async function currencyIdsByCode(tx: Transaction): Promise<Map<string, string>> {
   const currencies = await tx.select({ id: currenciesTable.id, code: currenciesTable.code }).from(currenciesTable);
   return new Map(currencies.map((currency) => [currency.code, currency.id]));
+}
+
+async function locationIdsBySlug(tx: Transaction): Promise<Map<string, string>> {
+  const locations = await tx.select({ id: locationsTable.id, slug: locationsTable.slug }).from(locationsTable);
+  return new Map(locations.map((location) => [location.slug, location.id]));
+}
+
+/**
+ * Backups exported before locations existed carry no location on their expense
+ * rows. Those rows are imported into the oldest active location so historical
+ * files keep restoring instead of failing outright.
+ */
+async function defaultLocationId(tx: Transaction): Promise<string | undefined> {
+  const [fallback] = await tx
+    .select({ id: locationsTable.id })
+    .from(locationsTable)
+    .where(eq(locationsTable.status, "active"))
+    .orderBy(asc(locationsTable.createdAt), asc(locationsTable.name))
+    .limit(1);
+  return fallback?.id;
 }
 
 function emptyCount(): BackupCount {
@@ -450,6 +489,7 @@ async function importCategories(
       await tx.insert(categoriesTable).values({
         id: category.id,
         name: category.name,
+        slug: slugify(category.name),
         icon: category.icon ?? null,
         color: category.color,
         status: category.status,
@@ -520,6 +560,8 @@ async function importExpenses(
   projectMap: Map<string, string>,
   categoryMap: Map<string, string>,
   currencyIds: Map<string, string>,
+  locationIds: Map<string, string>,
+  defaultLocationId: string | undefined,
 ): Promise<{ counts: BackupCount; importedIds: string[] }> {
   const counts = emptyCount();
   const existing = new Set(known.expenseIds);
@@ -531,8 +573,10 @@ async function importExpenses(
       ? projectMap.get(expense.projectId) ?? expense.projectId
       : null;
     const currencyId = currencyIds.get(expense.currency);
+    const locationId =
+      (expense.location ? locationIds.get(expense.location) : undefined) ?? defaultLocationId;
 
-    if (!currencyId) {
+    if (!currencyId || !locationId) {
       counts.skipped += 1;
       continue;
     }
@@ -543,8 +587,10 @@ async function importExpenses(
       projectId,
       categoryId,
       currencyId,
+      locationId,
       description: expense.description ?? null,
       paymentMethod: expense.paymentMethod ?? null,
+      transactionType: expense.transactionType ?? "expense",
       notes: expense.notes ?? null,
     };
 
@@ -572,6 +618,7 @@ async function applyBackup(tx: Transaction, doc: ParsedBackup) {
   const warnings: string[] = [];
 
   const currencyIds = await currencyIdsByCode(tx);
+  const locationIds = await locationIdsBySlug(tx);
   const projects = await importProjects(tx, doc, warnings, currencyIds);
   const categories = await importCategories(tx, doc, warnings);
   const labels = await importLabels(tx, doc, warnings);
@@ -584,6 +631,8 @@ async function applyBackup(tx: Transaction, doc: ParsedBackup) {
     projects.idMap,
     categories.idMap,
     currencyIds,
+    locationIds,
+    await defaultLocationId(tx),
   );
 
   const affectedExpenseIds = [
@@ -618,6 +667,9 @@ async function applyBackup(tx: Transaction, doc: ParsedBackup) {
 
 const router: IRouter = Router();
 
+/** Second reference to categories so a leaf can resolve its parent name. */
+const parentCategory = alias(categoriesTable, "parent_category");
+
 router.get("/export/expenses", async (_req, res): Promise<void> => {
   const [expenses, labelRows] = await Promise.all([
     db
@@ -629,13 +681,18 @@ router.get("/export/expenses", async (_req, res): Promise<void> => {
         paymentMethod: expensesTable.paymentMethod,
         notes: expensesTable.notes,
         categoryName: categoriesTable.name,
+        parentCategoryName: sql<string>`coalesce(${parentCategory.name}, ${categoriesTable.name})`.mapWith(String),
         projectName: projectsTable.name,
         currencyCode: currenciesTable.code,
+        locationName: locationsTable.name,
+        transactionType: expensesTable.transactionType,
       })
       .from(expensesTable)
       .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
+      .leftJoin(parentCategory, eq(parentCategory.id, categoriesTable.parentId))
       .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+      .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
       .orderBy(asc(expensesTable.date), asc(expensesTable.createdAt)),
     db
       .select({ expenseId: expenseLabelsTable.expenseId, name: labelsTable.name })
@@ -652,13 +709,19 @@ router.get("/export/expenses", async (_req, res): Promise<void> => {
   }
 
   const rows: unknown[][] = [
-    ["Date", "Amount", "Currency", "Category", "Project", "Description", "Payment Method", "Labels", "Notes"],
+    [
+      "Date", "Amount", "Currency", "Location", "Category", "Top Category", "Project",
+      "Type", "Description", "Payment Method", "Labels", "Notes",
+    ],
     ...expenses.map((expense) => [
       expense.date,
       String(expense.amount),
       expense.currencyCode,
+      expense.locationName,
       expense.categoryName,
+      expense.parentCategoryName,
       expense.projectName,
+      expense.transactionType,
       expense.description,
       expense.paymentMethod,
       (labelsByExpense.get(expense.id) ?? []).join(" | "),

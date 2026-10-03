@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 import {
   GetCategoryReportsQueryParams,
+  GetLocationReportsQueryParams,
+  GetLocationReportsResponse,
   GetCategoryReportsResponse,
   GetLabelReportsQueryParams,
   GetLabelReportsResponse,
@@ -18,6 +20,7 @@ import {
   expenseLabelsTable,
   expensesTable,
   labelsTable,
+  locationsTable,
   projectsTable,
 } from "@workspace/db";
 import {
@@ -38,6 +41,48 @@ const distinctExpenseCount = sql<number>`count(distinct ${expensesTable.id})::in
 const monthExpression = sql`date_trunc('month', ${expensesTable.date}::date)`;
 
 const expenseCurrencyJoin = eq(expensesTable.currencyId, currenciesTable.id);
+const expenseLocationJoin = eq(expensesTable.locationId, locationsTable.id);
+
+const locationSelection = {
+  id: locationsTable.id,
+  name: locationsTable.name,
+  slug: locationsTable.slug,
+  countryCode: locationsTable.countryCode,
+  status: locationsTable.status,
+};
+
+function toLocation(row: {
+  id: string;
+  name: string;
+  slug: string;
+  countryCode: string | null;
+  status: "active" | "archived";
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    countryCode: row.countryCode,
+    status: row.status,
+  };
+}
+
+/**
+ * Optional filters shared by every report: a single location, and whether to
+ * count payment transactions alongside real spending.
+ *
+ * Reports answer "where did my money go", so spending defaults to expenses only
+ * and bill payments are excluded until a caller explicitly asks for them.
+ */
+function reportFilters(parsed: {
+  data: { locationId?: string; transactionType?: "expense" | "payment" };
+}) {
+  const conditions: (ReturnType<typeof eq> | undefined)[] = [];
+  const { locationId, transactionType } = parsed.data;
+  if (locationId) conditions.push(eq(expensesTable.locationId, locationId));
+  conditions.push(eq(expensesTable.transactionType, transactionType ?? "expense"));
+  return conditions;
+}
 const projectDefaultCurrencyJoin = eq(projectsTable.defaultCurrencyId, currenciesTable.id);
 
 const projectSelection = {
@@ -54,6 +99,9 @@ const projectSelection = {
 const categorySelection = {
   id: categoriesTable.id,
   name: categoriesTable.name,
+  // slug and parentId are part of ExpenseCategory, so reports carry them too.
+  slug: categoriesTable.slug,
+  parentId: categoriesTable.parentId,
   icon: categoriesTable.icon,
   color: categoriesTable.color,
   status: categoriesTable.status,
@@ -73,6 +121,9 @@ const labelSelection = {
 const expenseCategorySelection = {
   id: categoriesTable.id,
   name: categoriesTable.name,
+  // ExpenseCategory requires slug and parentId, and these breakdowns embed it.
+  slug: categoriesTable.slug,
+  parentId: categoriesTable.parentId,
   icon: categoriesTable.icon,
   color: categoriesTable.color,
   status: categoriesTable.status,
@@ -238,9 +289,14 @@ router.get("/reports/period", async (req, res): Promise<void> => {
     return;
   }
 
-  const where = and(gte(expensesTable.date, from), lte(expensesTable.date, to));
+  const where = and(
+    gte(expensesTable.date, from),
+    lte(expensesTable.date, to),
+    ...reportFilters(parsed),
+  );
 
-  const [summaryRows, categoryRows, projectRows, labelRows, dailyResult] = await Promise.all([
+  const [summaryRows, categoryRows, projectRows, labelRows, locationRows, dailyResult] =
+    await Promise.all([
     db
       .select({ ...currencyColumns, total: currencyAmountSum, count: currencyExpenseCount })
       .from(expensesTable)
@@ -290,7 +346,19 @@ router.get("/reports/period", async (req, res): Promise<void> => {
       .where(where)
       .groupBy(labelsTable.id, currenciesTable.id)
       .orderBy(desc(sql`sum(${amount})`), asc(labelsTable.name)),
-    db.execute(sql`
+    db
+      .select({
+        location: locationSelection,
+        ...currencyColumns,
+        total: currencyAmountSum,
+        count: currencyExpenseCount,
+      })
+      .from(expensesTable)
+      .innerJoin(currenciesTable, expenseCurrencyJoin)
+      .innerJoin(locationsTable, expenseLocationJoin)
+      .where(where)
+      .groupBy(locationsTable.id, currenciesTable.id),
+      db.execute(sql`
       select to_char(g, 'YYYY-MM-DD') as "date",
              c.id as "currencyId",
              c.code as "currencyCode",
@@ -307,7 +375,7 @@ router.get("/reports/period", async (req, res): Promise<void> => {
       group by g, c.id
       order by g
     `),
-  ]);
+    ]);
 
   const summaryTotals = toAmounts(summaryRows);
   const count = totalCount(summaryTotals);
@@ -353,6 +421,18 @@ router.get("/reports/period", async (req, res): Promise<void> => {
           (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000,
         ) + 1 || 1,
       },
+      locationBreakdown: locationRows
+        .filter((row, index, rows) => rows.findIndex((r) => r.location.id === row.location.id) === index)
+        .map((row) => {
+          const totals = locationRows
+            .filter((candidate) => candidate.location.id === row.location.id)
+            .flatMap((candidate) => toAmounts([candidate]));
+          return {
+            location: toLocation(row.location),
+            totals: withShares(totals, summaryTotals),
+            count: totals.reduce((sum, entry) => sum + entry.count, 0),
+          };
+        }),
       categoryBreakdown: categoryRows
         .filter((row, index, rows) => rows.findIndex((r) => r.entityId === row.entityId) === index)
         .map((row) => {
@@ -390,6 +470,8 @@ router.get("/reports/projects", async (req, res): Promise<void> => {
   const spine = monthSpine(months);
   const firstMonthStart = `${spine[0]}-01`;
 
+  const entityFilters = reportFilters(parsed);
+
   const [projectRows, totalRows, categoryRows, monthRows] = await Promise.all([
     db
       .select({ project: projectSelection, ...defaultCurrencySelection })
@@ -404,6 +486,7 @@ router.get("/reports/projects", async (req, res): Promise<void> => {
       })
       .from(expensesTable)
       .innerJoin(currenciesTable, expenseCurrencyJoin)
+      .where(entityFilters.length ? and(...entityFilters) : undefined)
       .groupBy(expensesTable.projectId, currenciesTable.id),
     db
       .select({
@@ -417,7 +500,12 @@ router.get("/reports/projects", async (req, res): Promise<void> => {
       .from(expensesTable)
       .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
       .innerJoin(currenciesTable, expenseCurrencyJoin)
-      .where(isNotNull(expensesTable.projectId))
+      .where(
+        and(
+          isNotNull(expensesTable.projectId),
+          ...(entityFilters.length ? entityFilters : []),
+        ),
+      )
       .groupBy(expensesTable.projectId, categoriesTable.id, currenciesTable.id)
       .orderBy(desc(sql`sum(${amount})`), asc(categoriesTable.name)),
     db
@@ -430,7 +518,13 @@ router.get("/reports/projects", async (req, res): Promise<void> => {
       })
       .from(expensesTable)
       .innerJoin(currenciesTable, expenseCurrencyJoin)
-      .where(and(isNotNull(expensesTable.projectId), gte(expensesTable.date, firstMonthStart)))
+      .where(
+        and(
+          isNotNull(expensesTable.projectId),
+          gte(expensesTable.date, firstMonthStart),
+          ...(entityFilters.length ? entityFilters : []),
+        ),
+      )
       .groupBy(expensesTable.projectId, monthExpression, currenciesTable.id),
   ]);
 
@@ -502,6 +596,8 @@ router.get("/reports/categories", async (req, res): Promise<void> => {
   const spine = monthSpine(months);
   const firstMonthStart = `${spine[0]}-01`;
 
+  const categoryFilters = reportFilters(parsed);
+
   const [categoryRows, totalRows, projectRows, monthRows] = await Promise.all([
     db.select({ category: categorySelection }).from(categoriesTable),
     db
@@ -513,6 +609,7 @@ router.get("/reports/categories", async (req, res): Promise<void> => {
       })
       .from(expensesTable)
       .innerJoin(currenciesTable, expenseCurrencyJoin)
+      .where(categoryFilters.length ? and(...categoryFilters) : undefined)
       .groupBy(expensesTable.categoryId, currenciesTable.id),
     db
       .select({
@@ -526,6 +623,7 @@ router.get("/reports/categories", async (req, res): Promise<void> => {
       .from(expensesTable)
       .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
       .innerJoin(currenciesTable, expenseCurrencyJoin)
+      .where(categoryFilters.length ? and(...categoryFilters) : undefined)
       .groupBy(expensesTable.categoryId, projectsTable.id, currenciesTable.id)
       .orderBy(desc(sql`sum(${amount})`), asc(projectsTable.name)),
     db
@@ -538,7 +636,12 @@ router.get("/reports/categories", async (req, res): Promise<void> => {
       })
       .from(expensesTable)
       .innerJoin(currenciesTable, expenseCurrencyJoin)
-      .where(gte(expensesTable.date, firstMonthStart))
+      .where(
+        and(
+          gte(expensesTable.date, firstMonthStart),
+          ...(categoryFilters.length ? categoryFilters : []),
+        ),
+      )
       .groupBy(expensesTable.categoryId, monthExpression, currenciesTable.id),
   ]);
 
@@ -600,6 +703,8 @@ router.get("/reports/labels", async (req, res): Promise<void> => {
   const spine = monthSpine(months);
   const firstMonthStart = `${spine[0]}-01`;
 
+  const labelFilters = reportFilters(parsed);
+
   const [labelRows, totalRows, monthRows] = await Promise.all([
     db.select({ label: labelSelection }).from(labelsTable),
     db
@@ -612,6 +717,7 @@ router.get("/reports/labels", async (req, res): Promise<void> => {
       .from(expenseLabelsTable)
       .innerJoin(expensesTable, eq(expenseLabelsTable.expenseId, expensesTable.id))
       .innerJoin(currenciesTable, expenseCurrencyJoin)
+      .where(labelFilters.length ? and(...labelFilters) : undefined)
       .groupBy(expenseLabelsTable.labelId, currenciesTable.id),
     db
       .select({
@@ -624,7 +730,12 @@ router.get("/reports/labels", async (req, res): Promise<void> => {
       .from(expenseLabelsTable)
       .innerJoin(expensesTable, eq(expenseLabelsTable.expenseId, expensesTable.id))
       .innerJoin(currenciesTable, expenseCurrencyJoin)
-      .where(gte(expensesTable.date, firstMonthStart))
+      .where(
+        and(
+          gte(expensesTable.date, firstMonthStart),
+          ...(labelFilters.length ? labelFilters : []),
+        ),
+      )
       .groupBy(expenseLabelsTable.labelId, monthExpression, currenciesTable.id),
   ]);
 
@@ -645,6 +756,111 @@ router.get("/reports/labels", async (req, res): Promise<void> => {
           label: row.label,
           totals,
           count: totalCount(totals),
+          monthlyTrend: buildPeriodTrend(spine, monthLabels, "month"),
+        };
+      }),
+    ),
+  );
+});
+
+router.get("/reports/locations", async (req, res): Promise<void> => {
+  const parsed = GetLocationReportsQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid report options." });
+    return;
+  }
+
+  const months = parsed.data.months ?? 6;
+  const spine = monthSpine(months);
+  const firstMonthStart = `${spine[0]}-01`;
+
+  const [locationRows, totalRows, categoryRows, monthRows] = await Promise.all([
+    db.select({ location: locationSelection }).from(locationsTable).orderBy(asc(locationsTable.name)),
+    db
+      .select({
+        entityId: expensesTable.locationId,
+        ...currencyColumns,
+        total: currencyAmountSum,
+        count: currencyExpenseCount,
+      })
+      .from(expensesTable)
+      .innerJoin(currenciesTable, expenseCurrencyJoin)
+      // This is a spending report, so bill payments never contribute.
+      .where(eq(expensesTable.transactionType, "expense"))
+      .groupBy(expensesTable.locationId, currenciesTable.id),
+    db
+      .select({
+        entityId: expensesTable.locationId,
+        category: expenseCategorySelection,
+        ...currencyColumns,
+        total: currencyAmountSum,
+        count: currencyExpenseCount,
+      })
+      .from(expensesTable)
+      .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
+      .innerJoin(currenciesTable, expenseCurrencyJoin)
+      .where(eq(expensesTable.transactionType, "expense"))
+      .groupBy(expensesTable.locationId, categoriesTable.id, currenciesTable.id)
+      .orderBy(desc(sql`sum(${amount})`), asc(categoriesTable.name)),
+    db
+      .select({
+        entityId: expensesTable.locationId,
+        label: sql<string>`to_char(${monthExpression}, 'YYYY-MM')`,
+        ...currencyColumns,
+        total: currencyAmountSum,
+        count: currencyExpenseCount,
+      })
+      .from(expensesTable)
+      .innerJoin(currenciesTable, expenseCurrencyJoin)
+      .where(
+        and(
+          eq(expensesTable.transactionType, "expense"),
+          gte(expensesTable.date, firstMonthStart),
+        ),
+      )
+      .groupBy(expensesTable.locationId, monthExpression, currenciesTable.id),
+  ]);
+
+  const totalsByLocation = groupByKey(totalRows, (row) => row.entityId);
+  const categoriesByLocation = groupByNested(
+    categoryRows,
+    (row) => row.entityId,
+    (row) => row.category.id,
+  );
+
+  res.json(
+    GetLocationReportsResponse.parse(
+      locationRows.map((row) => {
+        const totals = totalsByLocation.get(row.location.id) ?? [];
+        const categoriesSeen = new Set<string>();
+        const categorySpending = categoryRows
+          .filter((entry) => entry.entityId === row.location.id)
+          .filter((entry) => {
+            if (categoriesSeen.has(entry.category.id)) return false;
+            categoriesSeen.add(entry.category.id);
+            return true;
+          })
+          .map((entry) => {
+            const entryTotals =
+              categoriesByLocation.get(row.location.id)?.get(entry.category.id) ?? [];
+            return {
+              category: entry.category,
+              totals: withShares(entryTotals, totals),
+              count: totalCount(entryTotals),
+            };
+          });
+
+        const monthLabels = new Map<string, CurrencyAmount[]>();
+        for (const entry of monthRows.filter((e) => e.entityId === row.location.id)) {
+          const [entryAmount] = toAmounts([entry]);
+          monthLabels.set(entry.label, [...(monthLabels.get(entry.label) ?? []), entryAmount]);
+        }
+
+        return {
+          location: toLocation(row.location),
+          totals,
+          count: totalCount(totals),
+          categorySpending,
           monthlyTrend: buildPeriodTrend(spine, monthLabels, "month"),
         };
       }),

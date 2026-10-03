@@ -15,6 +15,20 @@
       "when": 1790947444763,
       "tag": "0001_outstanding_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790999470520,
+      "tag": "0002_handy_mister_fear",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791031200702,
+      "tag": "0003_user_auth",
+      "breakpoints": true
     }
   ]
 }

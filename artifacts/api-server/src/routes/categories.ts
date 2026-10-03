@@ -24,6 +24,7 @@ import {
   UpdateCategoryResponse,
 } from "@workspace/api-zod";
 import { categoriesTable, currenciesTable, db, expensesTable } from "@workspace/db";
+import { slugify } from "../lib/slug";
 import {
   currencyAmountSum,
   currencyColumns,
@@ -74,6 +75,32 @@ function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, "\\$&");
 }
 
+/** A category may only hang off an existing top-level category. */
+/** A bad parent is a client mistake, so it surfaces as a 400 with a readable reason. */
+class InvalidParentError extends Error {}
+
+/** Resolves and validates a parent id, enforcing the one-level hierarchy rule. */
+async function assertValidParent(
+  parentId: string | null | undefined,
+  selfId?: string,
+): Promise<string | null> {
+  if (parentId === undefined || parentId === null) return null;
+  if (typeof parentId !== "string") throw new InvalidParentError("Parent category is invalid.");
+  if (selfId && parentId === selfId) {
+    throw new InvalidParentError("A category cannot be its own parent.");
+  }
+  const [parent] = await db
+    .select({ id: categoriesTable.id, parentId: categoriesTable.parentId })
+    .from(categoriesTable)
+    .where(eq(categoriesTable.id, parentId))
+    .limit(1);
+  if (!parent) throw new InvalidParentError("Parent category does not exist.");
+  if (parent.parentId) {
+    throw new InvalidParentError("Categories can only be nested one level deep.");
+  }
+  return parentId;
+}
+
 router.get("/categories", async (req, res): Promise<void> => {
   const parsed = ListCategoriesQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -95,6 +122,8 @@ router.get("/categories", async (req, res): Promise<void> => {
     .select({
       id: categoriesTable.id,
       name: categoriesTable.name,
+      slug: categoriesTable.slug,
+      parentId: categoriesTable.parentId,
       icon: categoriesTable.icon,
       color: categoriesTable.color,
       status: categoriesTable.status,
@@ -103,7 +132,7 @@ router.get("/categories", async (req, res): Promise<void> => {
     })
     .from(categoriesTable)
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(asc(categoriesTable.name));
+    .orderBy(asc(categoriesTable.parentId), asc(categoriesTable.name));
 
   const totalsRows = await db
     .select({
@@ -114,6 +143,7 @@ router.get("/categories", async (req, res): Promise<void> => {
     })
     .from(expensesTable)
     .innerJoin(currenciesTable, expenseCurrencyJoin)
+    .where(eq(expensesTable.transactionType, "expense"))
     .groupBy(expensesTable.categoryId, currenciesTable.id);
 
   const totalsByCategory = new Map<string, CurrencyAmount[]>();
@@ -151,13 +181,23 @@ router.post("/categories", async (req, res): Promise<void> => {
   }
 
   try {
+    const parentId = await assertValidParent(parsed.data.parentId);
     const [category] = await db
       .insert(categoriesTable)
-      .values({ ...parsed.data, name })
+      .values({
+        ...parsed.data,
+        parentId,
+        name,
+        slug: parsed.data.slug?.trim() || slugify(name),
+      })
       .returning();
 
     res.status(201).json(CreateCategoryResponse.parse(category));
   } catch (error) {
+    if (error instanceof InvalidParentError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     if (isUniqueConstraintError(error)) {
       res.status(409).json({ error: "A category with this name already exists." });
       return;
@@ -184,12 +224,45 @@ router.get("/categories/:categoryId", async (req, res): Promise<void> => {
     return;
   }
 
-  const [totalsRows, recentExpenses] = await Promise.all([
+  const [parent, children, totalsRows, recentExpenses] = await Promise.all([
+    category.parentId
+      ? db
+          .select({
+            id: categoriesTable.id,
+            name: categoriesTable.name,
+            slug: categoriesTable.slug,
+            parentId: categoriesTable.parentId,
+            icon: categoriesTable.icon,
+            color: categoriesTable.color,
+            status: categoriesTable.status,
+            createdAt: categoriesTable.createdAt,
+            updatedAt: categoriesTable.updatedAt,
+          })
+          .from(categoriesTable)
+          .where(eq(categoriesTable.id, category.parentId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : Promise.resolve(null),
+    db
+      .select({
+        id: categoriesTable.id,
+        name: categoriesTable.name,
+        slug: categoriesTable.slug,
+        parentId: categoriesTable.parentId,
+        icon: categoriesTable.icon,
+        color: categoriesTable.color,
+        status: categoriesTable.status,
+        createdAt: categoriesTable.createdAt,
+        updatedAt: categoriesTable.updatedAt,
+      })
+      .from(categoriesTable)
+      .where(eq(categoriesTable.parentId, category.id))
+      .orderBy(asc(categoriesTable.name)),
     db
       .select({ ...currencyColumns, total: currencyAmountSum, count: currencyExpenseCount })
       .from(expensesTable)
       .innerJoin(currenciesTable, expenseCurrencyJoin)
-      .where(eq(expensesTable.categoryId, category.id))
+      .where(and(eq(expensesTable.categoryId, category.id), eq(expensesTable.transactionType, "expense")))
       .groupBy(currenciesTable.id),
     db
       .select({
@@ -231,6 +304,7 @@ router.get("/categories/:categoryId", async (req, res): Promise<void> => {
     .where(
       and(
         eq(expensesTable.categoryId, category.id),
+        eq(expensesTable.transactionType, "expense"),
         gte(expensesTable.date, months[0].startDate),
         lt(expensesTable.date, months[months.length - 1].nextMonthStart),
       ),
@@ -261,6 +335,8 @@ router.get("/categories/:categoryId", async (req, res): Promise<void> => {
   res.json(
     GetCategoryResponse.parse({
       category,
+      parent: parent ?? null,
+      children,
       totals,
       expenseCount: totalCount(totals),
       recentExpenses: recentExpenses.map((expense) => ({
@@ -292,9 +368,22 @@ router.patch("/categories/:categoryId", async (req, res): Promise<void> => {
       res.status(400).json({ error: "Category name cannot be blank." });
       return;
     }
+    if (changes.slug === undefined) changes.slug = slugify(changes.name);
+  }
+  if (changes.slug !== undefined) {
+    changes.slug = slugify(changes.slug.trim());
   }
 
   try {
+    if (changes.parentId === params.data.categoryId) {
+      res.status(400).json({ error: "A category cannot be its own parent." });
+      return;
+    }
+    if (changes.parentId !== undefined) {
+      // Pass the row being edited so it cannot be re-parented under itself.
+      changes.parentId = await assertValidParent(changes.parentId, params.data.categoryId);
+    }
+
     const [category] = await db
       .update(categoriesTable)
       .set(changes)
@@ -308,6 +397,10 @@ router.patch("/categories/:categoryId", async (req, res): Promise<void> => {
 
     res.json(UpdateCategoryResponse.parse(category));
   } catch (error) {
+    if (error instanceof InvalidParentError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     if (isUniqueConstraintError(error)) {
       res.status(409).json({ error: "A category with this name already exists." });
       return;

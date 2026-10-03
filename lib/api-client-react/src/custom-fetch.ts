@@ -360,7 +360,13 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  // The session lives in an httpOnly cookie, so the browser must be told to
+  // include credentials. This is a no-op for same-origin requests (the normal
+  // production setup, where the web app proxies /api) and required when the web
+  // app and API are on different origins during development.
+  const credentials = init.credentials ?? "include";
+
+  const response = await fetch(input, { ...init, credentials, method, headers });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

@@ -4,6 +4,10 @@ import {
   AlertTriangle,
   CheckCircle2,
   Coins,
+  KeyRound,
+  LogOut,
+  MapPin,
+  Plus,
   DatabaseBackup,
   Download,
   FileSpreadsheet,
@@ -12,11 +16,17 @@ import {
   ShieldCheck,
   Upload,
 } from 'lucide-react';
-import { useImportBackup, useListCurrencies, useUpdateCurrency } from '@workspace/api-client-react';
+import {
+  useChangePassword, useCreateLocation, useGetCurrentUser, useImportBackup,
+  useListCurrencies, useListLocations, useLogout, useUpdateCurrency,
+  useUpdateLocation,
+} from '@workspace/api-client-react';
 import type { BackupDocument, BackupImportResult } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorText } from '@/lib/format';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeControl } from '@/components/theme-control';
 
@@ -116,6 +126,10 @@ export function SettingsPage() {
   const importBackup = useImportBackup();
   const currenciesQuery = useListCurrencies();
   const updateCurrency = useUpdateCurrency();
+  const locationsQuery = useListLocations({ status: 'all' });
+  const updateLocation = useUpdateLocation();
+  const createLocation = useCreateLocation();
+  const [newLocationName, setNewLocationName] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -147,6 +161,98 @@ export function SettingsPage() {
             variant: 'destructive',
           }),
       },
+    );
+  };
+
+  const toggleLocation = (locationId: string, isActive: boolean) => {
+    // Locations are never deleted; disabling only hides them from new expenses.
+    updateLocation.mutate(
+      { locationId, data: { status: isActive ? 'archived' : 'active' } },
+      {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries();
+          toast({
+            title: isActive ? 'Location disabled' : 'Location enabled',
+            description: isActive
+              ? 'Amounts already recorded there are untouched.'
+              : 'It is available again for new expenses.',
+          });
+        },
+        onError: (mutationError) =>
+          toast({
+            title: 'Could not update location',
+            description: errorText(mutationError),
+            variant: 'destructive',
+          }),
+      },
+    );
+  };
+
+  const addLocation = () => {
+    const name = newLocationName.trim();
+    if (!name) return;
+    createLocation.mutate(
+      { data: { name } },
+      {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries();
+          setNewLocationName('');
+          toast({ title: 'Location added', description: `${name} is ready to use.` });
+        },
+        onError: (mutationError) =>
+          toast({
+            title: 'Could not add location',
+            description: errorText(mutationError),
+            variant: 'destructive',
+          }),
+      },
+    );
+  };
+
+  const currentUser = useGetCurrentUser();
+  const changePassword = useChangePassword();
+  const logout = useLogout();
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordChanged, setPasswordChanged] = useState(false);
+
+  const securityMismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
+  const securityTooShort = newPassword.length > 0 && newPassword.length < 12;
+  const securityReady =
+    Boolean(currentPassword) && newPassword.length >= 12 && !securityMismatch;
+
+  // A password change revokes every session, including this one, so the app
+  // returns to the login screen rather than silently continuing.
+  const submitPasswordChange = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!securityReady) return;
+    try {
+      await changePassword.mutateAsync({
+        data: {
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        },
+      });
+    } catch {
+      return;
+    }
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordChanged(true);
+    queryClient.clear();
+    window.location.assign(
+      `${import.meta.env.BASE_URL.replace(/\/$/, '')}/login`,
+    );
+  };
+
+  const signOut = async () => {
+    await logout.mutateAsync();
+    queryClient.clear();
+    window.location.assign(
+      `${import.meta.env.BASE_URL.replace(/\/$/, '')}/login`,
     );
   };
 
@@ -233,6 +339,94 @@ export function SettingsPage() {
         </div>
       </section>
 
+      <section className="mt-8 max-w-[760px]" data-testid="section-locations">
+        <div className="flex items-center gap-3">
+          <div className="grid size-10 place-items-center rounded-full bg-accent/70 text-accent-foreground">
+            <MapPin size={18} strokeWidth={1.8} />
+          </div>
+          <div>
+            <h2 className="font-display text-[19px] font-semibold tracking-[-0.03em]" data-testid="heading-locations-settings">
+              Locations
+            </h2>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              Where your spending happened. A location never implies a currency and never implies a project.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 overflow-hidden rounded-[20px] border border-border/70 bg-card">
+          {locationsQuery.isLoading ? (
+            <div className="space-y-2 p-4" data-testid="status-locations-loading">
+              {[0, 1].map((row) => (
+                <Skeleton key={row} className="h-12 rounded-xl" />
+              ))}
+            </div>
+          ) : locationsQuery.isError ? (
+            <div className="px-5 py-8 text-center" data-testid="status-locations-error">
+              <p className="text-sm text-muted-foreground">Locations couldn’t be loaded.</p>
+              <Button onClick={() => locationsQuery.refetch()} variant="outline" className="mt-4 gap-2" data-testid="button-retry-locations">
+                <RotateCcw size={14} /> Try again
+              </Button>
+            </div>
+          ) : (
+            <ul className="divide-y divide-border/60" data-testid="list-locations">
+              {(locationsQuery.data ?? []).map((location) => (
+                <li key={location.id} className="flex items-center justify-between gap-4 px-5 py-3.5" data-testid={`row-location-${location.slug}`}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-[13px] bg-secondary text-primary">
+                      <MapPin size={16} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-display text-[15px] font-semibold tracking-[-0.02em]" data-testid={`text-location-${location.slug}-name`}>
+                        {location.name}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {location.countryCode ?? 'No country code'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${location.status === 'active' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`} data-testid={`status-location-${location.slug}`}>
+                      {location.status === 'active' ? 'Active' : 'Disabled'}
+                    </span>
+                    <Button
+                      variant="outline"
+                      disabled={updateLocation.isPending}
+                      onClick={() => toggleLocation(location.id, location.status === 'active')}
+                      className="h-9 rounded-xl px-3 text-[11px]"
+                      data-testid={`button-toggle-location-${location.slug}`}
+                    >
+                      {location.status === 'active' ? 'Disable' : 'Enable'}
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <form
+          className="mt-3 flex flex-wrap items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            addLocation();
+          }}
+        >
+          <Input
+            value={newLocationName}
+            onChange={(event) => setNewLocationName(event.target.value)}
+            placeholder="Add a location, e.g. UAE"
+            aria-label="New location name"
+            maxLength={80}
+            className="h-11 min-w-[220px] flex-1 rounded-xl bg-card"
+            data-testid="input-new-location"
+          />
+          <Button type="submit" disabled={createLocation.isPending} className="h-11 gap-2 rounded-xl" data-testid="button-add-location">
+            <Plus size={15} /> Add location
+          </Button>
+        </form>
+      </section>
+
       <section className="mt-8 max-w-[760px]" data-testid="section-currencies">
         <div className="flex items-center gap-3">
           <div className="grid size-10 place-items-center rounded-full bg-accent/70 text-accent-foreground">
@@ -311,6 +505,114 @@ export function SettingsPage() {
           Disabling a currency keeps every amount already recorded in it. It only removes the currency from new
           entries and project defaults.
         </p>
+      </section>
+
+      <section className="mt-8 max-w-[760px]" data-testid="section-security">
+        <div className="flex items-center gap-3">
+          <div className="grid size-10 place-items-center rounded-full bg-accent/70 text-accent-foreground">
+            <KeyRound size={18} strokeWidth={1.8} />
+          </div>
+          <div>
+            <h2 className="font-display text-[19px] font-semibold tracking-[-0.03em]" data-testid="heading-security">
+              Security
+            </h2>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              Signed in as{' '}
+              <span className="font-semibold text-foreground">
+                {currentUser.data?.user?.email ?? ''}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <form
+          className="mt-4 space-y-4 rounded-[20px] border border-border/70 bg-card p-5"
+          onSubmit={submitPasswordChange}
+          data-testid="form-change-password"
+        >
+          <div className="space-y-2">
+            <Label htmlFor="current-password">Current password</Label>
+            <Input
+              id="current-password"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              className="h-11 rounded-xl bg-background"
+              data-testid="input-current-password"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="new-password">New password</Label>
+            <Input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="At least 12 characters"
+              aria-invalid={securityTooShort || undefined}
+              className="h-11 rounded-xl bg-background"
+              data-testid="input-new-password"
+            />
+            {securityTooShort && (
+              <p className="text-[12px] text-destructive" data-testid="error-new-password-length">
+                Use at least 12 characters.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirm-new-password">Confirm new password</Label>
+            <Input
+              id="confirm-new-password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              aria-invalid={securityMismatch || undefined}
+              className="h-11 rounded-xl bg-background"
+              data-testid="input-confirm-new-password"
+            />
+            {securityMismatch && (
+              <p className="text-[12px] text-destructive" data-testid="error-new-password-mismatch">
+                Those passwords do not match.
+              </p>
+            )}
+          </div>
+
+          {changePassword.isError && (
+            <p className="text-[13px] text-destructive" data-testid="error-change-password">
+              {errorText(changePassword.error)}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <Button
+              type="submit"
+              disabled={changePassword.isPending || !securityReady}
+              className="h-11 gap-2 rounded-xl"
+              data-testid="button-change-password"
+            >
+              {changePassword.isPending ? 'Updating…' : 'Change password'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={logout.isPending}
+              onClick={signOut}
+              className="h-11 gap-2 rounded-xl"
+              data-testid="button-sign-out"
+            >
+              <LogOut size={15} /> Sign out
+            </Button>
+          </div>
+
+          <p className="text-[12px] leading-5 text-muted-foreground">
+            Changing your password signs you out on every device, including this one.
+          </p>
+        </form>
       </section>
 
       <section className="mt-8 max-w-[760px]">

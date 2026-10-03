@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DashboardCategorySpending } from './dashboardCategorySpending';
+import type { DashboardLocationRecent } from './dashboardLocationRecent';
+import type { DashboardLocationSpending } from './dashboardLocationSpending';
 import type { DashboardProjectSpending } from './dashboardProjectSpending';
 import type { DashboardSummary } from './dashboardSummary';
 import type { DashboardTrend } from './dashboardTrend';
@@ -13,6 +15,9 @@ import type { ExpenseRecord } from './expenseRecord';
 
 export interface Dashboard {
   summary: DashboardSummary;
+  payments: DashboardSummary;
+  locationSpending: DashboardLocationSpending[];
+  recentByLocation: DashboardLocationRecent[];
   recentExpenses: ExpenseRecord[];
   categorySpending: DashboardCategorySpending[];
   projectSpending: DashboardProjectSpending[];

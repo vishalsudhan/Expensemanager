@@ -10,6 +10,7 @@
   "scripts": {
     "generate": "drizzle-kit generate --config ./drizzle.config.ts",
     "migrate": "drizzle-kit migrate --config ./drizzle.config.ts",
+    "apply:migration": "node ./scripts/apply-migration-0002.mjs",
     "push": "drizzle-kit push --config ./drizzle.config.ts",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
     "seed": "test \"${NODE_ENV:-development}\" != production || { echo 'Refusing to seed production.' >&2; exit 1; }; test -n \"${DATABASE_URL:-}\" || { echo 'DATABASE_URL must be set.' >&2; exit 1; }; psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f ./seed.sql"

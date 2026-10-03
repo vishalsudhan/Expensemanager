@@ -12,8 +12,10 @@ export interface ExpensePage {
   items: ExpenseRecord[];
   /** Total expenses matching the current search and filters */
   total: number;
-  /** Sum of all matching expenses grouped by currency */
+  /** Sum of matching expense transactions grouped by currency */
   totals: CurrencyAmount[];
+  /** Sum of matching payment transactions grouped by currency */
+  paymentTotals: CurrencyAmount[];
   limit: number;
   offset: number;
   hasMore: boolean;

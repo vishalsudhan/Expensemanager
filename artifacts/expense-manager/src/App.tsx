@@ -32,6 +32,10 @@ import { ExpenseDetailPage, ExpenseEditorPage, ExpenseListPage } from '@/pages/E
 import { HomePage } from '@/pages/Home';
 import { ReportsPage } from '@/pages/Reports';
 import { SettingsPage } from '@/pages/Settings';
+import { ForgotPasswordPage } from '@/pages/ForgotPassword';
+import { LoginPage, SetupPage } from '@/pages/Login';
+import { ResetPasswordPage } from '@/pages/ResetPassword';
+import { useAuthRedirect } from '@/hooks/use-auth';
 import {
   Link,
   Route,
@@ -249,26 +253,58 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
 }
 
+/** Screens reachable without a session. None of them render the app shell. */
+function PublicRoutes() {
+  return (
+    <Switch>
+      <Route path="/login" component={LoginPage} />
+      <Route path="/setup" component={SetupPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
+    </Switch>
+  );
+}
+
+/**
+ * Gates the app behind a live session.
+ *
+ * The check runs on the server as well, so this only avoids rendering a shell
+ * that would immediately receive 401s. A signed-out visitor is sent to the
+ * login screen instead of seeing an empty dashboard.
+ */
+function ProtectedRoutes() {
+  useAuthRedirect({ requireAuth: true });
+
+  return (
+    <Shell>
+      <Switch>
+        <Route path="/" component={HomePage} />
+        <Route path="/expenses" component={ExpenseListPage} />
+        <Route path="/expenses/new" component={ExpenseEditorPage} />
+        <Route path="/expenses/:expenseId/edit" component={ExpenseEditorPage} />
+        <Route path="/expenses/:expenseId" component={ExpenseDetailPage} />
+        <Route path="/projects" component={ProjectListPage} />
+        <Route path="/projects/:projectId" component={ProjectDetailPage} />
+        <Route path="/categories" component={CategoryListPage} />
+        <Route path="/categories/:categoryId" component={CategoryDetailPage} />
+        <Route path="/labels" component={LabelListPage} />
+        <Route path="/reports" component={ReportsPage} />
+        <Route path="/settings" component={SettingsPage} />
+        <Route><NotFoundPage /></Route>
+      </Switch>
+    </Shell>
+  );
+}
+
 function Router() {
+  const [pathname] = useLocation();
+  const isPublic = ['/login', '/setup', '/forgot-password', '/reset-password'].some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+
   return (
     <RoutedErrorBoundary>
-      <Shell>
-        <Switch>
-          <Route path="/" component={HomePage} />
-          <Route path="/expenses" component={ExpenseListPage} />
-          <Route path="/expenses/new" component={ExpenseEditorPage} />
-          <Route path="/expenses/:expenseId/edit" component={ExpenseEditorPage} />
-          <Route path="/expenses/:expenseId" component={ExpenseDetailPage} />
-          <Route path="/projects" component={ProjectListPage} />
-          <Route path="/projects/:projectId" component={ProjectDetailPage} />
-          <Route path="/categories" component={CategoryListPage} />
-          <Route path="/categories/:categoryId" component={CategoryDetailPage} />
-          <Route path="/labels" component={LabelListPage} />
-          <Route path="/reports" component={ReportsPage} />
-          <Route path="/settings" component={SettingsPage} />
-          <Route><NotFoundPage /></Route>
-        </Switch>
-      </Shell>
+      {isPublic ? <PublicRoutes /> : <ProtectedRoutes />}
     </RoutedErrorBoundary>
   );
 }

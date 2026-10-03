@@ -12,6 +12,14 @@ export interface CategoryInput {
      * @maxLength 80
      */
   name: string;
+  /**
+     * Derived from the name when omitted.
+     * @minLength 1
+     * @maxLength 100
+     */
+  slug?: string;
+  /** @nullable */
+  parentId?: string | null;
   /** @maxLength 64 */
   icon?: string;
   /** @pattern ^#[0-9A-Fa-f]{6}$ */

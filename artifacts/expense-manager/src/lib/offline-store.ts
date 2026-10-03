@@ -14,6 +14,7 @@ export interface PendingExpenseDisplay {
   amount: string;
   currencyCode: string;
   currencySymbol: string;
+  locationName: string;
   date: string;
   description: string | null;
   categoryName: string;

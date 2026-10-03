@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
+import type { ExpenseTransactionType } from './expenseTransactionType';
 
 export interface BackupExpense {
   id: string;
@@ -34,6 +35,15 @@ export interface BackupExpense {
      * @maxLength 3
      */
   currency: string;
+  /**
+     * Location slug. Optional so backups exported before locations existed still import; those rows fall back to the default location.
+     * @minLength 1
+     * @maxLength 80
+     * @nullable
+     */
+  location?: string | null;
+  /** Optional so backups exported before transaction types existed still import; those rows are treated as expenses. */
+  transactionType?: ExpenseTransactionType | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

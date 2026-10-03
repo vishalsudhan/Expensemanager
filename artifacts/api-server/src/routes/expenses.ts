@@ -8,6 +8,7 @@ import {
   gte,
   ilike,
   inArray,
+  isNotNull,
   lte,
   or,
   sql,
@@ -32,6 +33,7 @@ import {
   expenseLabelsTable,
   expensesTable,
   labelsTable,
+  locationsTable,
   projectsTable,
 } from "@workspace/db";
 import { attachLabels, expenseLabelSelection, expenseSelection } from "../lib/expense-records";
@@ -100,6 +102,7 @@ async function getExpenseRecord(expenseId: string) {
     .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
     .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
     .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+    .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
     .where(eq(expensesTable.id, expenseId));
 
   if (!expense) return null;
@@ -126,8 +129,22 @@ router.get("/expenses", async (req, res): Promise<void> => {
     return;
   }
 
-  const { search, from, to, projectId, categoryId, labelId, paymentMethod, currencyId, sort, limit, offset } =
-    parsed.data;
+  const {
+    search,
+    from,
+    to,
+    projectId,
+    categoryId,
+    parentCategoryId,
+    labelId,
+    paymentMethod,
+    currencyId,
+    locationId,
+    transactionType,
+    sort,
+    limit,
+    offset,
+  } = parsed.data;
 
   const conditions: SQL[] = [];
 
@@ -149,6 +166,25 @@ router.get("/expenses", async (req, res): Promise<void> => {
   if (categoryId) conditions.push(eq(expensesTable.categoryId, categoryId));
   if (paymentMethod) conditions.push(eq(expensesTable.paymentMethod, paymentMethod));
   if (currencyId) conditions.push(eq(expensesTable.currencyId, currencyId));
+  if (locationId) conditions.push(eq(expensesTable.locationId, locationId));
+  if (transactionType) conditions.push(eq(expensesTable.transactionType, transactionType));
+  if (parentCategoryId) {
+    // Parent filter matches the parent itself and every subcategory beneath it.
+    conditions.push(
+      inArray(
+        expensesTable.categoryId,
+        db
+          .select({ id: categoriesTable.id })
+          .from(categoriesTable)
+          .where(
+            or(
+              eq(categoriesTable.id, parentCategoryId),
+              eq(categoriesTable.parentId, parentCategoryId),
+            ),
+          ),
+      ),
+    );
+  }
 
   if (labelId) {
     conditions.push(
@@ -171,12 +207,14 @@ router.get("/expenses", async (req, res): Promise<void> => {
       .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
       .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+      .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
       .where(where)
       .orderBy(...expenseOrderBy(sort))
       .limit(limit)
       .offset(offset),
     db
       .select({
+        transactionType: expensesTable.transactionType,
         currencyId: currenciesTable.id,
         currencyCode: currenciesTable.code,
         currencyName: currenciesTable.name,
@@ -190,26 +228,33 @@ router.get("/expenses", async (req, res): Promise<void> => {
       .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
       .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
+      .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
       .where(where)
-      .groupBy(currenciesTable.id),
+      .groupBy(expensesTable.transactionType, currenciesTable.id),
   ]);
 
   const items = await attachLabels(expenses);
 
-  const totals = sortByCurrencyCode(
-    totalsSummary.map((row) => ({
-      currency: {
-        id: row.currencyId,
-        code: row.currencyCode,
-        name: row.currencyName,
-        symbol: row.currencySymbol,
-        decimalPlaces: row.currencyDecimalPlaces,
-        isActive: row.currencyIsActive,
-      },
-      total: String(row.total),
-      count: Number(row.count),
-    })),
-  );
+  const toAmounts = (transactionType: "expense" | "payment") =>
+    sortByCurrencyCode(
+      totalsSummary
+        .filter((row) => row.transactionType === transactionType)
+        .map((row) => ({
+          currency: {
+            id: row.currencyId,
+            code: row.currencyCode,
+            name: row.currencyName,
+            symbol: row.currencySymbol,
+            decimalPlaces: row.currencyDecimalPlaces,
+            isActive: row.currencyIsActive,
+          },
+          total: String(row.total),
+          count: Number(row.count),
+        })),
+    );
+
+  const totals = toAmounts("expense");
+  const paymentTotals = toAmounts("payment");
 
   // Summing the per-currency counts still yields the exact number of matches.
   const total = totals.reduce((sum, entry) => sum + entry.count, 0);
@@ -219,6 +264,7 @@ router.get("/expenses", async (req, res): Promise<void> => {
       items,
       total,
       totals,
+      paymentTotals,
       limit,
       offset,
       hasMore: offset + items.length < total,
@@ -226,10 +272,26 @@ router.get("/expenses", async (req, res): Promise<void> => {
   );
 });
 
+/** True when nothing sits beneath this category, i.e. it is safe to file under. */
+async function isLeafCategory(categoryId: string): Promise<boolean> {
+  const [category] = await db
+    .select({ id: categoriesTable.id })
+    .from(categoriesTable)
+    .where(eq(categoriesTable.id, categoryId))
+    .limit(1);
+  if (!category) return false;
+  const [child] = await db
+    .select({ id: categoriesTable.id })
+    .from(categoriesTable)
+    .where(eq(categoriesTable.parentId, categoryId))
+    .limit(1);
+  return !child;
+}
+
 router.post("/expenses", async (req, res): Promise<void> => {
   const parsed = CreateExpenseBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Enter a valid amount, date, category, currency, and optional expense details." });
+    res.status(400).json({ error: "Enter a valid amount, date, category, currency, location, and optional expense details." });
     return;
   }
 
@@ -244,6 +306,13 @@ router.post("/expenses", async (req, res): Promise<void> => {
     return;
   }
 
+  // An expense always stores the most specific category. A parent that has
+  // subcategories is only a grouping label, so filing under it is rejected.
+  if (!(await isLeafCategory(data.categoryId))) {
+    res.status(400).json({ error: "Choose a subcategory instead of the parent category." });
+    return;
+  }
+
   try {
     const expenseId = await db.transaction(async (tx) => {
       const [expense] = await tx
@@ -251,11 +320,13 @@ router.post("/expenses", async (req, res): Promise<void> => {
         .values({
           amount: data.amount,
           date: expenseDateToDatabase(data.date),
+          locationId: data.locationId,
           projectId: data.projectId ?? null,
           categoryId: data.categoryId,
           currencyId: data.currencyId,
           description: normalizeOptionalText(data.description),
           paymentMethod: data.paymentMethod ?? null,
+          transactionType: data.transactionType ?? "expense",
           notes: normalizeOptionalText(data.notes),
         })
         .returning({ id: expensesTable.id });
@@ -278,7 +349,7 @@ router.post("/expenses", async (req, res): Promise<void> => {
     res.status(201).json(CreateExpenseResponse.parse(expense));
   } catch (error) {
     if (["23503", "23514"].includes(databaseErrorCode(error) ?? "")) {
-      res.status(400).json({ error: "Check the selected project, category, labels, currency, and amount." });
+      res.status(400).json({ error: "Check the selected project, category, labels, currency, location, and amount." });
       return;
     }
     throw error;
@@ -331,6 +402,12 @@ router.patch("/expenses/:expenseId", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Select each label only once." });
     return;
   }
+  // Re-pointing an expense at a grouping parent would lose the detail, so the
+  // same leaf rule that guards creation applies when the category changes.
+  if (changes.categoryId !== undefined && !(await isLeafCategory(changes.categoryId))) {
+    res.status(400).json({ error: "Choose a subcategory instead of the parent category." });
+    return;
+  }
 
   if (changes.description !== undefined) {
     changes.description = normalizeOptionalText(changes.description);
@@ -338,9 +415,11 @@ router.patch("/expenses/:expenseId", async (req, res): Promise<void> => {
   if (changes.notes !== undefined) {
     changes.notes = normalizeOptionalText(changes.notes);
   }
-  const { date, ...changesWithoutDate } = changes;
+  const { date, transactionType, ...rest } = changes;
   const databaseChanges = {
-    ...changesWithoutDate,
+    // A null transactionType means "leave as-is" rather than "clear it".
+    ...rest,
+    ...(transactionType !== undefined && transactionType !== null ? { transactionType } : {}),
     ...(date !== undefined ? { date: expenseDateToDatabase(date) } : {}),
   };
 

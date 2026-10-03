@@ -6,6 +6,7 @@ import {
   expenseLabelsTable,
   expensesTable,
   labelsTable,
+  locationsTable,
   projectsTable,
 } from "@workspace/db";
 
@@ -18,8 +19,16 @@ export const expenseSelection = {
   description: expensesTable.description,
   paymentMethod: expensesTable.paymentMethod,
   notes: expensesTable.notes,
+  transactionType: expensesTable.transactionType,
   createdAt: expensesTable.createdAt,
   updatedAt: expensesTable.updatedAt,
+  location: {
+    id: locationsTable.id,
+    name: locationsTable.name,
+    slug: locationsTable.slug,
+    countryCode: locationsTable.countryCode,
+    status: locationsTable.status,
+  },
   project: {
     id: projectsTable.id,
     name: projectsTable.name,
@@ -29,6 +38,8 @@ export const expenseSelection = {
   category: {
     id: categoriesTable.id,
     name: categoriesTable.name,
+    slug: categoriesTable.slug,
+    parentId: categoriesTable.parentId,
     icon: categoriesTable.icon,
     color: categoriesTable.color,
     status: categoriesTable.status,

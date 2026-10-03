@@ -10,10 +10,14 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Sign in, one-time setup and password recovery
   - name: projects
     description: Project management and spending summaries
   - name: currencies
     description: Currency management
+  - name: locations
+    description: Location management
   - name: backup
     description: Data export and backup management
 paths:
@@ -30,6 +34,188 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/state:
+    get:
+      operationId: getAuthState
+      tags: [auth]
+      summary: Sign-in state
+      description: >
+        Tells the web app whether the one-time setup screen is still open and
+        whether the current cookie resolves to a live session. Reachable without
+        a session so the app can decide which screen to show.
+      responses:
+        "200":
+          description: Current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthState"
+  /auth/setup:
+    post:
+      operationId: setupAccount
+      tags: [auth]
+      summary: Create the single account
+      description: >
+        Creates the one account this app supports and signs in. Permanently
+        refused with 409 once an account exists, so it cannot be used later to
+        add or replace an account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetupAccountRequest"
+      responses:
+        "201":
+          description: Account created and signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: An account already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Sign in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Signed in; sets the session cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Email and password do not match
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Sign out
+      description: Deletes only the calling session.
+      responses:
+        "200":
+          description: Signed out; clears the session cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthOk"
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: The signed-in account
+      responses:
+        "200":
+          description: Current account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Request a password reset link
+      description: >
+        Returns the same message and status whether or not the address is
+        registered, so the response cannot be used to discover which addresses
+        exist. The reset token is never included in the response; when no email
+        provider is configured the link is written to the server log instead.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Accepted, regardless of whether the account exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Set a new password using a reset token
+      description: >
+        Validates that the token exists, is unused and has not expired; replaces
+        the stored password hash; marks the token used; and revokes every
+        session. Unknown, expired and already-used tokens return the same
+        response so a token cannot be probed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password changed; all sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change the password while signed in
+      description: >
+        Requires the current password. On success the stored hash is replaced
+        and every session is revoked, including the one making the request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed; all sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /projects:
     get:
       operationId: listProjects
@@ -257,6 +443,99 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Currency not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /locations:
+    get:
+      operationId: listLocations
+      tags: [locations]
+      summary: Search and list locations
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, archived, all]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+      responses:
+        "200":
+          description: Locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Location"
+    post:
+      operationId: createLocation
+      tags: [locations]
+      summary: Create a location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocationInput"
+      responses:
+        "201":
+          description: Created location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Location"
+        "400":
+          description: Invalid location data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A location with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /locations/{locationId}:
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateLocation
+      tags: [locations]
+      summary: Update or archive a location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocationUpdate"
+      responses:
+        "200":
+          description: Updated location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Location"
+        "400":
+          description: Invalid location data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Location not found
           content:
             application/json:
               schema:
@@ -598,6 +877,25 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: locationId
+          in: query
+          required: false
+          description: Filter expenses by location
+          schema:
+            type: string
+            format: uuid
+        - name: parentCategoryId
+          in: query
+          required: false
+          description: Filter expenses by top-level category, including all of its subcategories
+          schema:
+            type: string
+            format: uuid
+        - name: transactionType
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ExpenseTransactionType"
         - name: sort
           in: query
           required: false
@@ -765,8 +1063,19 @@ paths:
       operationId: getPeriodReport
       tags: [reports]
       summary: Spending report for a date range
-      description: Returns totals, category/project/label breakdowns, and a daily spending trend for an inclusive date range.
+      description: Returns totals, location/category/project/label breakdowns, and a daily spending trend for an inclusive date range.
       parameters:
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: transactionType
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ExpenseTransactionType"
         - name: from
           in: query
           required: true
@@ -794,6 +1103,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /reports/locations:
+    get:
+      operationId: getLocationReports
+      tags: [reports]
+      summary: All-time spending report per location
+      parameters:
+        - name: months
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 24
+            default: 6
+      responses:
+        "200":
+          description: Spending by location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationReportCollection"
   /reports/projects:
     get:
       operationId: getProjectReports
@@ -801,6 +1131,17 @@ paths:
       summary: Per-project spending reports
       description: Returns every project with its total spending, expense count, category breakdown, and monthly trend.
       parameters:
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: transactionType
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ExpenseTransactionType"
         - name: months
           in: query
           required: false
@@ -824,6 +1165,17 @@ paths:
       summary: Per-category spending reports
       description: Returns every category with its total spending, expense count, project distribution, and monthly trend.
       parameters:
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: transactionType
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ExpenseTransactionType"
         - name: months
           in: query
           required: false
@@ -847,6 +1199,17 @@ paths:
       summary: Per-label spending reports
       description: Returns every label with its total spending, expense count, and monthly trend.
       parameters:
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: transactionType
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ExpenseTransactionType"
         - name: months
           in: query
           required: false
@@ -962,7 +1325,154 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
 components:
+  responses:
+    BadRequest:
+      description: The request could not be accepted
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Sign in to continue
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RateLimited:
+      description: Too many attempts
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    AuthState:
+      type: object
+      additionalProperties: false
+      required: [needsSetup, authenticated]
+      properties:
+        needsSetup:
+          type: boolean
+          description: True while the one-time account setup screen is still open.
+        authenticated:
+          type: boolean
+          description: True when the request cookie resolves to a live session.
+    AuthSession:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        email:
+          type: string
+          format: email
+          description: Present on the setup response only.
+    AuthOk:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+    GenericMessage:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+    CurrentUser:
+      type: object
+      additionalProperties: false
+      required: [user]
+      properties:
+        user:
+          type: object
+          additionalProperties: false
+          required: [id, email]
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            passwordChangedAt:
+              type: string
+              format: date-time
+    SetupAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, confirmPassword]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 12
+          maxLength: 200
+        confirmPassword:
+          type: string
+          minLength: 12
+          maxLength: 200
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 1
+          maxLength: 200
+    ForgotPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+    ResetPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [token, password, confirmPassword]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 200
+        password:
+          type: string
+          minLength: 12
+          maxLength: 200
+        confirmPassword:
+          type: string
+          minLength: 12
+          maxLength: 200
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword, newPassword, confirmPassword]
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+          maxLength: 200
+        newPassword:
+          type: string
+          minLength: 12
+          maxLength: 200
+        confirmPassword:
+          type: string
+          minLength: 12
+          maxLength: 200
     HealthStatus:
       type: object
       properties:
@@ -1285,6 +1795,14 @@ components:
           type: string
           minLength: 1
           maxLength: 80
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 100
+        parentId:
+          type: [string, "null"]
+          format: uuid
+          description: Null for a top-level category.
         icon:
           type: [string, "null"]
         color:
@@ -1302,6 +1820,8 @@ components:
       required:
         - id
         - name
+        - slug
+        - parentId
         - icon
         - color
         - status
@@ -1315,6 +1835,14 @@ components:
           type: string
           minLength: 1
           maxLength: 80
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Derived from the name when omitted.
+        parentId:
+          type: [string, "null"]
+          format: uuid
         icon:
           type: string
           maxLength: 64
@@ -1331,6 +1859,13 @@ components:
           type: string
           minLength: 1
           maxLength: 80
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 100
+        parentId:
+          type: [string, "null"]
+          format: uuid
         icon:
           type: [string, "null"]
           maxLength: 64
@@ -1397,6 +1932,16 @@ components:
       properties:
         category:
           $ref: "#/components/schemas/Category"
+        parent:
+          anyOf:
+            - $ref: "#/components/schemas/Category"
+            - type: "null"
+          description: Null for a top-level category.
+        children:
+          type: array
+          description: Subcategories. Always empty for a subcategory.
+          items:
+            $ref: "#/components/schemas/Category"
         totals:
           type: array
           items:
@@ -1414,6 +1959,8 @@ components:
             $ref: "#/components/schemas/CategoryMonthlySpending"
       required:
         - category
+        - parent
+        - children
         - totals
         - expenseCount
         - recentExpenses
@@ -1478,6 +2025,10 @@ components:
     ExpensePaymentMethod:
       type: string
       enum: [cash, credit_card, debit_card, bank_transfer, upi, other]
+    ExpenseTransactionType:
+      type: string
+      description: "expense = real consumption. payment = settling a debt, excluded from spending totals."
+      enum: [expense, payment]
     ExpenseProject:
       type: object
       properties:
@@ -1492,6 +2043,24 @@ components:
           type: string
           enum: [active, archived]
       required: [id, name, color, status]
+    ExpenseLocation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        countryCode:
+          type: [string, "null"]
+          minLength: 2
+          maxLength: 2
+        status:
+          type: string
+          enum: [active, archived]
+      required: [id, name, slug, countryCode, status]
     ExpenseCategory:
       type: object
       properties:
@@ -1500,6 +2069,12 @@ components:
           format: uuid
         name:
           type: string
+        slug:
+          type: string
+        parentId:
+          type: [string, "null"]
+          format: uuid
+          description: Null for a top-level category.
         icon:
           type: [string, "null"]
         color:
@@ -1507,7 +2082,7 @@ components:
         status:
           type: string
           enum: [active, archived]
-      required: [id, name, icon, color, status]
+      required: [id, name, slug, parentId, icon, color, status]
     ExpenseLabel:
       type: object
       properties:
@@ -1522,6 +2097,72 @@ components:
           type: string
           enum: [active, archived]
       required: [id, name, color, status]
+    Location:
+      type: object
+      description: Where an expense happened. Independent of project, category and currency.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 80
+        countryCode:
+          type: [string, "null"]
+          minLength: 2
+          maxLength: 2
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, slug, countryCode, status, createdAt, updatedAt]
+    LocationInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 80
+        countryCode:
+          type: [string, "null"]
+          minLength: 2
+          maxLength: 2
+      required: [name]
+    LocationUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 80
+        countryCode:
+          type: [string, "null"]
+          minLength: 2
+          maxLength: 2
+        status:
+          type: string
+          enum: [active, archived]
+          description: Set to archived to disable a location without deleting it.
     ExpenseRecord:
       type: object
       properties:
@@ -1572,6 +2213,10 @@ components:
             $ref: "#/components/schemas/ExpenseLabel"
         currency:
           $ref: "#/components/schemas/Currency"
+        location:
+          $ref: "#/components/schemas/ExpenseLocation"
+        transactionType:
+          $ref: "#/components/schemas/ExpenseTransactionType"
       required:
         - id
         - amount
@@ -1588,6 +2233,8 @@ components:
         - category
         - labels
         - currency
+        - location
+        - transactionType
     ExpensePage:
       type: object
       properties:
@@ -1600,7 +2247,12 @@ components:
           description: Total expenses matching the current search and filters
         totals:
           type: array
-          description: Sum of all matching expenses grouped by currency
+          description: Sum of matching expense transactions grouped by currency
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        paymentTotals:
+          type: array
+          description: Sum of matching payment transactions grouped by currency
           items:
             $ref: "#/components/schemas/CurrencyAmount"
         limit:
@@ -1609,9 +2261,10 @@ components:
           type: integer
         hasMore:
           type: boolean
-      required: [items, total, totals, limit, offset, hasMore]
+      required: [items, total, totals, paymentTotals, limit, offset, hasMore]
     DashboardSummary:
       type: object
+      description: Spending only - payment transactions are excluded so a card bill never double-counts its purchases.
       properties:
         today:
           type: array
@@ -1630,6 +2283,34 @@ components:
           items:
             $ref: "#/components/schemas/CurrencyAmount"
       required: [today, week, month, allTime]
+    DashboardLocationSpending:
+      type: object
+      properties:
+        location:
+          $ref: "#/components/schemas/ExpenseLocation"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+        categories:
+          type: array
+          description: Major categories within this location, for the current month.
+          items:
+            $ref: "#/components/schemas/DashboardCategorySpending"
+      required: [location, totals, count, categories]
+    DashboardLocationRecent:
+      type: object
+      properties:
+        location:
+          $ref: "#/components/schemas/ExpenseLocation"
+        expenses:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExpenseRecord"
+      required: [location, expenses]
     DashboardCategorySpending:
       type: object
       properties:
@@ -1688,6 +2369,16 @@ components:
       properties:
         summary:
           $ref: "#/components/schemas/DashboardSummary"
+        payments:
+          $ref: "#/components/schemas/DashboardSummary"
+        locationSpending:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardLocationSpending"
+        recentByLocation:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardLocationRecent"
         recentExpenses:
           type: array
           items:
@@ -1702,7 +2393,7 @@ components:
             $ref: "#/components/schemas/DashboardProjectSpending"
         trend:
           $ref: "#/components/schemas/DashboardTrend"
-      required: [summary, recentExpenses, categorySpending, projectSpending, trend]
+      required: [summary, payments, locationSpending, recentByLocation, recentExpenses, categorySpending, projectSpending, trend]
     ReportRange:
       type: object
       properties:
@@ -1787,6 +2478,44 @@ components:
           type: integer
           minimum: 0
       required: [date, totals, count]
+    ReportLocationBreakdown:
+      type: object
+      properties:
+        location:
+          $ref: "#/components/schemas/ExpenseLocation"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [location, totals, count]
+    ReportLocation:
+      type: object
+      properties:
+        location:
+          $ref: "#/components/schemas/ExpenseLocation"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+        categorySpending:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardCategorySpending"
+        monthlyTrend:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportMonthlyBucket"
+      required: [location, totals, count, categorySpending, monthlyTrend]
+    LocationReportCollection:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReportLocation"
     PeriodReport:
       type: object
       properties:
@@ -1794,6 +2523,10 @@ components:
           $ref: "#/components/schemas/ReportRange"
         summary:
           $ref: "#/components/schemas/ReportSummary"
+        locationBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportLocationBreakdown"
         categoryBreakdown:
           type: array
           items:
@@ -1810,7 +2543,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ReportDayBucket"
-      required: [range, summary, categoryBreakdown, projectBreakdown, labelBreakdown, dailyTrend]
+      required: [range, summary, locationBreakdown, categoryBreakdown, projectBreakdown, labelBreakdown, dailyTrend]
     ReportMonthlyBucket:
       type: object
       properties:
@@ -1935,6 +2668,9 @@ components:
         date:
           type: string
           format: date
+        locationId:
+          type: string
+          format: uuid
         projectId:
           type: [string, "null"]
           format: uuid
@@ -1954,13 +2690,17 @@ components:
           anyOf:
             - $ref: "#/components/schemas/ExpensePaymentMethod"
             - type: "null"
+        transactionType:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseTransactionType"
+            - type: "null"
         notes:
           type: [string, "null"]
           maxLength: 4000
         currencyId:
           type: string
           format: uuid
-      required: [amount, date, categoryId, currencyId]
+      required: [amount, date, categoryId, currencyId, locationId]
     ExpenseUpdate:
       type: object
       additionalProperties: false
@@ -1972,6 +2712,9 @@ components:
         date:
           type: string
           format: date
+        locationId:
+          type: string
+          format: uuid
         projectId:
           type: [string, "null"]
           format: uuid
@@ -1990,6 +2733,10 @@ components:
         paymentMethod:
           anyOf:
             - $ref: "#/components/schemas/ExpensePaymentMethod"
+            - type: "null"
+        transactionType:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseTransactionType"
             - type: "null"
         notes:
           type: [string, "null"]
@@ -2112,6 +2859,20 @@ components:
           type: string
           minLength: 3
           maxLength: 3
+        location:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 80
+          description: >
+            Location slug. Optional so backups exported before locations existed
+            still import; those rows fall back to the default location.
+        transactionType:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseTransactionType"
+            - type: "null"
+          description: >
+            Optional so backups exported before transaction types existed still
+            import; those rows are treated as expenses.
         createdAt:
           type: string
           format: date-time

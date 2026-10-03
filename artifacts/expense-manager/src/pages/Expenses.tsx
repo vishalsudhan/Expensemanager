@@ -20,6 +20,8 @@ import type {
 import { useToast } from '@/hooks/use-toast';
 import { useOffline } from '@/components/offline-provider';
 import { findCurrency, useCurrencyOptions } from '@/hooks/use-currencies';
+import type { CategoryNode } from '@/hooks/use-locations';
+import { categoryPath, useCategoryTree, useLocations } from '@/hooks/use-locations';
 import { enqueueExpense } from '@/lib/offline-store';
 import { errorText, formatDate, formatTotals, money, moneyByCode } from '@/lib/format';
 import { Button } from '@/components/ui/button';
@@ -41,6 +43,8 @@ const expenseSchema = z.object({
   date: z.string().min(1, 'Choose a date.').regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a valid date.'),
   projectId: z.string(),
   categoryId: z.string().min(1, 'Choose a category.'),
+  locationId: z.string().min(1, 'Choose a location.'),
+  transactionType: z.enum(['expense', 'payment']),
   currencyId: z.string().min(1, 'Choose a currency.'),
   labelIds: z.array(z.string()),
   description: z.string().max(1000, 'Keep the description under 1,000 characters.'),
@@ -77,21 +81,33 @@ const localToday = () => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${date.getFullYear()}-${month}-${day}`;
 };
-const defaultValues = (currencyId = ''): ExpenseFormValues => ({
+const defaultValues = (currencyId = '', locationId = ''): ExpenseFormValues => ({
   amount: '', date: localToday(), projectId: '',
-  categoryId: '', currencyId, labelIds: [], description: '', paymentMethod: '', notes: '',
+  categoryId: '', locationId, currencyId, labelIds: [], description: '',
+  paymentMethod: '', transactionType: 'expense', notes: '',
 });
 const fromExpense = (expense: ExpenseRecord): ExpenseFormValues => ({
   amount: expense.amount,
   date: expense.date.slice(0, 10),
   projectId: expense.projectId ?? '',
   categoryId: expense.categoryId,
+  locationId: expense.location?.id ?? '',
+  transactionType: expense.transactionType ?? 'expense',
   currencyId: expense.currency?.id ?? '',
   labelIds: expense.labelIds ?? [],
   description: expense.description ?? '',
   paymentMethod: expense.paymentMethod ?? '',
   notes: expense.notes ?? '',
 });
+
+/** Resolves the parent that owns a leaf category id, for pre-filling the cascade. */
+function parentIdFor(categoryId: string, roots: CategoryNode[]): string {
+  for (const node of roots) {
+    if (node.category.id === categoryId) return categoryId;
+    if (node.children.some((child) => child.id === categoryId)) return node.category.id;
+  }
+  return "";
+}
 
 function CategoryMark({ color, icon }: { color: string; icon: string | null }) {
   return <span className="grid size-11 shrink-0 place-items-center rounded-[15px]" style={{ color, backgroundColor: `${color}1B` }}>
@@ -104,6 +120,8 @@ export function ExpenseListPage() {
   const categoriesQuery = useListCategories({ status: 'active' });
   const labelsQuery = useListLabels({ status: 'active' });
   const { activeCurrencies: currencies } = useCurrencyOptions();
+  const { locations } = useLocations();
+  const categoryTree = useCategoryTree();
   const { pending, failedCount, retryFailed } = useOffline();
 
   const urlSearch = useSearch();
@@ -118,6 +136,9 @@ export function ExpenseListPage() {
   const [labelId, setLabelId] = useState(() => urlParams.get('labelId') ?? '');
   const [paymentMethod, setPaymentMethod] = useState(() => urlParams.get('paymentMethod') ?? '');
   const [currencyId, setCurrencyId] = useState(() => urlParams.get('currencyId') ?? '');
+  const [locationId, setLocationId] = useState(() => urlParams.get('locationId') ?? '');
+  const [parentCategoryId, setParentCategoryId] = useState(() => urlParams.get('parentCategoryId') ?? '');
+  const [transactionType, setTransactionType] = useState(() => urlParams.get('transactionType') ?? '');
   const [sort, setSort] = useState<ListExpensesSort>(() => {
     const value = urlParams.get('sort');
     return value && ['newest', 'oldest', 'highest', 'lowest'].includes(value) ? (value as ListExpensesSort) : 'newest';
@@ -133,6 +154,9 @@ export function ExpenseListPage() {
     setLabelId(params.get('labelId') ?? '');
     setPaymentMethod(params.get('paymentMethod') ?? '');
     setCurrencyId(params.get('currencyId') ?? '');
+    setLocationId(params.get('locationId') ?? '');
+    setParentCategoryId(params.get('parentCategoryId') ?? '');
+    setTransactionType(params.get('transactionType') ?? '');
     const nextSearch = params.get('search') ?? '';
     setSearch(nextSearch);
     setDebouncedSearch(nextSearch);
@@ -155,9 +179,12 @@ export function ExpenseListPage() {
     labelId: labelId || undefined,
     paymentMethod: (paymentMethod || undefined) as ListExpensesParams['paymentMethod'],
     currencyId: currencyId || undefined,
+    locationId: locationId || undefined,
+    parentCategoryId: parentCategoryId || undefined,
+    transactionType: (transactionType || undefined) as ListExpensesParams['transactionType'],
     sort,
     limit: PAGE_SIZE,
-  }), [debouncedSearch, from, to, projectId, categoryId, labelId, paymentMethod, currencyId, sort]);
+  }), [debouncedSearch, from, to, projectId, categoryId, labelId, paymentMethod, currencyId, locationId, parentCategoryId, transactionType, sort]);
 
   const queryKey = useMemo(() => [...getListExpensesQueryKey(params), 'infinite'] as const, [params]);
 
@@ -170,7 +197,10 @@ export function ExpenseListPage() {
 
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
   const total = query.data?.pages[0]?.total ?? 0;
+  // Spending excludes bill payments; payments stay visible in the list below.
   const totals = query.data?.pages[0]?.totals ?? [];
+  const paymentTotals = query.data?.pages[0]?.paymentTotals ?? [];
+  const paymentCount = paymentTotals.reduce((sum, entry) => sum + entry.count, 0);
 
   const activeFilters: { key: string; label: string; clear: () => void }[] = [];
   if (from) activeFilters.push({ key: 'from', label: `From ${dateLabel(from)}`, clear: () => setFrom('') });
@@ -180,6 +210,9 @@ export function ExpenseListPage() {
   if (labelId) activeFilters.push({ key: 'label', label: labelsQuery.data?.find((label) => label.id === labelId)?.name ?? 'Label', clear: () => setLabelId('') });
   if (paymentMethod) activeFilters.push({ key: 'payment', label: paymentOptions.find((option) => option.value === paymentMethod)?.label ?? 'Payment method', clear: () => setPaymentMethod('') });
   if (currencyId) activeFilters.push({ key: 'currency', label: currencies.find((currency) => currency.id === currencyId)?.code ?? 'Currency', clear: () => setCurrencyId('') });
+  if (locationId) activeFilters.push({ key: 'location', label: locations?.find((location) => location.id === locationId)?.name ?? 'Location', clear: () => setLocationId('') });
+  if (parentCategoryId) activeFilters.push({ key: 'category-group', label: categoryTree.byId.get(parentCategoryId)?.name ?? 'Category', clear: () => setParentCategoryId('') });
+  if (transactionType) activeFilters.push({ key: 'type', label: transactionType === 'payment' ? 'Payments' : 'Expenses', clear: () => setTransactionType('') });
 
   const clearAll = () => {
     setSearch('');
@@ -190,6 +223,9 @@ export function ExpenseListPage() {
     setLabelId('');
     setPaymentMethod('');
     setCurrencyId('');
+    setLocationId('');
+    setParentCategoryId('');
+    setTransactionType('');
   };
 
   const hasAnyFilter = activeFilters.length > 0 || debouncedSearch.trim().length > 0;
@@ -286,6 +322,28 @@ export function ExpenseListPage() {
               </select>
             </label>
             <label className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Location</span>
+              <select value={locationId} onChange={(event) => setLocationId(event.target.value)} className={controlClass} data-testid="select-expense-filter-location">
+                <option value="">Any location</option>
+                {(locations ?? []).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Category group</span>
+              <select value={parentCategoryId} onChange={(event) => setParentCategoryId(event.target.value)} className={controlClass} data-testid="select-expense-filter-parent-category">
+                <option value="">All categories</option>
+                {categoryTree.roots.map((node) => <option key={node.category.id} value={node.category.id}>{node.category.name}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Type</span>
+              <select value={transactionType} onChange={(event) => setTransactionType(event.target.value)} className={controlClass} data-testid="select-expense-filter-transaction-type">
+                <option value="">Expenses and payments</option>
+                <option value="expense">Expenses only</option>
+                <option value="payment">Payments only</option>
+              </select>
+            </label>
+            <label className="space-y-1.5">
               <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Currency</span>
               <select value={currencyId} onChange={(event) => setCurrencyId(event.target.value)} className={controlClass} data-testid="select-expense-filter-currency">
                 <option value="">Any currency</option>
@@ -312,7 +370,16 @@ export function ExpenseListPage() {
           <h2 className="font-display text-[19px] font-semibold tracking-[-.03em]">{hasAnyFilter ? 'Matching entries' : 'Your entries'}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
             {!query.isLoading && !query.isError && total > 0
-              ? <>Total <span className="font-semibold text-foreground" data-testid="text-expense-total-amount">{formatTotals(totals)}</span> {hasAnyFilter ? 'matching your filters' : 'across every entry'}.</>
+              ? <>Spent <span className="font-semibold text-foreground" data-testid="text-expense-total-amount">{formatTotals(totals)}</span> {hasAnyFilter ? 'matching your filters' : 'across every entry'}
+                  {paymentCount > 0 && (
+                    <>
+                      {' · '}
+                      <span className="font-semibold text-foreground" data-testid="text-expense-payments-amount">
+                        {formatTotals(paymentTotals)}
+                      </span>{ ' paid in bills' }
+                    </>
+                  )}
+                .</>
               : hasAnyFilter ? 'Refine the search or clear filters to see more.' : 'Every little detail, gathered in one place.'}
           </p>
         </div>
@@ -337,7 +404,7 @@ export function ExpenseListPage() {
                 <CategoryMark color={item.display.categoryColor} icon={item.display.categoryIcon} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-display text-[14px] font-semibold tracking-[-.02em]" data-testid={`text-pending-expense-title-${item.id}`}>{item.display.description || item.display.categoryName}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">{item.display.categoryName}<span className="mx-1.5" aria-hidden="true">·</span>{dateLabel(item.display.date)}{item.display.projectName ? <><span className="mx-1.5" aria-hidden="true">·</span>{item.display.projectName}</> : null}</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">{item.display.categoryName}<span className="mx-1.5" aria-hidden="true">·</span>{item.display.locationName}<span className="mx-1.5" aria-hidden="true">·</span>{dateLabel(item.display.date)}{item.display.projectName ? <><span className="mx-1.5" aria-hidden="true">·</span>{item.display.projectName}</> : null}</p>
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="font-display text-[14px] font-semibold tabular-nums" data-testid={`text-pending-expense-amount-${item.id}`}>{moneyByCode(item.display.amount, item.display.currencyCode)}</p>
@@ -374,7 +441,8 @@ export function ExpenseListPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-display text-[15px] font-semibold tracking-[-.02em]" data-testid={`text-expense-title-${expense.id}`}>{expense.description || expense.category.name}</p>
                   <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[11px] text-muted-foreground" data-testid={`text-expense-context-${expense.id}`}>
-                    <span>{expense.category.name}</span><span aria-hidden="true">·</span><span>{dateLabel(expense.date)}</span>
+                    <span data-testid={`text-expense-category-${expense.id}`}>{categoryPath(categoryTree, expense.categoryId)}</span><span aria-hidden="true">·</span><span>{dateLabel(expense.date)}</span>
+                    <span aria-hidden="true">·</span><span data-testid={`text-expense-location-${expense.id}`}>{expense.location?.name}</span>
                     <span aria-hidden="true">·</span><span data-testid={`text-expense-currency-${expense.id}`}>{expense.currency?.symbol} {expense.currency?.code}</span>
                     {expense.project && <><span aria-hidden="true">·</span><span className="truncate">{expense.project.name}</span></>}
                   </p>
@@ -437,6 +505,8 @@ export function ExpenseEditorPage() {
   const categoriesQuery = useListCategories({ status: 'active' });
   const labelsQuery = useListLabels({ status: 'active' });
   const { activeCurrencies: currencies, isLoading: currenciesLoading } = useCurrencyOptions();
+  const { locations, isLoading: locationsLoading } = useLocations();
+  const categoryTree = useCategoryTree();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { online } = useOffline();
@@ -444,11 +514,41 @@ export function ExpenseEditorPage() {
   const updateExpense = useUpdateExpense();
   const initializedId = useRef<string | null>(null);
   const form = useForm<ExpenseFormValues>({ resolver: zodResolver(expenseSchema), defaultValues: defaultValues() });
+  const watchedCategoryId = form.watch('categoryId');
+  // The parent is kept as its own piece of UI state: the stored category is
+  // always the leaf, so the parent select would otherwise hold a child id and
+  // render as blank while editing an expense that already has a subcategory.
+  const [parentCategoryId, setParentCategoryId] = useState('');
+  const selectedParent =
+    categoryTree.roots.find(
+      (node) =>
+        node.category.id === parentCategoryId ||
+        (parentCategoryId === '' &&
+          (node.category.id === watchedCategoryId ||
+            node.children.some((child) => child.id === watchedCategoryId))),
+    ) ?? null;
+  // A parent that has children is a grouping label, not a real destination.
+  const parentNeedsChild = Boolean(selectedParent && selectedParent.children.length > 0);
+  const leafChosen = Boolean(watchedCategoryId) && !parentNeedsChild;
+  // Parents that can be filed under directly, because nothing sits beneath them.
+  const directParentIds = new Set(
+    categoryTree.roots.filter((node) => node.children.length === 0).map((node) => node.category.id),
+  );
   const busy = createExpense.isPending || updateExpense.isPending;
   const expense = detailQuery.data;
   const currencyTouched = useRef(false);
 
-  // The project's default currency is a starting point; the user stays in control.
+  // The first available location is a sensible default; the user stays in control.
+  useEffect(() => {
+    if (!locations?.length) return;
+    const current = form.getValues('locationId');
+    if (current && locations.some((location) => location.id === current)) return;
+    const fallback = locations[0].id;
+    if (fallback !== current) {
+      form.setValue('locationId', fallback, { shouldValidate: false });
+    }
+  }, [locations, form]);
+
   useEffect(() => {
     if (!currencies.length) return;
     const current = form.getValues('currencyId');
@@ -464,8 +564,17 @@ export function ExpenseEditorPage() {
       initializedId.current = expense.id;
       currencyTouched.current = true;
       form.reset(fromExpense(expense));
+      // Pre-select the parent that owns this expense's leaf category.
+      setParentCategoryId(parentIdFor(expense.categoryId, categoryTree.roots));
     }
-  }, [editing, expense, form]);
+  }, [editing, expense, form, categoryTree.roots]);
+
+  useEffect(() => {
+    // A leaf chosen directly (a parent with no children) needs no parent state.
+    if (parentCategoryId && !categoryTree.roots.some((node) => node.category.id === parentCategoryId)) {
+      setParentCategoryId('');
+    }
+  }, [parentCategoryId, categoryTree.roots]);
 
   const applyProjectCurrency = (projectId: string) => {
     if (currencyTouched.current) return;
@@ -486,6 +595,7 @@ export function ExpenseEditorPage() {
         amount: data.amount,
         currencyCode: currency?.code ?? 'INR',
         currencySymbol: currency?.symbol ?? '₹',
+        locationName: locations?.find((location) => location.id === data.locationId)?.name ?? 'Unknown',
         date: data.date,
         description: data.description ?? null,
         categoryName: category?.name ?? 'Uncategorized',
@@ -506,12 +616,14 @@ export function ExpenseEditorPage() {
     const data: ExpenseInput = {
       amount: values.amount.trim(),
       date: values.date,
+      locationId: values.locationId,
       projectId: values.projectId || null,
       categoryId: values.categoryId,
       currencyId: values.currencyId,
       labelIds: values.labelIds,
       description: values.description.trim() || null,
       paymentMethod: values.paymentMethod || null,
+      transactionType: values.transactionType,
       notes: values.notes.trim() || null,
     };
     if (editing && expenseId) {
@@ -569,7 +681,22 @@ export function ExpenseEditorPage() {
         <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">{editing ? 'Make any changes you need. Your record will be updated in place.' : 'Start with the amount and category. Add context if it feels useful.'}</p>
       </header>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(submit, (errors) => { const first = Object.keys(errors)[0]; if (first) form.setFocus(first as Parameters<typeof form.setFocus>[0]); })} className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_270px]" data-testid="form-expense">
+        <form
+          onSubmit={form.handleSubmit(
+            // A parent with children is a grouping label; filing under it directly
+            // would make the category ambiguous, so it is rejected up front.
+            (values) => {
+              if (parentNeedsChild && !leafChosen) return;
+              submit(values);
+            },
+            (errors) => {
+              const first = Object.keys(errors)[0];
+              if (first) form.setFocus(first as Parameters<typeof form.setFocus>[0]);
+            },
+          )}
+          className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_270px]"
+          data-testid="form-expense"
+        >
           <div className="space-y-5">
             <section className="rounded-[22px] border border-border/70 bg-card p-5 sm:p-7">
               <div className="mb-6 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-secondary text-primary"><ReceiptText size={17} /></span><div><h2 className="font-display text-[17px] font-semibold tracking-[-.025em]">The essentials</h2><p className="text-xs text-muted-foreground">A few details to anchor this expense.</p></div></div>
@@ -577,15 +704,89 @@ export function ExpenseEditorPage() {
                 <FormField control={form.control} name="amount" render={({ field }) => <FormItem><FormLabel>Amount <span className="text-destructive">*</span></FormLabel><FormControl><div className="relative"><span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-display text-xl font-semibold text-muted-foreground" data-testid="text-expense-amount-symbol">{findCurrency(currencies, form.watch('currencyId'))?.symbol ?? '₹'}</span><Input {...field} inputMode="decimal" autoComplete="off" placeholder="0.00" maxLength={15} className="h-[58px] rounded-xl bg-background pl-10 font-display text-[24px] font-semibold tracking-[-.04em] tabular-nums" data-testid="input-expense-amount" /></div></FormControl><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="currencyId" render={({ field }) => <FormItem><FormLabel>Currency <span className="text-destructive">*</span></FormLabel><FormControl><select {...field} disabled={currenciesLoading} onChange={(event) => { currencyTouched.current = true; field.onChange(event); }} aria-label="Currency" className="h-[58px] w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60" data-testid="select-expense-currency"><option value="">{currenciesLoading ? 'Loading currencies…' : 'Choose a currency'}</option>{currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.symbol} {currency.code} · {currency.name}</option>)}</select></FormControl><p className="text-[11px] text-muted-foreground" data-testid="text-expense-currency-hint">Amounts are kept in this currency. Nothing is converted.</p><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="date" render={({ field }) => <FormItem><FormLabel>Date <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} type="date" className="h-11 rounded-xl bg-background" data-testid="input-expense-date" /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="categoryId" render={({ field }) => <FormItem><FormLabel>Category <span className="text-destructive">*</span></FormLabel><FormControl><select {...field} aria-label="Category" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-category"><option value="">Choose a category</option>{(categoriesQuery.data ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></FormControl>{categoriesQuery.isError ? <p className="text-xs text-destructive">Categories could not be loaded.</p> : !categoriesQuery.isLoading && !categoriesQuery.data?.length ? <p className="text-xs text-muted-foreground" data-testid="status-no-expense-categories">No categories yet. <Link href="/categories" className="font-semibold text-primary hover:underline" data-testid="link-create-expense-category">Create one first.</Link></p> : null}<FormMessage /></FormItem>} />
+                <FormField control={form.control} name="categoryId" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <div className="space-y-2">
+                        <select
+                          {...field}
+                          aria-label="Category"
+                          value={
+                            parentCategoryId ||
+                            (directParentIds.has(watchedCategoryId) ? watchedCategoryId : '')
+                          }
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setParentCategoryId(value);
+                            // Choosing a parent clears the leaf so the subcategory
+                            // must be picked next.
+                            field.onChange(value);
+                            field.onBlur();
+                          }}
+                          className={`h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring ${
+                            parentNeedsChild && !leafChosen
+                              ? 'border-destructive'
+                              : 'border-input'
+                          }`}
+                          data-testid="select-expense-category"
+                        >
+                          <option value="">Choose a category</option>
+                          {categoryTree.roots.map((node) => (
+                            <option key={node.category.id} value={node.category.id}>
+                              {node.category.name}
+                              {node.children.length > 0 ? '›' : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {parentNeedsChild && (
+                          <select
+                            aria-label="Subcategory"
+                            value={leafChosen ? watchedCategoryId : ''}
+                            onChange={(event) => {
+                              field.onChange(event.target.value);
+                              field.onBlur();
+                            }}
+                            className={`h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring ${
+                              leafChosen ? 'border-input' : 'border-destructive'
+                            }`}
+                            data-testid="select-expense-subcategory"
+                          >
+                            <option value="">
+                              Choose a {selectedParent?.category.name.toLowerCase()}
+                            </option>
+                            {(selectedParent?.children ?? []).map((child) => (
+                              <option key={child.id} value={child.id}>
+                                {child.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </FormControl>
+                    {categoriesQuery.isError ? (
+                      <p className="text-xs text-destructive">Categories could not be loaded.</p>
+                    ) : !categoryTree.isLoading && !categoryTree.roots.length ? (
+                      <p className="text-xs text-muted-foreground" data-testid="status-no-expense-categories">No categories yet. <Link href="/categories" className="font-semibold text-primary hover:underline" data-testid="link-create-expense-category">Create one first.</Link></p>
+                    ) : null}
+                    <FormMessage />
+                    {parentNeedsChild && !leafChosen && (
+                      <p className="text-xs text-destructive" data-testid="error-expense-leaf-required">
+                        Choose what you spent on inside {selectedParent?.category.name}.
+                      </p>
+                    )}
+                  </FormItem>
+                )} />
                 <FormField control={form.control} name="description" render={({ field }) => <FormItem className="sm:col-span-2"><FormLabel>Description <span className="font-normal text-muted-foreground">(optional)</span></FormLabel><FormControl><Input {...field} maxLength={1000} placeholder="What was this for?" className="h-11 rounded-xl bg-background" data-testid="input-expense-description" /></FormControl><FormMessage /></FormItem>} />
               </div>
             </section>
             <section className="rounded-[22px] border border-border/70 bg-card p-5 sm:p-7">
               <div className="mb-6 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-accent/65 text-accent-foreground"><BriefcaseBusiness size={17} /></span><div><h2 className="font-display text-[17px] font-semibold tracking-[-.025em]">A little more context</h2><p className="text-xs text-muted-foreground">Optional details for later.</p></div></div>
               <div className="grid gap-5 sm:grid-cols-2">
+                <FormField control={form.control} name="locationId" render={({ field }) => <FormItem><FormLabel>Location <span className="text-destructive">*</span></FormLabel><FormControl><select {...field} disabled={locationsLoading} aria-label="Location" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60" data-testid="select-expense-location"><option value="">{locationsLoading ? 'Loading locations…' : 'Choose a location'}</option>{(locations ?? []).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></FormControl><p className="text-[11px] text-muted-foreground">Where it happened. Currency is chosen separately.</p><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="projectId" render={({ field }) => <FormItem><FormLabel>Project <span className="font-normal text-muted-foreground">(optional)</span></FormLabel><FormControl><select {...field} onChange={(event) => { field.onChange(event); applyProjectCurrency(event.target.value); }} aria-label="Project" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-project"><option value="">No project</option>{(projectsQuery.data ?? []).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></FormControl>{projectsQuery.isError && <p className="text-xs text-destructive">Projects could not be loaded.</p>}<FormMessage /></FormItem>} />
                 <FormField control={form.control} name="paymentMethod" render={({ field }) => <FormItem><FormLabel>Payment method <span className="font-normal text-muted-foreground">(optional)</span></FormLabel><FormControl><select {...field} aria-label="Payment method" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-payment"><option value="">Not specified</option>{paymentOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="transactionType" render={({ field }) => <FormItem><FormLabel>Type</FormLabel><FormControl><select {...field} aria-label="Transaction type" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-transaction-type"><option value="expense">Expense</option><option value="payment">Payment (settles a bill)</option></select></FormControl><p className="text-[11px] text-muted-foreground" data-testid="text-expense-transaction-type-hint">Payments clear an existing debt and are left out of spending totals.</p><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="labelIds" render={({ field }) => <FormItem className="sm:col-span-2"><FormLabel>Labels <span className="font-normal text-muted-foreground">(optional)</span></FormLabel><FormControl><div className="flex min-h-11 flex-wrap gap-2" role="group" aria-label="Expense labels" data-testid="group-expense-labels">{(labelsQuery.data ?? []).length ? (labelsQuery.data ?? []).map((label) => { const selected = field.value.includes(label.id); return <button key={label.id} type="button" aria-pressed={selected} onClick={() => field.onChange(selected ? field.value.filter((id) => id !== label.id) : [...field.value, label.id])} className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors ${selected ? 'border-primary/35 bg-secondary text-primary' : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-primary'}`} data-testid={`button-expense-label-${label.id}`}><span className="size-2 rounded-full" style={{ backgroundColor: label.color }} />{label.name}{selected && <Check size={13} />}</button>; }) : <p className="py-2 text-xs text-muted-foreground">{labelsQuery.isError ? 'Labels could not be loaded.' : 'No labels yet. You can leave this empty.'}</p>}</div></FormControl><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="notes" render={({ field }) => <FormItem className="sm:col-span-2"><FormLabel>Notes <span className="font-normal text-muted-foreground">(optional)</span></FormLabel><FormControl><Textarea {...field} maxLength={4000} rows={3} placeholder="A note for future you…" className="resize-y rounded-xl bg-background" data-testid="input-expense-notes" /></FormControl><FormMessage /></FormItem>} />
               </div>
@@ -616,6 +817,7 @@ export function ExpenseDetailPage() {
   const query = useGetExpense(expenseId, {
     query: { queryKey: getGetExpenseQueryKey(expenseId), enabled: Boolean(expenseId) },
   });
+  const categoryTree = useCategoryTree();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { online } = useOffline();
@@ -665,13 +867,15 @@ export function ExpenseDetailPage() {
         <div className="absolute -right-10 -top-14 size-48 rounded-full border border-primary/10" /><div className="absolute -right-1 -top-5 size-32 rounded-full border border-primary/10" />
         <p className="text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground">Amount</p>
         <p className="relative mt-4 font-display text-[42px] font-semibold leading-none tracking-[-.06em] tabular-nums sm:text-[52px]" data-testid="text-expense-detail-amount">{money(expense.amount, expense.currency)}</p>
-        <p className="relative mt-3 text-xs text-muted-foreground" data-testid="text-expense-detail-currency">{expense.currency?.symbol} {expense.currency?.code} · {expense.currency?.name}<span className="mx-2">·</span>{expense.project ? `Part of ${expense.project.name}` : 'Not connected to a project'}</p>
+        <p className="relative mt-3 text-xs text-muted-foreground" data-testid="text-expense-detail-currency">{expense.currency?.symbol} {expense.currency?.code} · {expense.currency?.name}<span className="mx-2">·</span>{expense.location?.name}<span className="mx-2">·</span>{expense.project ? `Part of ${expense.project.name}` : 'Not connected to a project'}</p>
       </section>
       <section className="mt-5 rounded-[22px] border border-border/70 bg-card p-5 sm:p-7" data-testid="section-expense-context">
         <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-secondary text-primary"><Tag size={16} /></span><div><h2 className="font-display text-[17px] font-semibold tracking-[-.025em]">The context</h2><p className="text-xs text-muted-foreground">The useful details around this entry.</p></div></div>
         <dl className="mt-5 grid gap-x-8 sm:grid-cols-2">
-          <div className="border-t border-border/70 py-4"><dt className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Category</dt><dd className="mt-1.5 flex items-center gap-2 text-sm font-semibold" data-testid="text-expense-detail-category"><span className="size-2.5 rounded-full" style={{ backgroundColor: expense.category.color }} />{expense.category.name}</dd></div>
+          <div className="border-t border-border/70 py-4"><dt className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Category</dt><dd className="mt-1.5 flex items-center gap-2 text-sm font-semibold" data-testid="text-expense-detail-category"><span className="size-2.5 rounded-full" style={{ backgroundColor: expense.category.color }} />{categoryPath(categoryTree, expense.categoryId)}</dd></div>
           <div className="border-t border-border/70 py-4"><dt className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Project</dt><dd className="mt-1.5 text-sm font-semibold" data-testid="text-expense-detail-project">{expense.project?.name ?? 'None'}</dd></div>
+          <div className="border-t border-border/70 py-4"><dt className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Location</dt><dd className="mt-1.5 text-sm font-semibold" data-testid="text-expense-detail-location">{expense.location?.name}</dd></div>
+          <div className="border-t border-border/70 py-4"><dt className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Type</dt><dd className="mt-1.5 text-sm font-semibold" data-testid="text-expense-detail-transaction-type">{expense.transactionType === 'payment' ? 'Payment' : 'Expense'}</dd></div>
           <div className="border-t border-border/70 py-4"><dt className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Currency</dt><dd className="mt-1.5 text-sm font-semibold" data-testid="text-expense-detail-currency-code">{expense.currency?.symbol} {expense.currency?.code} · {expense.currency?.name}</dd></div>
           <div className="border-t border-border/70 py-4"><dt className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Date</dt><dd className="mt-1.5 text-sm font-semibold" data-testid="text-expense-detail-date">{dateLabel(expense.date)}</dd></div>
           <div className="border-t border-border/70 py-4"><dt className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Payment method</dt><dd className="mt-1.5 flex items-center gap-2 text-sm font-semibold" data-testid="text-expense-detail-payment">{payment ? <><CreditCard size={15} className="text-muted-foreground" />{payment}</> : 'Not specified'}</dd></div>

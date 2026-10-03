@@ -3,7 +3,7 @@ import { keepPreviousData } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import {
   ArrowUpRight, ChartNoAxesColumnIncreasing, ChevronLeft, ChevronRight, CircleDollarSign,
-  Folder, Hash, RotateCcw, Tag, Wallet,
+  Folder, Hash, MapPin, RotateCcw, Tag, Wallet,
 } from 'lucide-react';
 import {
   getGetCategoryReportsQueryKey, getGetLabelReportsQueryKey,
@@ -14,6 +14,7 @@ import type {
   CurrencyAmount, PeriodReport, ReportCategory, ReportLabel, ReportMonthlyBucket, ReportProject,
 } from '@workspace/api-client-react';
 import { errorText, formatTotals, money } from '@/lib/format';
+import { useLocations } from '@/hooks/use-locations';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -234,8 +235,10 @@ function SummaryCard({ label, value, hint, icon: Icon, testId, accent }: {
   );
 }
 
-function PeriodReportView({ from, to, dailyLabel }: { from: string; to: string; dailyLabel: 'date' | 'weekday' }) {
-  const params = { from, to };
+function PeriodReportView({
+  from, to, dailyLabel, locationId,
+}: { from: string; to: string; dailyLabel: 'date' | 'weekday'; locationId?: string }) {
+  const params = { from, to, ...(locationId ? { locationId } : {}) };
   const query = useGetPeriodReport(params, {
     query: { queryKey: getGetPeriodReportQueryKey(params), placeholderData: keepPreviousData },
   });
@@ -285,6 +288,15 @@ function PeriodReportView({ from, to, dailyLabel }: { from: string; to: string; 
         </section>
       ) : (
         <>
+          {report.locationBreakdown.length > 0 && (
+            <section className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-6" data-testid="section-report-location">
+              <div className="flex items-center justify-between gap-3"><h2 className="font-display text-[17px] font-semibold tracking-[-0.03em]">By location</h2><span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">{report.locationBreakdown.length} total</span></div>
+              <div className="mt-5">
+                <BreakdownBars rows={report.locationBreakdown.map((row) => ({ key: row.location.id, name: row.location.name, color: null, sublabel: `${row.count} ${row.count === 1 ? 'expense' : 'expenses'}`, totals: row.totals, testId: `row-report-location-${row.location.slug}` }))} />
+              </div>
+            </section>
+          )}
+
           <div className="grid gap-5 lg:grid-cols-2">
             <section className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-6" data-testid="section-report-category">
               <div className="flex items-center justify-between gap-3"><h2 className="font-display text-[17px] font-semibold tracking-[-.03em]">By category</h2><span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">{report.categoryBreakdown.length} total</span></div>
@@ -491,6 +503,9 @@ const fieldClass = 'h-10 rounded-xl border border-border bg-card px-3 text-sm fo
 
 export function ReportsPage() {
   const [tab, setTab] = useState<Tab>('monthly');
+  // Location filter applies to every report view.
+  const { locations } = useLocations();
+  const [locationId, setLocationId] = useState('');
   const current = today();
   const [month, setMonth] = useState(monthValue(current));
   const [weekStartDate, setWeekStartDate] = useState(startOfWeek(current));
@@ -542,6 +557,28 @@ export function ReportsPage() {
       </div>
 
       <div className="mt-6">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2">
+            <MapPin size={15} className="text-primary" />
+            <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">
+              Location
+            </span>
+            <select
+              value={locationId}
+              onChange={(event) => setLocationId(event.target.value)}
+              aria-label="Filter reports by location"
+              className={fieldClass}
+              data-testid="select-report-location"
+            >
+              <option value="">All locations</option>
+              {(locations ?? []).map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         {tab === 'monthly' && (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -552,7 +589,7 @@ export function ReportsPage() {
               </PeriodControls>
               <span className="text-xs font-semibold text-muted-foreground" data-testid="text-report-period-caption">{new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(monthDate)}</span>
             </div>
-            <PeriodReportView from={monthFrom} to={monthTo} dailyLabel="date" />
+            <PeriodReportView from={monthFrom} to={monthTo} dailyLabel="date" locationId={locationId || undefined} />
           </div>
         )}
 
@@ -566,7 +603,7 @@ export function ReportsPage() {
               </PeriodControls>
               <span className="text-xs font-semibold text-muted-foreground" data-testid="text-report-period-caption">{shortDate(weekFrom)} – {shortDate(weekTo)}</span>
             </div>
-            <PeriodReportView from={weekFrom} to={weekTo} dailyLabel="weekday" />
+            <PeriodReportView from={weekFrom} to={weekTo} dailyLabel="weekday" locationId={locationId || undefined} />
           </div>
         )}
 
@@ -582,7 +619,7 @@ export function ReportsPage() {
               <Button type="submit" className="h-10" data-testid="button-report-apply">Apply range</Button>
             </form>
             {customError && <p role="alert" aria-live="polite" className="text-xs font-semibold text-destructive" data-testid="status-report-custom-error">{customError}</p>}
-            <PeriodReportView from={applied.from} to={applied.to} dailyLabel="date" />
+            <PeriodReportView from={applied.from} to={applied.to} dailyLabel="date" locationId={locationId || undefined} />
           </div>
         )}
 
