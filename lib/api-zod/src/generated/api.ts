@@ -181,6 +181,8 @@ export const listProjectsResponseOneDefaultCurrencySymbolMax = 8;
 export const listProjectsResponseOneDefaultCurrencyDecimalPlacesMin = 0;
 export const listProjectsResponseOneDefaultCurrencyDecimalPlacesMax = 4;
 
+export const listProjectsResponseOneUsageCountMin = 0;
+
 export const listProjectsResponseTwoTotalsItemCurrencyCodeMin = 3;
 export const listProjectsResponseTwoTotalsItemCurrencyCodeMax = 3;
 
@@ -216,6 +218,7 @@ export const ListProjectsResponseItem = zod.object({
   "decimalPlaces": zod.number().int().min(listProjectsResponseOneDefaultCurrencyDecimalPlacesMin).max(listProjectsResponseOneDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "usageCount": zod.number().int().min(listProjectsResponseOneUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).and(zod.object({
@@ -270,6 +273,8 @@ export const createProjectResponseDefaultCurrencySymbolMax = 8;
 export const createProjectResponseDefaultCurrencyDecimalPlacesMin = 0;
 export const createProjectResponseDefaultCurrencyDecimalPlacesMax = 4;
 
+export const createProjectResponseUsageCountMin = 0;
+
 
 
 export const CreateProjectResponse = zod.object({
@@ -287,6 +292,7 @@ export const CreateProjectResponse = zod.object({
   "decimalPlaces": zod.number().int().min(createProjectResponseDefaultCurrencyDecimalPlacesMin).max(createProjectResponseDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "usageCount": zod.number().int().min(createProjectResponseUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -311,6 +317,8 @@ export const getProjectResponseProjectDefaultCurrencySymbolMax = 8;
 
 export const getProjectResponseProjectDefaultCurrencyDecimalPlacesMin = 0;
 export const getProjectResponseProjectDefaultCurrencyDecimalPlacesMax = 4;
+
+export const getProjectResponseProjectUsageCountMin = 0;
 
 export const getProjectResponseTotalsItemCurrencyCodeMin = 3;
 export const getProjectResponseTotalsItemCurrencyCodeMax = 3;
@@ -378,6 +386,7 @@ export const GetProjectResponse = zod.object({
   "decimalPlaces": zod.number().int().min(getProjectResponseProjectDefaultCurrencyDecimalPlacesMin).max(getProjectResponseProjectDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "usageCount": zod.number().int().min(getProjectResponseProjectUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
@@ -474,6 +483,8 @@ export const updateProjectResponseDefaultCurrencySymbolMax = 8;
 export const updateProjectResponseDefaultCurrencyDecimalPlacesMin = 0;
 export const updateProjectResponseDefaultCurrencyDecimalPlacesMax = 4;
 
+export const updateProjectResponseUsageCountMin = 0;
+
 
 
 export const UpdateProjectResponse = zod.object({
@@ -491,9 +502,31 @@ export const UpdateProjectResponse = zod.object({
   "decimalPlaces": zod.number().int().min(updateProjectResponseDefaultCurrencyDecimalPlacesMin).max(updateProjectResponseDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "usageCount": zod.number().int().min(updateProjectResponseUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
+
+
+/**
+ * Removes the project when nothing references it. When expenses or subcategories still point at it the record is archived instead, so no existing expense is ever broken. The response says which happened.
+ * @summary Delete a project
+ */
+export const DeleteProjectParams = zod.object({
+  "projectId": zod.coerce.string().uuid()
+})
+
+export const deleteProjectResponseUsageCountMin = 0;
+
+
+
+export const DeleteProjectResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "deleted": zod.boolean().describe('True when the record was removed outright.'),
+  "archived": zod.boolean().describe('True when the record is in use and was archived instead.'),
+  "usageCount": zod.number().int().min(deleteProjectResponseUsageCountMin).describe('Records that referenced this one.')
+}).describe('Outcome of a delete request. A record that is still referenced by expenses is archived rather than destroyed, so existing expenses keep their link and their label stays readable.')
 
 
 /**
@@ -516,6 +549,8 @@ export const archiveProjectResponseDefaultCurrencySymbolMax = 8;
 export const archiveProjectResponseDefaultCurrencyDecimalPlacesMin = 0;
 export const archiveProjectResponseDefaultCurrencyDecimalPlacesMax = 4;
 
+export const archiveProjectResponseUsageCountMin = 0;
+
 
 
 export const ArchiveProjectResponse = zod.object({
@@ -533,6 +568,7 @@ export const ArchiveProjectResponse = zod.object({
   "decimalPlaces": zod.number().int().min(archiveProjectResponseDefaultCurrencyDecimalPlacesMin).max(archiveProjectResponseDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "usageCount": zod.number().int().min(archiveProjectResponseUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -679,6 +715,8 @@ export const listLocationsResponseSlugMax = 80;
 export const listLocationsResponseCountryCodeMin = 2;
 export const listLocationsResponseCountryCodeMax = 2;
 
+export const listLocationsResponseUsageCountMin = 0;
+
 
 
 export const ListLocationsResponseItem = zod.object({
@@ -687,6 +725,7 @@ export const ListLocationsResponseItem = zod.object({
   "slug": zod.string().min(1).max(listLocationsResponseSlugMax),
   "countryCode": zod.string().min(listLocationsResponseCountryCodeMin).max(listLocationsResponseCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(listLocationsResponseUsageCountMin).optional().describe('Expenses recorded against this location.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Where an expense happened. Independent of project, category and currency.')
@@ -718,6 +757,8 @@ export const createLocationResponseSlugMax = 80;
 export const createLocationResponseCountryCodeMin = 2;
 export const createLocationResponseCountryCodeMax = 2;
 
+export const createLocationResponseUsageCountMin = 0;
+
 
 
 export const CreateLocationResponse = zod.object({
@@ -726,6 +767,7 @@ export const CreateLocationResponse = zod.object({
   "slug": zod.string().min(1).max(createLocationResponseSlugMax),
   "countryCode": zod.string().min(createLocationResponseCountryCodeMin).max(createLocationResponseCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(createLocationResponseUsageCountMin).optional().describe('Expenses recorded against this location.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Where an expense happened. Independent of project, category and currency.')
@@ -761,6 +803,8 @@ export const updateLocationResponseSlugMax = 80;
 export const updateLocationResponseCountryCodeMin = 2;
 export const updateLocationResponseCountryCodeMax = 2;
 
+export const updateLocationResponseUsageCountMin = 0;
+
 
 
 export const UpdateLocationResponse = zod.object({
@@ -769,9 +813,31 @@ export const UpdateLocationResponse = zod.object({
   "slug": zod.string().min(1).max(updateLocationResponseSlugMax),
   "countryCode": zod.string().min(updateLocationResponseCountryCodeMin).max(updateLocationResponseCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(updateLocationResponseUsageCountMin).optional().describe('Expenses recorded against this location.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Where an expense happened. Independent of project, category and currency.')
+
+
+/**
+ * Removes the location when nothing references it. When expenses or subcategories still point at it the record is archived instead, so no existing expense is ever broken. The response says which happened.
+ * @summary Delete a location
+ */
+export const DeleteLocationParams = zod.object({
+  "locationId": zod.coerce.string().uuid()
+})
+
+export const deleteLocationResponseUsageCountMin = 0;
+
+
+
+export const DeleteLocationResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "deleted": zod.boolean().describe('True when the record was removed outright.'),
+  "archived": zod.boolean().describe('True when the record is in use and was archived instead.'),
+  "usageCount": zod.number().int().min(deleteLocationResponseUsageCountMin).describe('Records that referenced this one.')
+}).describe('Outcome of a delete request. A record that is still referenced by expenses is archived rather than destroyed, so existing expenses keep their link and their label stays readable.')
 
 
 /**
@@ -791,6 +857,8 @@ export const listCategoriesResponseOneNameMax = 80;
 export const listCategoriesResponseOneSlugMax = 100;
 
 export const listCategoriesResponseOneColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const listCategoriesResponseOneUsageCountMin = 0;
+
 export const listCategoriesResponseTwoTotalsItemCurrencyCodeMin = 3;
 export const listCategoriesResponseTwoTotalsItemCurrencyCodeMax = 3;
 
@@ -819,6 +887,7 @@ export const ListCategoriesResponseItem = zod.object({
   "icon": zod.string().nullable(),
   "color": zod.string().regex(listCategoriesResponseOneColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(listCategoriesResponseOneUsageCountMin).optional().describe('Expenses pointing directly at this category.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).and(zod.object({
@@ -865,6 +934,8 @@ export const createCategoryResponseNameMax = 80;
 export const createCategoryResponseSlugMax = 100;
 
 export const createCategoryResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const createCategoryResponseUsageCountMin = 0;
+
 
 
 export const CreateCategoryResponse = zod.object({
@@ -875,6 +946,7 @@ export const CreateCategoryResponse = zod.object({
   "icon": zod.string().nullable(),
   "color": zod.string().regex(createCategoryResponseColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(createCategoryResponseUsageCountMin).optional().describe('Expenses pointing directly at this category.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -892,16 +964,26 @@ export const getCategoryResponseCategoryNameMax = 80;
 export const getCategoryResponseCategorySlugMax = 100;
 
 export const getCategoryResponseCategoryColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getCategoryResponseCategoryUsageCountMin = 0;
+
 export const getCategoryResponseParentOneNameMax = 80;
 
 export const getCategoryResponseParentOneSlugMax = 100;
 
 export const getCategoryResponseParentOneColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getCategoryResponseParentOneUsageCountMin = 0;
+
 export const getCategoryResponseChildrenItemNameMax = 80;
 
 export const getCategoryResponseChildrenItemSlugMax = 100;
 
 export const getCategoryResponseChildrenItemColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getCategoryResponseChildrenItemUsageCountMin = 0;
+
+export const getCategoryResponseChildCountMin = 0;
+
+export const getCategoryResponseDescendantUsageCountMin = 0;
+
 export const getCategoryResponseTotalsItemCurrencyCodeMin = 3;
 export const getCategoryResponseTotalsItemCurrencyCodeMax = 3;
 
@@ -952,6 +1034,7 @@ export const GetCategoryResponse = zod.object({
   "icon": zod.string().nullable(),
   "color": zod.string().regex(getCategoryResponseCategoryColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(getCategoryResponseCategoryUsageCountMin).optional().describe('Expenses pointing directly at this category.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
@@ -963,6 +1046,7 @@ export const GetCategoryResponse = zod.object({
   "icon": zod.string().nullable(),
   "color": zod.string().regex(getCategoryResponseParentOneColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(getCategoryResponseParentOneUsageCountMin).optional().describe('Expenses pointing directly at this category.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),zod.null()]).describe('Null for a top-level category.'),
@@ -974,9 +1058,12 @@ export const GetCategoryResponse = zod.object({
   "icon": zod.string().nullable(),
   "color": zod.string().regex(getCategoryResponseChildrenItemColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(getCategoryResponseChildrenItemUsageCountMin).optional().describe('Expenses pointing directly at this category.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })).describe('Subcategories. Always empty for a subcategory.'),
+  "childCount": zod.number().int().min(getCategoryResponseChildCountMin).optional().describe('Number of subcategories sitting beneath this category.'),
+  "descendantUsageCount": zod.number().int().min(getCategoryResponseDescendantUsageCountMin).optional().describe('Expenses recorded against this category or any subcategory beneath it.'),
   "totals": zod.array(zod.object({
   "currency": zod.object({
   "id": zod.string().uuid(),
@@ -1046,6 +1133,8 @@ export const updateCategoryResponseNameMax = 80;
 export const updateCategoryResponseSlugMax = 100;
 
 export const updateCategoryResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateCategoryResponseUsageCountMin = 0;
+
 
 
 export const UpdateCategoryResponse = zod.object({
@@ -1056,9 +1145,31 @@ export const UpdateCategoryResponse = zod.object({
   "icon": zod.string().nullable(),
   "color": zod.string().regex(updateCategoryResponseColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(updateCategoryResponseUsageCountMin).optional().describe('Expenses pointing directly at this category.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
+
+
+/**
+ * Removes the category when nothing references it. When expenses or subcategories still point at it the record is archived instead, so no existing expense is ever broken. The response says which happened.
+ * @summary Delete a category
+ */
+export const DeleteCategoryParams = zod.object({
+  "categoryId": zod.coerce.string().uuid()
+})
+
+export const deleteCategoryResponseUsageCountMin = 0;
+
+
+
+export const DeleteCategoryResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "deleted": zod.boolean().describe('True when the record was removed outright.'),
+  "archived": zod.boolean().describe('True when the record is in use and was archived instead.'),
+  "usageCount": zod.number().int().min(deleteCategoryResponseUsageCountMin).describe('Records that referenced this one.')
+}).describe('Outcome of a delete request. A record that is still referenced by expenses is archived rather than destroyed, so existing expenses keep their link and their label stays readable.')
 
 
 /**
@@ -1073,6 +1184,8 @@ export const archiveCategoryResponseNameMax = 80;
 export const archiveCategoryResponseSlugMax = 100;
 
 export const archiveCategoryResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const archiveCategoryResponseUsageCountMin = 0;
+
 
 
 export const ArchiveCategoryResponse = zod.object({
@@ -1083,6 +1196,7 @@ export const ArchiveCategoryResponse = zod.object({
   "icon": zod.string().nullable(),
   "color": zod.string().regex(archiveCategoryResponseColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(archiveCategoryResponseUsageCountMin).optional().describe('Expenses pointing directly at this category.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1103,6 +1217,8 @@ export const ListLabelsQueryParams = zod.object({
 export const listLabelsResponseNameMax = 80;
 
 export const listLabelsResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const listLabelsResponseUsageCountMin = 0;
+
 
 
 export const ListLabelsResponseItem = zod.object({
@@ -1110,6 +1226,7 @@ export const ListLabelsResponseItem = zod.object({
   "name": zod.string().min(1).max(listLabelsResponseNameMax),
   "color": zod.string().regex(listLabelsResponseColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(listLabelsResponseUsageCountMin).optional().describe('Expenses carrying this label.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1132,6 +1249,8 @@ export const CreateLabelBody = zod.object({
 export const createLabelResponseNameMax = 80;
 
 export const createLabelResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const createLabelResponseUsageCountMin = 0;
+
 
 
 export const CreateLabelResponse = zod.object({
@@ -1139,6 +1258,7 @@ export const CreateLabelResponse = zod.object({
   "name": zod.string().min(1).max(createLabelResponseNameMax),
   "color": zod.string().regex(createLabelResponseColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(createLabelResponseUsageCountMin).optional().describe('Expenses carrying this label.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1164,6 +1284,8 @@ export const UpdateLabelBody = zod.object({
 export const updateLabelResponseNameMax = 80;
 
 export const updateLabelResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateLabelResponseUsageCountMin = 0;
+
 
 
 export const UpdateLabelResponse = zod.object({
@@ -1171,9 +1293,31 @@ export const UpdateLabelResponse = zod.object({
   "name": zod.string().min(1).max(updateLabelResponseNameMax),
   "color": zod.string().regex(updateLabelResponseColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(updateLabelResponseUsageCountMin).optional().describe('Expenses carrying this label.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
+
+
+/**
+ * Removes the label when nothing references it. When expenses or subcategories still point at it the record is archived instead, so no existing expense is ever broken. The response says which happened.
+ * @summary Delete a label
+ */
+export const DeleteLabelParams = zod.object({
+  "labelId": zod.coerce.string().uuid()
+})
+
+export const deleteLabelResponseUsageCountMin = 0;
+
+
+
+export const DeleteLabelResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "deleted": zod.boolean().describe('True when the record was removed outright.'),
+  "archived": zod.boolean().describe('True when the record is in use and was archived instead.'),
+  "usageCount": zod.number().int().min(deleteLabelResponseUsageCountMin).describe('Records that referenced this one.')
+}).describe('Outcome of a delete request. A record that is still referenced by expenses is archived rather than destroyed, so existing expenses keep their link and their label stays readable.')
 
 
 /**
@@ -1186,6 +1330,8 @@ export const ArchiveLabelParams = zod.object({
 export const archiveLabelResponseNameMax = 80;
 
 export const archiveLabelResponseColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const archiveLabelResponseUsageCountMin = 0;
+
 
 
 export const ArchiveLabelResponse = zod.object({
@@ -1193,6 +1339,7 @@ export const ArchiveLabelResponse = zod.object({
   "name": zod.string().min(1).max(archiveLabelResponseNameMax),
   "color": zod.string().regex(archiveLabelResponseColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(archiveLabelResponseUsageCountMin).optional().describe('Expenses carrying this label.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -2710,6 +2857,8 @@ export const getProjectReportsResponseProjectDefaultCurrencySymbolMax = 8;
 export const getProjectReportsResponseProjectDefaultCurrencyDecimalPlacesMin = 0;
 export const getProjectReportsResponseProjectDefaultCurrencyDecimalPlacesMax = 4;
 
+export const getProjectReportsResponseProjectUsageCountMin = 0;
+
 export const getProjectReportsResponseTotalsItemCurrencyCodeMin = 3;
 export const getProjectReportsResponseTotalsItemCurrencyCodeMax = 3;
 
@@ -2783,6 +2932,7 @@ export const GetProjectReportsResponseItem = zod.object({
   "decimalPlaces": zod.number().int().min(getProjectReportsResponseProjectDefaultCurrencyDecimalPlacesMin).max(getProjectReportsResponseProjectDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "usageCount": zod.number().int().min(getProjectReportsResponseProjectUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
@@ -2866,6 +3016,8 @@ export const getCategoryReportsResponseCategoryNameMax = 80;
 export const getCategoryReportsResponseCategorySlugMax = 100;
 
 export const getCategoryReportsResponseCategoryColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getCategoryReportsResponseCategoryUsageCountMin = 0;
+
 export const getCategoryReportsResponseTotalsItemCurrencyCodeMin = 3;
 export const getCategoryReportsResponseTotalsItemCurrencyCodeMax = 3;
 
@@ -2932,6 +3084,7 @@ export const GetCategoryReportsResponseItem = zod.object({
   "icon": zod.string().nullable(),
   "color": zod.string().regex(getCategoryReportsResponseCategoryColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(getCategoryReportsResponseCategoryUsageCountMin).optional().describe('Expenses pointing directly at this category.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
@@ -3010,6 +3163,8 @@ export const GetLabelReportsQueryParams = zod.object({
 export const getLabelReportsResponseLabelNameMax = 80;
 
 export const getLabelReportsResponseLabelColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getLabelReportsResponseLabelUsageCountMin = 0;
+
 export const getLabelReportsResponseTotalsItemCurrencyCodeMin = 3;
 export const getLabelReportsResponseTotalsItemCurrencyCodeMax = 3;
 
@@ -3055,6 +3210,7 @@ export const GetLabelReportsResponseItem = zod.object({
   "name": zod.string().min(1).max(getLabelReportsResponseLabelNameMax),
   "color": zod.string().regex(getLabelReportsResponseLabelColorRegExp),
   "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(getLabelReportsResponseLabelUsageCountMin).optional().describe('Expenses carrying this label.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),

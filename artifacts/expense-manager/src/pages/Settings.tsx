@@ -7,7 +7,10 @@ import {
   KeyRound,
   LogOut,
   MapPin,
+  Pencil,
   Plus,
+  Trash2,
+  X,
   DatabaseBackup,
   Download,
   FileSpreadsheet,
@@ -17,7 +20,8 @@ import {
   Upload,
 } from 'lucide-react';
 import {
-  useChangePassword, useCreateLocation, useGetCurrentUser, useImportBackup,
+  getListLocationsQueryKey,
+  useChangePassword, useCreateLocation, useDeleteLocation, useGetCurrentUser, useImportBackup,
   useListCurrencies, useListLocations, useLogout, useUpdateCurrency,
   useUpdateLocation,
 } from '@workspace/api-client-react';
@@ -29,6 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeControl } from '@/components/theme-control';
+import { DeleteRecordDialog } from '@/components/delete-record-dialog';
 
 const MAX_BACKUP_BYTES = 25 * 1024 * 1024;
 
@@ -128,6 +133,10 @@ export function SettingsPage() {
   const updateCurrency = useUpdateCurrency();
   const locationsQuery = useListLocations({ status: 'all' });
   const updateLocation = useUpdateLocation();
+  const deleteLocation = useDeleteLocation();
+  const [renamingLocationId, setRenamingLocationId] = useState('');
+  const [renameLocationValue, setRenameLocationValue] = useState('');
+  const [pendingLocationDelete, setPendingLocationDelete] = useState<{ id: string; name: string; usageCount: number } | null>(null);
   const createLocation = useCreateLocation();
   const [newLocationName, setNewLocationName] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -181,6 +190,62 @@ export function SettingsPage() {
         onError: (mutationError) =>
           toast({
             title: 'Could not update location',
+            description: errorText(mutationError),
+            variant: 'destructive',
+          }),
+      },
+    );
+  };
+
+  const startRenameLocation = (locationId: string, name: string) => {
+    setRenamingLocationId(locationId);
+    setRenameLocationValue(name);
+  };
+
+  const cancelRenameLocation = () => {
+    setRenamingLocationId('');
+    setRenameLocationValue('');
+  };
+
+  const saveRenameLocation = (locationId: string) => {
+    const name = renameLocationValue.trim();
+    if (!name) return;
+    updateLocation.mutate(
+      { locationId, data: { name } },
+      {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() });
+          cancelRenameLocation();
+          toast({ title: 'Location renamed', description: `It is now called ${name}.` });
+        },
+        onError: (mutationError) =>
+          toast({
+            title: 'Could not rename location',
+            description: errorText(mutationError),
+            variant: 'destructive',
+          }),
+      },
+    );
+  };
+
+  const confirmDeleteLocation = () => {
+    if (!pendingLocationDelete) return;
+    deleteLocation.mutate(
+      { locationId: pendingLocationDelete.id },
+      {
+        onSuccess: async (result) => {
+          await queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() });
+          setPendingLocationDelete(null);
+          toast({
+            title: result.archived ? 'Location archived' : 'Location deleted',
+            description: result.archived
+              ? `${result.name} is used by ${result.usageCount} expense${result.usageCount === 1 ? '' : 's'}, so it was archived and those expenses are untouched.`
+              : `${result.name} was removed.`,
+          });
+        },
+        onError: (mutationError) =>
+          toast({
+            title: 'Could not delete location',
             description: errorText(mutationError),
             variant: 'destructive',
           }),
@@ -385,25 +450,107 @@ export function SettingsPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${location.status === 'active' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`} data-testid={`status-location-${location.slug}`}>
-                      {location.status === 'active' ? 'Active' : 'Disabled'}
-                    </span>
-                    <Button
-                      variant="outline"
-                      disabled={updateLocation.isPending}
-                      onClick={() => toggleLocation(location.id, location.status === 'active')}
-                      className="h-9 rounded-xl px-3 text-[11px]"
-                      data-testid={`button-toggle-location-${location.slug}`}
-                    >
-                      {location.status === 'active' ? 'Disable' : 'Enable'}
-                    </Button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {renamingLocationId === location.id ? (
+                      <>
+                        <Input
+                          autoFocus
+                          value={renameLocationValue}
+                          onChange={(event) => setRenameLocationValue(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') { event.preventDefault(); saveRenameLocation(location.id); }
+                            if (event.key === 'Escape') cancelRenameLocation();
+                          }}
+                          className="h-9 w-[190px] rounded-xl text-[13px]"
+                          aria-label={`Rename ${location.name}`}
+                          data-testid={`input-rename-location-${location.slug}`}
+                        />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={updateLocation.isPending || !renameLocationValue.trim()}
+                          onClick={() => saveRenameLocation(location.id)}
+                          className="size-9 rounded-xl"
+                          aria-label="Save name"
+                          data-testid={`button-save-location-${location.slug}`}
+                        >
+                          <CheckCircle2 size={15} />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={cancelRenameLocation}
+                          className="size-9 rounded-xl"
+                          aria-label="Cancel rename"
+                          data-testid={`button-cancel-location-${location.slug}`}
+                        >
+                          <X size={15} />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        {(location.usageCount ?? 0) > 0 ? (
+                          <span
+                            className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-bold text-muted-foreground"
+                            data-testid={`usage-location-${location.slug}`}
+                          >
+                            {location.usageCount} expense{location.usageCount === 1 ? '' : 's'}
+                          </span>
+                        ) : null}
+                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${location.status === 'active' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`} data-testid={`status-location-${location.slug}`}>
+                          {location.status === 'active' ? 'Active' : 'Disabled'}
+                        </span>
+                        <Button
+                          variant="outline"
+                          disabled={updateLocation.isPending}
+                          onClick={() => toggleLocation(location.id, location.status === 'active')}
+                          className="h-9 rounded-xl px-3 text-[11px]"
+                          data-testid={`button-toggle-location-${location.slug}`}
+                        >
+                          {location.status === 'active' ? 'Disable' : 'Enable'}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => startRenameLocation(location.id, location.name)}
+                          className="size-9 rounded-xl"
+                          aria-label={`Rename ${location.name}`}
+                          data-testid={`button-rename-location-${location.slug}`}
+                        >
+                          <Pencil size={15} />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setPendingLocationDelete({
+                            id: location.id,
+                            name: location.name,
+                            usageCount: location.usageCount ?? 0,
+                          })}
+                          className="size-9 rounded-xl text-destructive hover:text-destructive"
+                          aria-label={`Delete ${location.name}`}
+                          data-testid={`button-delete-location-${location.slug}`}
+                        >
+                          <Trash2 size={15} />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </li>
               ))}
             </ul>
           )}
         </div>
+
+        <DeleteRecordDialog
+          open={pendingLocationDelete !== null}
+          kind="location"
+          name={pendingLocationDelete?.name ?? ''}
+          usageCount={pendingLocationDelete?.usageCount ?? 0}
+          busy={deleteLocation.isPending}
+          onOpenChange={(open) => { if (!open) setPendingLocationDelete(null); }}
+          onConfirm={confirmDeleteLocation}
+        />
 
         <form
           className="mt-3 flex flex-wrap items-center gap-2"

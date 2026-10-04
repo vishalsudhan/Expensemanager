@@ -1,17 +1,20 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, ilike } from "drizzle-orm";
+import { and, asc, eq, ilike, ne, sql } from "drizzle-orm";
 import {
   ArchiveLabelParams,
   ArchiveLabelResponse,
   CreateLabelBody,
   CreateLabelResponse,
+  DeleteLabelParams,
+  DeleteLabelResponse,
   ListLabelsQueryParams,
   ListLabelsResponse,
   UpdateLabelBody,
   UpdateLabelParams,
   UpdateLabelResponse,
 } from "@workspace/api-zod";
-import { db, labelsTable } from "@workspace/db";
+import { db, expenseLabelsTable, labelsTable } from "@workspace/db";
+import { deleteOutcome } from "../lib/record-delete";
 
 const router: IRouter = Router();
 
@@ -45,13 +48,23 @@ router.get("/labels", async (req, res): Promise<void> => {
     conditions.push(ilike(labelsTable.name, `%${escapeLikePattern(search)}%`));
   }
 
+  const usageRows = await db
+    .select({ labelId: expenseLabelsTable.labelId, usageCount: sql<number>`count(*)::int` })
+    .from(expenseLabelsTable)
+    .groupBy(expenseLabelsTable.labelId);
+  const usageByLabel = new Map(usageRows.map((row) => [row.labelId, Number(row.usageCount)]));
+
   const labels = await db
     .select()
     .from(labelsTable)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(asc(labelsTable.name));
 
-  res.json(ListLabelsResponse.parse(labels));
+  res.json(
+    ListLabelsResponse.parse(
+      labels.map((label) => ({ ...label, usageCount: usageByLabel.get(label.id) ?? 0 })),
+    ),
+  );
 });
 
 router.post("/labels", async (req, res): Promise<void> => {
@@ -105,6 +118,23 @@ router.patch("/labels/:labelId", async (req, res): Promise<void> => {
     }
   }
 
+  if (changes.name !== undefined) {
+    const [clash] = await db
+      .select({ id: labelsTable.id })
+      .from(labelsTable)
+      .where(
+        and(
+          sql`lower(${labelsTable.name}) = lower(${changes.name})`,
+          ne(labelsTable.id, params.data.labelId),
+        ),
+      )
+      .limit(1);
+    if (clash) {
+      res.status(409).json({ error: "A label with this name already exists." });
+      return;
+    }
+  }
+
   try {
     const [label] = await db
       .update(labelsTable)
@@ -146,6 +176,45 @@ router.patch("/labels/:labelId/archive", async (req, res): Promise<void> => {
   }
 
   res.json(ArchiveLabelResponse.parse(label));
+});
+
+router.delete("/labels/:labelId", async (req, res): Promise<void> => {
+  const params = DeleteLabelParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid label ID." });
+    return;
+  }
+
+  const labelId = params.data.labelId;
+  const [{ usageCount } = { usageCount: 0 }] = await db
+    .select({ usageCount: sql<number>`count(*)::int` })
+    .from(expenseLabelsTable)
+    .where(eq(expenseLabelsTable.labelId, labelId));
+
+  if (usageCount > 0) {
+    const [archived] = await db
+      .update(labelsTable)
+      .set({ status: "archived" })
+      .where(eq(labelsTable.id, labelId))
+      .returning();
+
+    if (!archived) {
+      res.status(404).json({ error: "Label not found." });
+      return;
+    }
+
+    res.json(DeleteLabelResponse.parse(deleteOutcome(archived.id, archived.name, usageCount)));
+    return;
+  }
+
+  const [deleted] = await db.delete(labelsTable).where(eq(labelsTable.id, labelId)).returning();
+
+  if (!deleted) {
+    res.status(404).json({ error: "Label not found." });
+    return;
+  }
+
+  res.json(DeleteLabelResponse.parse(deleteOutcome(deleted.id, deleted.name, 0)));
 });
 
 export default router;

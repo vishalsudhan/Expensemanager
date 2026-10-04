@@ -7,7 +7,8 @@
     "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify:stage17": "node ./verify/verify-stage17.mjs",
-    "verify:auth": "node ./verify/verify-auth.mjs"
+    "verify:auth": "node ./verify/verify-auth.mjs",
+    "verify:records": "node ./verify/verify-record-management.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -29,6 +29,11 @@ export interface Location {
      */
   countryCode: string | null;
   status: LocationStatus;
+  /**
+     * Expenses recorded against this location.
+     * @minimum 0
+     */
+  usageCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }

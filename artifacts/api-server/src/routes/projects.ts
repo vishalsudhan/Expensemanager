@@ -1,10 +1,12 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import {
   ArchiveProjectParams,
   ArchiveProjectResponse,
   CreateProjectBody,
   CreateProjectResponse,
+  DeleteProjectParams,
+  DeleteProjectResponse,
   GetProjectParams,
   GetProjectResponse,
   ListProjectsQueryParams,
@@ -21,6 +23,7 @@ import {
   expensesTable,
   projectsTable,
 } from "@workspace/db";
+import { deleteOutcome } from "../lib/record-delete";
 import {
   currencyAmountSum,
   currencyColumns,
@@ -115,6 +118,13 @@ router.get("/projects", async (req, res): Promise<void> => {
     totalsByProject.set(row.entityId, list);
   }
 
+  const usageRows = await db
+    .select({ projectId: expensesTable.projectId, usageCount: sql<number>`count(*)::int` })
+    .from(expensesTable)
+    .where(eq(expensesTable.transactionType, "expense"))
+    .groupBy(expensesTable.projectId);
+  const usageByProject = new Map(usageRows.map((row) => [row.projectId, Number(row.usageCount)]));
+
   res.json(
     ListProjectsResponse.parse(
       projects.map((project) => {
@@ -131,6 +141,7 @@ router.get("/projects", async (req, res): Promise<void> => {
           updatedAt: project.updatedAt,
           totals: totals.sort((a, b) => a.currency.code.localeCompare(b.currency.code)),
           expenseCount: totalCount(totals),
+          usageCount: usageByProject.get(project.id) ?? 0,
         };
       }),
     ),
@@ -341,6 +352,23 @@ router.patch("/projects/:projectId", async (req, res): Promise<void> => {
     }
   }
 
+  if (changes.name !== undefined) {
+    const [clash] = await db
+      .select({ id: projectsTable.id })
+      .from(projectsTable)
+      .where(
+        and(
+          sql`lower(${projectsTable.name}) = lower(${changes.name})`,
+          ne(projectsTable.id, params.data.projectId),
+        ),
+      )
+      .limit(1);
+    if (clash) {
+      res.status(409).json({ error: "A project with this name already exists." });
+      return;
+    }
+  }
+
   try {
     const [project] = await db
       .update(projectsTable)
@@ -424,6 +452,48 @@ router.patch("/projects/:projectId/archive", async (req, res): Promise<void> => 
       updatedAt: archived!.updatedAt,
     }),
   );
+});
+
+router.delete("/projects/:projectId", async (req, res): Promise<void> => {
+  const params = DeleteProjectParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid project ID." });
+    return;
+  }
+
+  const projectId = params.data.projectId;
+  const [{ usageCount } = { usageCount: 0 }] = await db
+    .select({ usageCount: sql<number>`count(*)::int` })
+    .from(expensesTable)
+    .where(eq(expensesTable.projectId, projectId));
+
+  if (usageCount > 0) {
+    const [archived] = await db
+      .update(projectsTable)
+      .set({ status: "archived" })
+      .where(eq(projectsTable.id, projectId))
+      .returning({ id: projectsTable.id, name: projectsTable.name });
+
+    if (!archived) {
+      res.status(404).json({ error: "Project not found." });
+      return;
+    }
+
+    res.json(DeleteProjectResponse.parse(deleteOutcome(archived.id, archived.name, usageCount)));
+    return;
+  }
+
+  const [deleted] = await db
+    .delete(projectsTable)
+    .where(eq(projectsTable.id, projectId))
+    .returning({ id: projectsTable.id, name: projectsTable.name });
+
+  if (!deleted) {
+    res.status(404).json({ error: "Project not found." });
+    return;
+  }
+
+  res.json(DeleteProjectResponse.parse(deleteOutcome(deleted.id, deleted.name, 0)));
 });
 
 export default router;

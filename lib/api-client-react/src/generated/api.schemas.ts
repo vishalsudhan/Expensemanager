@@ -222,6 +222,11 @@ export interface Project {
   icon: string | null;
   status: ProjectStatus;
   defaultCurrency: Currency;
+  /**
+     * Expenses assigned to this project.
+     * @minimum 0
+     */
+  usageCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -353,6 +358,11 @@ export interface Category {
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   color: string;
   status: CategoryStatus;
+  /**
+     * Expenses pointing directly at this category.
+     * @minimum 0
+     */
+  usageCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -431,6 +441,16 @@ export interface CategoryDetail {
   parent: Category | null;
   /** Subcategories. Always empty for a subcategory. */
   children: Category[];
+  /**
+     * Number of subcategories sitting beneath this category.
+     * @minimum 0
+     */
+  childCount?: number;
+  /**
+     * Expenses recorded against this category or any subcategory beneath it.
+     * @minimum 0
+     */
+  descendantUsageCount?: number;
   totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;
@@ -456,6 +476,11 @@ export interface Label {
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   color: string;
   status: LabelStatus;
+  /**
+     * Expenses carrying this label.
+     * @minimum 0
+     */
+  usageCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -579,6 +604,23 @@ export interface ExpenseLabel {
   status: ExpenseLabelStatus;
 }
 
+/**
+ * Outcome of a delete request. A record that is still referenced by expenses is archived rather than destroyed, so existing expenses keep their link and their label stays readable.
+ */
+export interface RecordDeleteResult {
+  id: string;
+  name: string;
+  /** True when the record was removed outright. */
+  deleted: boolean;
+  /** True when the record is in use and was archived instead. */
+  archived: boolean;
+  /**
+     * Records that referenced this one.
+     * @minimum 0
+     */
+  usageCount: number;
+}
+
 export type LocationStatus = typeof LocationStatus[keyof typeof LocationStatus];
 
 
@@ -609,6 +651,11 @@ export interface Location {
      */
   countryCode: string | null;
   status: LocationStatus;
+  /**
+     * Expenses recorded against this location.
+     * @minimum 0
+     */
+  usageCount?: number;
   createdAt: string;
   updatedAt: string;
 }

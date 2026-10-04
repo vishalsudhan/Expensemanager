@@ -23,6 +23,11 @@ export interface Project {
   icon: string | null;
   status: ProjectStatus;
   defaultCurrency: Currency;
+  /**
+     * Expenses assigned to this project.
+     * @minimum 0
+     */
+  usageCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }

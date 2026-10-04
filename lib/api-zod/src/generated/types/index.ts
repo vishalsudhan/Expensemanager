@@ -112,6 +112,7 @@ export * from './projectReportCollection';
 export * from './projectStatus';
 export * from './projectUpdate';
 export * from './rateLimitedResponse';
+export * from './recordDeleteResult';
 export * from './reportCategory';
 export * from './reportCategoryBreakdown';
 export * from './reportCategoryRow';

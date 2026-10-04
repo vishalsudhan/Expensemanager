@@ -1,16 +1,19 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, ilike } from "drizzle-orm";
+import { and, asc, eq, ilike, ne, sql } from "drizzle-orm";
 import {
   CreateLocationBody,
   CreateLocationResponse,
+  DeleteLocationParams,
+  DeleteLocationResponse,
   ListLocationsQueryParams,
   ListLocationsResponse,
   UpdateLocationBody,
   UpdateLocationParams,
   UpdateLocationResponse,
 } from "@workspace/api-zod";
-import { locationsTable, db } from "@workspace/db";
+import { locationsTable, db, expensesTable } from "@workspace/db";
 import { slugify } from "../lib/slug";
+import { deleteOutcome } from "../lib/record-delete";
 
 const router: IRouter = Router();
 
@@ -57,13 +60,26 @@ router.get("/locations", async (req, res): Promise<void> => {
     conditions.push(ilike(locationsTable.name, `%${escapeLikePattern(trimmed)}%`));
   }
 
+  const usageRows = await db
+    .select({ locationId: expensesTable.locationId, usageCount: sql<number>`count(*)::int` })
+    .from(expensesTable)
+    .groupBy(expensesTable.locationId);
+  const usageByLocation = new Map(usageRows.map((row) => [row.locationId, Number(row.usageCount)]));
+
   const locations = await db
     .select()
     .from(locationsTable)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(asc(locationsTable.name));
 
-  res.json(ListLocationsResponse.parse(locations));
+  res.json(
+    ListLocationsResponse.parse(
+      locations.map((location) => ({
+        ...location,
+        usageCount: usageByLocation.get(location.id) ?? 0,
+      })),
+    ),
+  );
 });
 
 router.post("/locations", async (req, res): Promise<void> => {
@@ -128,6 +144,23 @@ router.patch("/locations/:locationId", async (req, res): Promise<void> => {
     changes.slug = slugify(changes.slug.trim());
   }
 
+  if (changes.name !== undefined) {
+    const [clash] = await db
+      .select({ id: locationsTable.id })
+      .from(locationsTable)
+      .where(
+        and(
+          sql`lower(${locationsTable.name}) = lower(${changes.name})`,
+          ne(locationsTable.id, params.data.locationId),
+        ),
+      )
+      .limit(1);
+    if (clash) {
+      res.status(409).json({ error: "A location with this name already exists." });
+      return;
+    }
+  }
+
   try {
     const [location] = await db
       .update(locationsTable)
@@ -148,6 +181,47 @@ router.patch("/locations/:locationId", async (req, res): Promise<void> => {
     }
     throw error;
   }
+});
+
+router.delete("/locations/:locationId", async (req, res): Promise<void> => {
+  const params = DeleteLocationParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid location ID." });
+    return;
+  }
+
+  const locationId = params.data.locationId;
+  const [{ usageCount } = { usageCount: 0 }] = await db
+    .select({ usageCount: sql<number>`count(*)::int` })
+    .from(expensesTable)
+    .where(eq(expensesTable.locationId, locationId));
+
+  if (usageCount > 0) {
+    const [archived] = await db
+      .update(locationsTable)
+      .set({ status: "archived" })
+      .where(eq(locationsTable.id, locationId))
+      .returning();
+
+    if (!archived) {
+      res.status(404).json({ error: "Location not found." });
+      return;
+    }
+
+    res.json(
+      DeleteLocationResponse.parse(deleteOutcome(archived.id, archived.name, usageCount)),
+    );
+    return;
+  }
+
+  const [deleted] = await db.delete(locationsTable).where(eq(locationsTable.id, locationId)).returning();
+
+  if (!deleted) {
+    res.status(404).json({ error: "Location not found." });
+    return;
+  }
+
+  res.json(DeleteLocationResponse.parse(deleteOutcome(deleted.id, deleted.name, 0)));
 });
 
 export default router;

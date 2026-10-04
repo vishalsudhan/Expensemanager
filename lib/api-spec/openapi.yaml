@@ -330,6 +330,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      summary: Delete a project
+      description: >-
+        Removes the project when nothing references it. When expenses or
+        subcategories still point at it the record is archived instead, so no
+        existing expense is ever broken. The response says which happened.
+      responses:
+        "200":
+          description: Deleted, or archived because it is still in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordDeleteResult"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /projects/{projectId}/archive:
     parameters:
       - name: projectId
@@ -540,6 +561,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteLocation
+      tags: [locations]
+      summary: Delete a location
+      description: >-
+        Removes the location when nothing references it. When expenses or
+        subcategories still point at it the record is archived instead, so no
+        existing expense is ever broken. The response says which happened.
+      responses:
+        "200":
+          description: Deleted, or archived because it is still in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordDeleteResult"
+        "404":
+          description: Location not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /categories:
     get:
       operationId: listCategories
@@ -656,6 +698,27 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: A category with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteCategory
+      tags: [categories]
+      summary: Delete a category
+      description: >-
+        Removes the category when nothing references it. When expenses or
+        subcategories still point at it the record is archived instead, so no
+        existing expense is ever broken. The response says which happened.
+      responses:
+        "200":
+          description: Deleted, or archived because it is still in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordDeleteResult"
+        "404":
+          description: Category not found
           content:
             application/json:
               schema:
@@ -784,6 +847,27 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: A label with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteLabel
+      tags: [labels]
+      summary: Delete a label
+      description: >-
+        Removes the label when nothing references it. When expenses or
+        subcategories still point at it the record is archived instead, so no
+        existing expense is ever broken. The response says which happened.
+      responses:
+        "200":
+          description: Deleted, or archived because it is still in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordDeleteResult"
+        "404":
+          description: Label not found
           content:
             application/json:
               schema:
@@ -1616,6 +1700,10 @@ components:
           enum: [active, archived]
         defaultCurrency:
           $ref: "#/components/schemas/Currency"
+        usageCount:
+          type: integer
+          minimum: 0
+          description: Expenses assigned to this project.
         createdAt:
           type: string
           format: date-time
@@ -1811,6 +1899,10 @@ components:
         status:
           type: string
           enum: [active, archived]
+        usageCount:
+          type: integer
+          minimum: 0
+          description: Expenses pointing directly at this category.
         createdAt:
           type: string
           format: date-time
@@ -1942,6 +2034,14 @@ components:
           description: Subcategories. Always empty for a subcategory.
           items:
             $ref: "#/components/schemas/Category"
+        childCount:
+          type: integer
+          minimum: 0
+          description: Number of subcategories sitting beneath this category.
+        descendantUsageCount:
+          type: integer
+          minimum: 0
+          description: Expenses recorded against this category or any subcategory beneath it.
         totals:
           type: array
           items:
@@ -1981,6 +2081,10 @@ components:
         status:
           type: string
           enum: [active, archived]
+        usageCount:
+          type: integer
+          minimum: 0
+          description: Expenses carrying this label.
         createdAt:
           type: string
           format: date-time
@@ -2097,6 +2201,29 @@ components:
           type: string
           enum: [active, archived]
       required: [id, name, color, status]
+    RecordDeleteResult:
+      type: object
+      description: >-
+        Outcome of a delete request. A record that is still referenced by
+        expenses is archived rather than destroyed, so existing expenses keep
+        their link and their label stays readable.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        deleted:
+          type: boolean
+          description: True when the record was removed outright.
+        archived:
+          type: boolean
+          description: True when the record is in use and was archived instead.
+        usageCount:
+          type: integer
+          minimum: 0
+          description: Records that referenced this one.
+      required: [id, name, deleted, archived, usageCount]
     Location:
       type: object
       description: Where an expense happened. Independent of project, category and currency.
@@ -2119,6 +2246,10 @@ components:
         status:
           type: string
           enum: [active, archived]
+        usageCount:
+          type: integer
+          minimum: 0
+          description: Expenses recorded against this location.
         createdAt:
           type: string
           format: date-time

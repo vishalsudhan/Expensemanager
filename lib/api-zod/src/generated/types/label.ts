@@ -17,6 +17,11 @@ export interface Label {
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   color: string;
   status: LabelStatus;
+  /**
+     * Expenses carrying this label.
+     * @minimum 0
+     */
+  usageCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }

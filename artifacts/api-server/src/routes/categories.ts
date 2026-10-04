@@ -7,7 +7,10 @@ import {
   eq,
   gte,
   ilike,
+  inArray,
   lt,
+  ne,
+  or,
   sql,
 } from "drizzle-orm";
 import {
@@ -15,6 +18,8 @@ import {
   ArchiveCategoryResponse,
   CreateCategoryBody,
   CreateCategoryResponse,
+  DeleteCategoryParams,
+  DeleteCategoryResponse,
   GetCategoryParams,
   GetCategoryResponse,
   ListCategoriesQueryParams,
@@ -25,6 +30,7 @@ import {
 } from "@workspace/api-zod";
 import { categoriesTable, currenciesTable, db, expensesTable } from "@workspace/db";
 import { slugify } from "../lib/slug";
+import { deleteOutcome } from "../lib/record-delete";
 import {
   currencyAmountSum,
   currencyColumns,
@@ -153,6 +159,12 @@ router.get("/categories", async (req, res): Promise<void> => {
     totalsByCategory.set(row.entityId, list);
   }
 
+  const usageRows = await db
+    .select({ categoryId: expensesTable.categoryId, usageCount: sql<number>`count(*)::int` })
+    .from(expensesTable)
+    .groupBy(expensesTable.categoryId);
+  const usageByCategory = new Map(usageRows.map((row) => [row.categoryId, Number(row.usageCount)]));
+
   res.json(
     ListCategoriesResponse.parse(
       categories.map((category) => {
@@ -161,6 +173,7 @@ router.get("/categories", async (req, res): Promise<void> => {
           ...category,
           totals: totals.sort((a, b) => a.currency.code.localeCompare(b.currency.code)),
           expenseCount: totalCount(totals),
+          usageCount: usageByCategory.get(category.id) ?? 0,
         };
       }),
     ),
@@ -332,11 +345,27 @@ router.get("/categories/:categoryId", async (req, res): Promise<void> => {
 
   const totals = toAmounts(totalsRows);
 
+  const childIds = children.map((child) => child.id);
+  const [{ descendantUsageCount } = { descendantUsageCount: 0 }] = await db
+    .select({ descendantUsageCount: sql<number>`count(*)::int` })
+    .from(expensesTable)
+    .where(
+      and(
+        eq(expensesTable.transactionType, "expense"),
+        or(
+          eq(expensesTable.categoryId, category.id),
+          ...childIds.map((childId) => eq(expensesTable.categoryId, childId)),
+        ),
+      ),
+    );
+
   res.json(
     GetCategoryResponse.parse({
       category,
       parent: parent ?? null,
       children,
+      childCount: children.length,
+      descendantUsageCount,
       totals,
       expenseCount: totalCount(totals),
       recentExpenses: recentExpenses.map((expense) => ({
@@ -428,6 +457,87 @@ router.patch("/categories/:categoryId/archive", async (req, res): Promise<void> 
   }
 
   res.json(ArchiveCategoryResponse.parse(category));
+});
+
+router.delete("/categories/:categoryId", async (req, res): Promise<void> => {
+  const params = DeleteCategoryParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid category ID." });
+    return;
+  }
+
+  const categoryId = params.data.categoryId;
+  const [category] = await db
+    .select({ id: categoriesTable.id, name: categoriesTable.name })
+    .from(categoriesTable)
+    .where(eq(categoriesTable.id, categoryId))
+    .limit(1);
+
+  if (!category) {
+    res.status(404).json({ error: "Category not found." });
+    return;
+  }
+
+  const children = await db
+    .select({ id: categoriesTable.id })
+    .from(categoriesTable)
+    .where(eq(categoriesTable.parentId, categoryId));
+
+  const childIds = children.map((child) => child.id);
+  const [{ usageCount } = { usageCount: 0 }] = await db
+    .select({ usageCount: sql<number>`count(*)::int` })
+    .from(expensesTable)
+    .where(
+      and(
+        eq(expensesTable.transactionType, "expense"),
+        or(
+          eq(expensesTable.categoryId, categoryId),
+          ...childIds.map((childId) => eq(expensesTable.categoryId, childId)),
+        ),
+      ),
+    );
+
+  const referenced = usageCount > 0 || children.length > 0;
+
+  if (referenced) {
+    // Archiving a parent has to take its subcategories with it, otherwise active
+    // children would be left sitting under an archived parent.
+    if (childIds.length > 0) {
+      await db
+        .update(categoriesTable)
+        .set({ status: "archived" })
+        .where(inArray(categoriesTable.id, childIds));
+    }
+    const [archived] = await db
+      .update(categoriesTable)
+      .set({ status: "archived" })
+      .where(eq(categoriesTable.id, categoryId))
+      .returning({ id: categoriesTable.id, name: categoriesTable.name });
+
+    if (!archived) {
+      res.status(404).json({ error: "Category not found." });
+      return;
+    }
+
+    res.json(
+      DeleteCategoryResponse.parse(
+        deleteOutcome(archived.id, archived.name, usageCount + children.length),
+      ),
+    );
+    return;
+  }
+
+  const [deleted] = await db
+    .delete(categoriesTable)
+    .where(eq(categoriesTable.id, categoryId))
+    .returning({ id: categoriesTable.id, name: categoriesTable.name });
+
+  if (!deleted) {
+    res.status(404).json({ error: "Category not found." });
+    return;
+  }
+
+  res.json(DeleteCategoryResponse.parse(deleteOutcome(deleted.id, deleted.name, 0)));
 });
 
 export default router;

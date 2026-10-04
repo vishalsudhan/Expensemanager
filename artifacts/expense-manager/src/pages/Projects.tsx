@@ -1,22 +1,23 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'wouter';
+import { Link, useLocation, useParams } from 'wouter';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
   Archive, ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleDollarSign,
   FolderKanban, Briefcase, House, LoaderCircle, Pencil, Plane, Plus,
-  RotateCcw, Sparkles, Tag, Wallet,
+  RotateCcw, Sparkles, Tag, Trash2, Wallet,
 } from 'lucide-react';
 import {
   getGetProjectQueryKey, getListProjectsQueryKey, useArchiveProject,
-  useCreateProject, useGetProject, useListProjects, useUpdateProject,
+  useCreateProject, useDeleteProject, useGetProject, useListProjects, useUpdateProject,
 } from '@workspace/api-client-react';
 import type { Project, ProjectInput, ProjectUpdate } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrencyOptions } from '@/hooks/use-currencies';
 import { errorText, formatDate, formatTotals, money } from '@/lib/format';
+import { DeleteRecordDialog } from '@/components/delete-record-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -241,6 +242,29 @@ function ProjectListPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
   const [archiving, setArchiving] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState<Project | null>(null);
+  const deleteProject = useDeleteProject();
+
+  const confirmDelete = () => {
+    if (!deleting) return;
+    deleteProject.mutate({ projectId: deleting.id }, {
+      onSuccess: async (result) => {
+        await queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+        setDeleting(null);
+        toast({
+          title: result.archived ? 'Project archived' : 'Project deleted',
+          description: result.archived
+            ? `${result.name} has ${result.usageCount} expense${result.usageCount === 1 ? '' : 's'}, so it was archived and they are untouched.`
+            : `${result.name} was removed.`,
+        });
+      },
+      onError: (error) => toast({
+        title: 'Could not delete project',
+        description: errorText(error),
+        variant: 'destructive',
+      }),
+    });
+  };
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const projectsQuery = useListProjects({ status });
@@ -312,6 +336,7 @@ function ProjectListPage() {
                 {status === 'active' ? <div className="flex items-center gap-1">
                   <button type="button" onClick={() => startEdit(project)} aria-label={`Edit ${project.name}`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-primary" data-testid={`button-edit-project-${project.id}`}><Pencil size={15} /></button>
                   <button type="button" onClick={() => setArchiving(project)} aria-label={`Archive ${project.name}`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground" data-testid={`button-archive-project-${project.id}`}><Archive size={15} /></button>
+                  <button type="button" onClick={() => setDeleting(project)} aria-label={`Delete ${project.name}`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive" data-testid={`button-delete-project-${project.id}`}><Trash2 size={15} /></button>
                   <Link href={`/projects/${project.id}`} aria-label={`View ${project.name}`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-primary" data-testid={`button-view-project-${project.id}`}><ChevronRight size={17} /></Link>
                 </div> : <Badge variant="secondary" className="gap-1.5 rounded-full px-2.5 py-1 text-[10px] capitalize"><Archive size={12} /> Archived</Badge>}
               </div>
@@ -328,6 +353,15 @@ function ProjectListPage() {
         </section>
       )}
       <ProjectFormDialog key={`${formOpen ? 'open' : 'closed'}-${editing?.id ?? 'new'}`} open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) setEditing(null); }} project={editing} />
+      <DeleteRecordDialog
+        open={Boolean(deleting)}
+        kind="project"
+        name={deleting?.name ?? ''}
+        usageCount={deleting?.usageCount ?? 0}
+        busy={deleteProject.isPending}
+        onOpenChange={(open) => { if (!open) setDeleting(null); }}
+        onConfirm={confirmDelete}
+      />
       <AlertDialog open={Boolean(archiving)} onOpenChange={(open) => { if (!open && !archiveProject.isPending) setArchiving(null); }}>
         <AlertDialogContent className="rounded-[22px] border-border bg-card" data-testid="dialog-archive-project">
           <AlertDialogHeader><AlertDialogTitle className="font-display text-xl tracking-[-.03em]">Archive {archiving?.name}?</AlertDialogTitle><AlertDialogDescription>This keeps its history and expenses intact. You can still find it from the Archived tab.</AlertDialogDescription></AlertDialogHeader>
@@ -340,13 +374,40 @@ function ProjectListPage() {
 
 function ProjectDetailPage() {
   const { projectId = '' } = useParams<{ projectId: string }>();
+  const [, navigate] = useLocation();
   const [formOpen, setFormOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const detailQuery = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: Boolean(projectId) } });
   const archiveProject = useArchiveProject();
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteProject = useDeleteProject();
   const project = detailQuery.data?.project;
+
+  const remove = () => {
+    if (!project) return;
+    deleteProject.mutate({ projectId: project.id }, {
+      onSuccess: async (result) => {
+        await refreshProjectLists(queryClient, project.id);
+        setConfirmDelete(false);
+        if (result.archived) {
+          toast({
+            title: 'Project archived',
+            description: `${result.name} has ${result.usageCount} expense${result.usageCount === 1 ? '' : 's'}, so it was archived and they are untouched.`,
+          });
+          return;
+        }
+        toast({ title: 'Project deleted', description: `${result.name} was removed.` });
+        navigate('/projects');
+      },
+      onError: (error) => toast({
+        title: 'Could not delete project',
+        description: errorText(error),
+        variant: 'destructive',
+      }),
+    });
+  };
 
   const archive = () => {
     if (!project) return;
@@ -398,6 +459,7 @@ function ProjectDetailPage() {
         <div className="flex gap-2 sm:pt-1">
           <Button variant="outline" onClick={openEdit} className="gap-2 rounded-xl" data-testid="button-edit-project-detail"><Pencil size={14} /> Edit</Button>
           {project.status === 'active' && <Button variant="outline" onClick={() => setConfirmArchive(true)} className="gap-2 rounded-xl" data-testid="button-archive-project-detail"><Archive size={14} /> Archive</Button>}
+          <Button variant="outline" onClick={() => setConfirmDelete(true)} className="gap-2 rounded-xl text-destructive hover:text-destructive" data-testid="button-delete-project-detail"><Trash2 size={14} /> Delete</Button>
         </div>
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2">

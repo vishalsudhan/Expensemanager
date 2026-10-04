@@ -4,10 +4,11 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
-  Archive, Check, Hash, LoaderCircle, Pencil, Plus, RotateCcw, Search,
+  Archive, Check, Hash, LoaderCircle, Pencil, Plus, RotateCcw, Search, Trash2,
 } from 'lucide-react';
 import {
-  getListLabelsQueryKey, useArchiveLabel, useCreateLabel, useListLabels, useUpdateLabel,
+  getListLabelsQueryKey, useArchiveLabel, useCreateLabel, useDeleteLabel, useListLabels,
+  useUpdateLabel,
 } from '@workspace/api-client-react';
 import type { Label, LabelInput, LabelUpdate, ListLabelsParams } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +25,7 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { DeleteRecordDialog } from '@/components/delete-record-dialog';
 
 const colors = ['#C27C68', '#47796A', '#66869A', '#9C8050', '#7D7397', '#71834E', '#C16D61', '#5C7D84'];
 const formSchema = z.object({
@@ -185,12 +187,60 @@ function ArchiveConfirmation({ label, open, onOpenChange }: {
   );
 }
 
+function DeleteConfirmation({
+  label,
+  open,
+  onOpenChange,
+}: {
+  label: Label | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const remove = useDeleteLabel();
+
+  const confirm = () => {
+    if (!label) return;
+    remove.mutate({ labelId: label.id }, {
+      onSuccess: async (result) => {
+        await queryClient.invalidateQueries({ queryKey: getListLabelsQueryKey() });
+        onOpenChange(false);
+        toast({
+          title: result.archived ? 'Label archived' : 'Label deleted',
+          description: result.archived
+            ? `${result.name} is on ${result.usageCount} expense${result.usageCount === 1 ? '' : 's'}, so it was archived and those expenses are untouched.`
+            : `${result.name} was removed.`,
+        });
+      },
+      onError: (error) => toast({
+        title: 'Could not delete label',
+        description: errorText(error),
+        variant: 'destructive',
+      }),
+    });
+  };
+
+  return (
+    <DeleteRecordDialog
+      open={open}
+      kind="label"
+      name={label?.name ?? ''}
+      usageCount={label?.usageCount ?? 0}
+      busy={remove.isPending}
+      onOpenChange={onOpenChange}
+      onConfirm={confirm}
+    />
+  );
+}
+
 export function LabelListPage() {
   const [status, setStatus] = useState<'active' | 'archived'>('active');
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Label | null>(null);
   const [archiving, setArchiving] = useState<Label | null>(null);
+  const [deleting, setDeleting] = useState<Label | null>(null);
   const params: ListLabelsParams = { status, ...(search.trim() ? { search: search.trim() } : {}) };
   const query = useListLabels(params);
   const openForm = (label: Label | null = null) => { setEditing(label); setFormOpen(true); };
@@ -239,7 +289,14 @@ export function LabelListPage() {
                 <div className="grid size-10 shrink-0 place-items-center rounded-xl" style={{ backgroundColor: `${label.color}1B`, color: label.color }} aria-hidden="true"><Hash size={17} strokeWidth={1.8} /></div>
                 <div className="min-w-0">
                   <p className="truncate font-display text-[17px] font-semibold tracking-[-.025em]" data-testid={`text-label-name-${label.id}`}>{label.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{label.status === 'archived' ? 'Archived label' : 'Global label'}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {label.status === 'archived' ? 'Archived label' : 'Global label'}
+                    {(label.usageCount ?? 0) > 0 ? (
+                      <span className="ml-2 font-semibold text-foreground/70" data-testid={`usage-label-${label.id}`}>
+                        {label.usageCount} expense{label.usageCount === 1 ? '' : 's'}
+                      </span>
+                    ) : null}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-3 sm:justify-end sm:border-0 sm:pt-0">
@@ -251,6 +308,7 @@ export function LabelListPage() {
                   <div className="flex items-center gap-1">
                     <button type="button" onClick={() => openForm(label)} aria-label={`Edit ${label.name}`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-primary" data-testid={`button-edit-label-${label.id}`}><Pencil size={15} /></button>
                     <button type="button" onClick={() => setArchiving(label)} aria-label={`Archive ${label.name}`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground" data-testid={`button-archive-label-${label.id}`}><Archive size={15} /></button>
+                    <button type="button" onClick={() => setDeleting(label)} aria-label={`Delete ${label.name}`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive" data-testid={`button-delete-label-${label.id}`}><Trash2 size={15} /></button>
                   </div>
                 ) : (
                   <Badge variant="secondary" className="gap-1.5 rounded-full px-2.5 py-1 text-[10px] capitalize"><Archive size={12} /> Archived</Badge>
@@ -270,6 +328,7 @@ export function LabelListPage() {
 
       <LabelFormDialog key={`${formOpen ? 'open' : 'closed'}-${editing?.id ?? 'new'}`} open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) setEditing(null); }} label={editing} />
       <ArchiveConfirmation label={archiving} open={Boolean(archiving)} onOpenChange={(open) => { if (!open) setArchiving(null); }} />
+      <DeleteConfirmation label={deleting} open={Boolean(deleting)} onOpenChange={(open) => { if (!open) setDeleting(null); }} />
     </div>
   );
 }

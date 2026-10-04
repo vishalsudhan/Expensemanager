@@ -16,6 +16,16 @@ export interface CategoryDetail {
   parent: Category | null;
   /** Subcategories. Always empty for a subcategory. */
   children: Category[];
+  /**
+     * Number of subcategories sitting beneath this category.
+     * @minimum 0
+     */
+  childCount?: number;
+  /**
+     * Expenses recorded against this category or any subcategory beneath it.
+     * @minimum 0
+     */
+  descendantUsageCount?: number;
   totals: CurrencyAmount[];
   /** @minimum 0 */
   expenseCount: number;

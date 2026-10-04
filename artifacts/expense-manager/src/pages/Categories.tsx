@@ -1,17 +1,17 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'wouter';
+import { Link, useLocation, useParams } from 'wouter';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
   Archive, ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronRight, CircleDollarSign,
   Coffee, House, LoaderCircle, Pencil, Plus, RotateCcw, Search, ShoppingBag,
-  Sparkles, Tag, TrainFront, Utensils, Wallet, Wifi,
+  Sparkles, Tag, TrainFront, Trash2, Utensils, Wallet, Wifi,
 } from 'lucide-react';
 import {
   getGetCategoryQueryKey, getListCategoriesQueryKey, useArchiveCategory,
-  useCreateCategory, useGetCategory, useListCategories, useUpdateCategory,
+  useCreateCategory, useDeleteCategory, useGetCategory, useListCategories, useUpdateCategory,
 } from '@workspace/api-client-react';
 import type {
   Category, CategoryInput, CategoryListItem, CategoryUpdate, CurrencyAmount,
@@ -19,6 +19,7 @@ import type {
 } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorText, formatDate, formatTotals, money } from '@/lib/format';
+import { DeleteRecordDialog } from '@/components/delete-record-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -253,6 +254,8 @@ function CategoryRow({
   parentName,
   onEdit,
   onArchive,
+  onDelete,
+  childCount,
 }: {
   category: CategoryListItem;
   depth: 0 | 1;
@@ -264,6 +267,8 @@ function CategoryRow({
   parentName?: string | null;
   onEdit: (category: CategoryListItem) => void;
   onArchive: (category: CategoryListItem) => void;
+  onDelete: (category: CategoryListItem) => void;
+  childCount?: number;
 }) {
   return (
     <article
@@ -319,6 +324,9 @@ function CategoryRow({
             <button type="button" onClick={() => onArchive(category)} aria-label={`Archive ${category.name}`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground" data-testid={`button-archive-category-${category.id}`}>
               <Archive size={15} />
             </button>
+            <button type="button" onClick={() => onDelete(category)} aria-label={`Delete ${category.name}`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive" data-testid={`button-delete-category-${category.id}`}>
+              <Trash2 size={15} />
+            </button>
             <Link href={`/categories/${category.id}`} aria-label={`View ${category.name}`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-primary" data-testid={`button-view-category-${category.id}`}>
               <ChevronRight size={17} />
             </Link>
@@ -361,11 +369,54 @@ function ArchiveConfirmation({ category, open, onOpenChange }: { category: Categ
 }
 
 export function CategoryListPage() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [status, setStatus] = useState<'active' | 'archived'>('active');
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const [archiving, setArchiving] = useState<Category | null>(null);
+  const [deleting, setDeleting] = useState<{ category: Category; childCount: number } | null>(null);
+  const deleteCategory = useDeleteCategory();
+  const allCategories = useListCategories({ status: 'all' });
+
+  const childCountOf = (categoryId: string) =>
+    (allCategories.data ?? []).filter((entry) => entry.parentId === categoryId).length;
+
+  // A parent's warning has to cover the expenses sitting on its subcategories,
+  // otherwise deleting one looks harmless when it is not.
+  const subtreeUsageOf = (target: CategoryListItem) =>
+    (target.usageCount ?? 0)
+    + (allCategories.data ?? [])
+      .filter((entry) => entry.parentId === target.id)
+      .reduce((sum, child) => sum + (child.usageCount ?? 0), 0);
+
+  const openDelete = (target: CategoryListItem) =>
+    setDeleting({
+      category: { ...target, usageCount: subtreeUsageOf(target) },
+      childCount: childCountOf(target.id),
+    });
+
+  const confirmDelete = () => {
+    if (!deleting) return;
+    deleteCategory.mutate({ categoryId: deleting.category.id }, {
+      onSuccess: async (result) => {
+        await queryClient.invalidateQueries({ queryKey: getListCategoriesQueryKey() });
+        setDeleting(null);
+        toast({
+          title: result.archived ? 'Category archived' : 'Category deleted',
+          description: result.archived
+            ? `${result.name} is still in use, so it${deleting.childCount > 0 ? ' and its subcategories were' : ' was'} archived and nothing was lost.`
+            : `${result.name} was removed.`,
+        });
+      },
+      onError: (error) => toast({
+        title: 'Could not delete category',
+        description: errorText(error),
+        variant: 'destructive',
+      }),
+    });
+  };
   // Which parents are showing their subcategories. A Set keeps each row's state
   // independent and survives reordering when the list is refetched.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set<string>());
@@ -500,6 +551,8 @@ export function CategoryListPage() {
               status={status}
               totals={displayTotalsOf(parent)}
               count={displayCountOf(parent)}
+              onDelete={openDelete}
+              childCount={children.length}
               onEdit={openForm}
               onArchive={setArchiving}
               expander={
@@ -544,6 +597,7 @@ export function CategoryListPage() {
                     parentName={parent.name}
                     onEdit={openForm}
                     onArchive={setArchiving}
+                    onDelete={openDelete}
                   />
                 ))}
               </div>
@@ -562,6 +616,8 @@ export function CategoryListPage() {
             parentName={parentNameOf(orphan)}
             onEdit={openForm}
             onArchive={setArchiving}
+            onDelete={openDelete}
+            childCount={childCountOf(orphan.id)}
           />
         ))}
       </div> : <section className="mt-6 rounded-[24px] border border-dashed border-border bg-card/55 px-6 py-12 text-center sm:py-16" data-testid="status-categories-empty">
@@ -569,13 +625,52 @@ export function CategoryListPage() {
       </section>}
     <CategoryFormDialog key={`${formOpen ? 'open' : 'closed'}-${editing?.id ?? 'new'}`} open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) setEditing(null); }} category={editing} />
     <ArchiveConfirmation category={archiving} open={Boolean(archiving)} onOpenChange={(open) => { if (!open) setArchiving(null); }} />
+    <DeleteRecordDialog
+      open={deleting !== null}
+      kind="category"
+      name={deleting?.category.name ?? ''}
+      usageCount={deleting?.category.usageCount ?? 0}
+      childCount={deleting?.childCount ?? 0}
+      busy={deleteCategory.isPending}
+      onOpenChange={(open) => { if (!open) setDeleting(null); }}
+      onConfirm={confirmDelete}
+    />
   </div>;
 }
 
 export function CategoryDetailPage() {
   const { categoryId = '' } = useParams<{ categoryId: string }>();
+  const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const deleteCategory = useDeleteCategory();
   const [formOpen, setFormOpen] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; usageCount: number; childCount: number } | null>(null);
+
+  const removeCategory = () => {
+    if (!confirmDelete) return;
+    deleteCategory.mutate({ categoryId: confirmDelete.id }, {
+      onSuccess: async (result) => {
+        await queryClient.invalidateQueries({ queryKey: getListCategoriesQueryKey() });
+        const childCount = confirmDelete.childCount;
+        const wasSelf = confirmDelete.id === categoryId;
+        setConfirmDelete(null);
+        toast({
+          title: result.archived ? 'Category archived' : 'Category deleted',
+          description: result.archived
+            ? `${result.name} is still in use, so it${childCount > 0 ? ' and its subcategories were' : ' was'} archived and nothing was lost.`
+            : `${result.name} was removed.`,
+        });
+        if (wasSelf && !result.archived) navigate('/categories');
+      },
+      onError: (error) => toast({
+        title: 'Could not delete category',
+        description: errorText(error),
+        variant: 'destructive',
+      }),
+    });
+  };
   const query = useGetCategory(categoryId, { query: { queryKey: getGetCategoryQueryKey(categoryId), enabled: Boolean(categoryId) } });
   // The detail payload returns children as plain categories, without their
   // spending. The list endpoint already carries totals per category, so the
@@ -611,7 +706,7 @@ export function CategoryDetailPage() {
     <Link href="/categories" className="mb-7 inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-primary" data-testid="link-back-categories"><ArrowLeft size={15} /> All categories</Link>
     <div className="flex flex-col gap-5 border-b border-border/80 pb-7 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex items-start gap-4"><div className="mt-1 grid size-12 shrink-0 place-items-center rounded-[16px]" style={{ color: category.color, backgroundColor: `${category.color}1B` }} data-testid="icon-category-detail"><CategoryIcon name={category.icon} /></div><div className="min-w-0"><div className="mb-2 text-[10px] font-bold uppercase tracking-[.18em] text-primary">CATEGORY OVERVIEW</div>{detail.parent && <Link href={`/categories/${detail.parent.id}`} className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-muted-foreground hover:text-primary" data-testid="link-category-detail-parent"><ChevronRight size={13} className="rotate-180" /> {detail.parent.name}</Link>}<h1 className="break-words font-display text-[34px] font-semibold leading-tight tracking-[-.055em] sm:text-[44px]" data-testid="heading-category-detail">{category.name}</h1><p className="mt-2 max-w-[580px] text-sm leading-6 text-muted-foreground">{category.status === 'archived' ? 'Archived category · its history remains here.' : detail.parent ? `A ${detail.parent.name} subcategory. Expenses are filed here directly.` : detail.children.length ? 'A top-level category. Its spending rolls up from the subcategories below.' : 'Your spending in this category, gathered in one place.'}</p></div></div>
-      <div className="flex gap-2 sm:pt-1"><Button variant="outline" onClick={() => setFormOpen(true)} className="gap-2 rounded-xl" data-testid="button-edit-category-detail"><Pencil size={14} /> Edit</Button>{category.status === 'active' && <Button variant="outline" onClick={() => setConfirmArchive(true)} className="gap-2 rounded-xl" data-testid="button-archive-category-detail"><Archive size={14} /> Archive</Button>}</div>
+      <div className="flex gap-2 sm:pt-1"><Button variant="outline" onClick={() => setFormOpen(true)} className="gap-2 rounded-xl" data-testid="button-edit-category-detail"><Pencil size={14} /> Edit</Button>{category.status === 'active' && <Button variant="outline" onClick={() => setConfirmArchive(true)} className="gap-2 rounded-xl" data-testid="button-archive-category-detail"><Archive size={14} /> Archive</Button>}<Button variant="outline" onClick={() => category && setConfirmDelete({ id: category.id, name: category.name, usageCount: (detail?.childCount ?? 0) > 0 ? (detail?.descendantUsageCount ?? 0) : (category.usageCount ?? 0), childCount: detail?.childCount ?? 0 })} className="gap-2 rounded-xl text-destructive hover:text-destructive" data-testid="button-delete-category-detail"><Trash2 size={14} /> Delete</Button></div>
     </div>
     <div className="mt-6 grid gap-3 sm:grid-cols-2">
       <section className="relative overflow-hidden rounded-[22px] border border-border/70 bg-card p-5 sm:p-6" data-testid="card-category-total-spent"><div className="absolute -right-6 -top-8 size-32 rounded-full border border-primary/10" /><div className="absolute -right-1 -top-2 size-20 rounded-full border border-primary/10" /><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground"><CircleDollarSign size={15} className="text-primary" /> Total spent</div><p className="mt-5 font-display text-[36px] font-semibold leading-none tracking-[-.06em] sm:text-[42px]" data-testid="text-category-total-spent">{formatTotals(rolledTotals)}</p><p className="mt-2 text-xs text-muted-foreground" data-testid="text-category-total-caption">{detail.children.length ? `Rolled up from ${detail.children.length} subcategor${detail.children.length === 1 ? 'y' : 'ies'}` : 'Across all expenses in this category'}</p></section>
@@ -657,6 +752,24 @@ export function CategoryDetailPage() {
               <span className="shrink-0 text-[12px] font-semibold tabular-nums text-muted-foreground group-hover:text-foreground">
                 {formatTotals(totalsById.get(child.id)?.totals ?? [])}
               </span>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setConfirmDelete({
+                    id: child.id,
+                    name: child.name,
+                    usageCount: totalsById.get(child.id)?.usageCount ?? 0,
+                    childCount: 0,
+                  });
+                }}
+                aria-label={`Delete ${child.name}`}
+                className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                data-testid={`button-delete-category-child-${child.id}`}
+              >
+                <Trash2 size={14} />
+              </button>
               <ChevronRight size={15} className="shrink-0 text-muted-foreground" />
             </Link>
           ))}
@@ -674,5 +787,15 @@ export function CategoryDetailPage() {
     </div>
     <CategoryFormDialog key={`${formOpen ? 'open' : 'closed'}-${category.id}`} open={formOpen} onOpenChange={setFormOpen} category={category} />
     <ArchiveConfirmation category={category} open={confirmArchive} onOpenChange={setConfirmArchive} />
+    <DeleteRecordDialog
+      open={confirmDelete !== null}
+      kind="category"
+      name={confirmDelete?.name ?? ''}
+      usageCount={confirmDelete?.usageCount ?? 0}
+      childCount={confirmDelete?.childCount ?? 0}
+      busy={deleteCategory.isPending}
+      onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}
+      onConfirm={removeCategory}
+    />
   </div>;
 }

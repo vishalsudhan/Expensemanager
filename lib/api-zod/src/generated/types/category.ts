@@ -29,6 +29,11 @@ export interface Category {
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   color: string;
   status: CategoryStatus;
+  /**
+     * Expenses pointing directly at this category.
+     * @minimum 0
+     */
+  usageCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -76,6 +76,7 @@ import type {
   ProjectReportCollection,
   ProjectUpdate,
   RateLimitedResponse,
+  RecordDeleteResult,
   ResetPasswordRequest,
   SetupAccountRequest,
   UnauthorizedResponse
@@ -1198,6 +1199,81 @@ export const useUpdateProject = <TError = ErrorType<ErrorResponse>,
       return useMutation(getUpdateProjectMutationOptions(options));
     }
 
+export const getDeleteProjectUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}`
+}
+
+/**
+ * Removes the project when nothing references it. When expenses or subcategories still point at it the record is archived instead, so no existing expense is ever broken. The response says which happened.
+ * @summary Delete a project
+ */
+export const deleteProject = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<RecordDeleteResult> => {
+
+  return customFetch<RecordDeleteResult>(getDeleteProjectUrl(projectId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteProjectMutationKey = () => ['deleteProject'] as const;
+
+export const getDeleteProjectMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProject>>, TError,DeleteProjectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteProject>>, TError,DeleteProjectMutationVariables, TContext> => {
+
+const mutationKey = getDeleteProjectMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteProject>>, DeleteProjectMutationVariables> = (props) => {
+          const {projectId} = props ?? {};
+
+          return  deleteProject(projectId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteProjectMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProject>>>
+
+    export type DeleteProjectMutationError = ErrorType<ErrorResponse>
+    export type DeleteProjectMutationVariables = {projectId: string}
+
+    /**
+ * @summary Delete a project
+ */
+export const useDeleteProject = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProject>>, TError,DeleteProjectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteProject>>,
+        TError,
+        DeleteProjectMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteProjectMutationOptions(options));
+    }
+
 export const getArchiveProjectUrl = (projectId: string,) => {
 
 
@@ -1794,6 +1870,81 @@ export const useUpdateLocation = <TError = ErrorType<ErrorResponse>,
       return useMutation(getUpdateLocationMutationOptions(options));
     }
 
+export const getDeleteLocationUrl = (locationId: string,) => {
+
+
+
+
+  return `/api/locations/${locationId}`
+}
+
+/**
+ * Removes the location when nothing references it. When expenses or subcategories still point at it the record is archived instead, so no existing expense is ever broken. The response says which happened.
+ * @summary Delete a location
+ */
+export const deleteLocation = async (locationId: string, options?: Parameters<typeof customFetch>[1]): Promise<RecordDeleteResult> => {
+
+  return customFetch<RecordDeleteResult>(getDeleteLocationUrl(locationId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteLocationMutationKey = () => ['deleteLocation'] as const;
+
+export const getDeleteLocationMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLocation>>, TError,DeleteLocationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteLocation>>, TError,DeleteLocationMutationVariables, TContext> => {
+
+const mutationKey = getDeleteLocationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteLocation>>, DeleteLocationMutationVariables> = (props) => {
+          const {locationId} = props ?? {};
+
+          return  deleteLocation(locationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteLocationMutationResult = NonNullable<Awaited<ReturnType<typeof deleteLocation>>>
+
+    export type DeleteLocationMutationError = ErrorType<ErrorResponse>
+    export type DeleteLocationMutationVariables = {locationId: string}
+
+    /**
+ * @summary Delete a location
+ */
+export const useDeleteLocation = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLocation>>, TError,DeleteLocationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteLocation>>,
+        TError,
+        DeleteLocationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteLocationMutationOptions(options));
+    }
+
 export const getListCategoriesUrl = (params?: ListCategoriesParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -2132,6 +2283,81 @@ export const useUpdateCategory = <TError = ErrorType<ErrorResponse>,
       return useMutation(getUpdateCategoryMutationOptions(options));
     }
 
+export const getDeleteCategoryUrl = (categoryId: string,) => {
+
+
+
+
+  return `/api/categories/${categoryId}`
+}
+
+/**
+ * Removes the category when nothing references it. When expenses or subcategories still point at it the record is archived instead, so no existing expense is ever broken. The response says which happened.
+ * @summary Delete a category
+ */
+export const deleteCategory = async (categoryId: string, options?: Parameters<typeof customFetch>[1]): Promise<RecordDeleteResult> => {
+
+  return customFetch<RecordDeleteResult>(getDeleteCategoryUrl(categoryId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCategoryMutationKey = () => ['deleteCategory'] as const;
+
+export const getDeleteCategoryMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCategory>>, TError,DeleteCategoryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCategory>>, TError,DeleteCategoryMutationVariables, TContext> => {
+
+const mutationKey = getDeleteCategoryMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCategory>>, DeleteCategoryMutationVariables> = (props) => {
+          const {categoryId} = props ?? {};
+
+          return  deleteCategory(categoryId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCategoryMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCategory>>>
+
+    export type DeleteCategoryMutationError = ErrorType<ErrorResponse>
+    export type DeleteCategoryMutationVariables = {categoryId: string}
+
+    /**
+ * @summary Delete a category
+ */
+export const useDeleteCategory = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCategory>>, TError,DeleteCategoryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCategory>>,
+        TError,
+        DeleteCategoryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteCategoryMutationOptions(options));
+    }
+
 export const getArchiveCategoryUrl = (categoryId: string,) => {
 
 
@@ -2465,6 +2691,81 @@ export const useUpdateLabel = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getUpdateLabelMutationOptions(options));
+    }
+
+export const getDeleteLabelUrl = (labelId: string,) => {
+
+
+
+
+  return `/api/labels/${labelId}`
+}
+
+/**
+ * Removes the label when nothing references it. When expenses or subcategories still point at it the record is archived instead, so no existing expense is ever broken. The response says which happened.
+ * @summary Delete a label
+ */
+export const deleteLabel = async (labelId: string, options?: Parameters<typeof customFetch>[1]): Promise<RecordDeleteResult> => {
+
+  return customFetch<RecordDeleteResult>(getDeleteLabelUrl(labelId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteLabelMutationKey = () => ['deleteLabel'] as const;
+
+export const getDeleteLabelMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLabel>>, TError,DeleteLabelMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteLabel>>, TError,DeleteLabelMutationVariables, TContext> => {
+
+const mutationKey = getDeleteLabelMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteLabel>>, DeleteLabelMutationVariables> = (props) => {
+          const {labelId} = props ?? {};
+
+          return  deleteLabel(labelId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteLabelMutationResult = NonNullable<Awaited<ReturnType<typeof deleteLabel>>>
+
+    export type DeleteLabelMutationError = ErrorType<ErrorResponse>
+    export type DeleteLabelMutationVariables = {labelId: string}
+
+    /**
+ * @summary Delete a label
+ */
+export const useDeleteLabel = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLabel>>, TError,DeleteLabelMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteLabel>>,
+        TError,
+        DeleteLabelMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteLabelMutationOptions(options));
     }
 
 export const getArchiveLabelUrl = (labelId: string,) => {
