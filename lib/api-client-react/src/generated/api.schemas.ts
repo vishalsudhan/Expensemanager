@@ -530,6 +530,18 @@ export const ExpenseTransactionType = {
   payment: 'payment',
 } as const;
 
+/**
+ * Which transaction types a report counts. total includes both expenses and payments, expense counts real spending only, and payment counts bill settlements only.
+ */
+export type ReportTransactionType = typeof ReportTransactionType[keyof typeof ReportTransactionType];
+
+
+export const ReportTransactionType = {
+  total: 'total',
+  expense: 'expense',
+  payment: 'payment',
+} as const;
+
 export type ExpenseProjectStatus = typeof ExpenseProjectStatus[keyof typeof ExpenseProjectStatus];
 
 
@@ -1303,6 +1315,9 @@ locationId?: string;
  * Filter expenses by top-level category, including all of its subcategories
  */
 parentCategoryId?: string;
+/**
+ * Filter by transaction type.
+ */
 transactionType?: ExpenseTransactionType;
 sort?: ListExpensesSort;
 /**
@@ -1350,7 +1365,10 @@ export const GetDashboardGranularity = {
 
 export type GetPeriodReportParams = {
 locationId?: string;
-transactionType?: ExpenseTransactionType;
+/**
+ * Which transaction types to count. Defaults to total.
+ */
+transactionType?: ReportTransactionType;
 /**
  * Inclusive start date
  * @pattern ^\d{4}-\d{2}-\d{2}$
@@ -1369,11 +1387,18 @@ export type GetLocationReportsParams = {
  * @maximum 24
  */
 months?: number;
+/**
+ * Which transaction types to count. Defaults to total.
+ */
+transactionType?: ReportTransactionType;
 };
 
 export type GetProjectReportsParams = {
 locationId?: string;
-transactionType?: ExpenseTransactionType;
+/**
+ * Which transaction types to count. Defaults to total.
+ */
+transactionType?: ReportTransactionType;
 /**
  * Number of trailing months to include in each monthly trend
  * @minimum 1
@@ -1384,7 +1409,10 @@ months?: number;
 
 export type GetCategoryReportsParams = {
 locationId?: string;
-transactionType?: ExpenseTransactionType;
+/**
+ * Which transaction types to count. Defaults to total.
+ */
+transactionType?: ReportTransactionType;
 /**
  * Number of trailing months to include in each monthly trend
  * @minimum 1
@@ -1395,7 +1423,10 @@ months?: number;
 
 export type GetLabelReportsParams = {
 locationId?: string;
-transactionType?: ExpenseTransactionType;
+/**
+ * Which transaction types to count. Defaults to total.
+ */
+transactionType?: ReportTransactionType;
 /**
  * Number of trailing months to include in each monthly trend
  * @minimum 1

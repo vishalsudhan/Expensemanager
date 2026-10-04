@@ -978,6 +978,7 @@ paths:
         - name: transactionType
           in: query
           required: false
+          description: Filter by transaction type.
           schema:
             $ref: "#/components/schemas/ExpenseTransactionType"
         - name: sort
@@ -1158,8 +1159,9 @@ paths:
         - name: transactionType
           in: query
           required: false
+          description: Which transaction types to count. Defaults to total.
           schema:
-            $ref: "#/components/schemas/ExpenseTransactionType"
+            $ref: "#/components/schemas/ReportTransactionType"
         - name: from
           in: query
           required: true
@@ -1201,6 +1203,12 @@ paths:
             minimum: 1
             maximum: 24
             default: 6
+        - name: transactionType
+          in: query
+          required: false
+          description: Which transaction types to count. Defaults to total.
+          schema:
+            $ref: "#/components/schemas/ReportTransactionType"
       responses:
         "200":
           description: Spending by location
@@ -1224,8 +1232,9 @@ paths:
         - name: transactionType
           in: query
           required: false
+          description: Which transaction types to count. Defaults to total.
           schema:
-            $ref: "#/components/schemas/ExpenseTransactionType"
+            $ref: "#/components/schemas/ReportTransactionType"
         - name: months
           in: query
           required: false
@@ -1258,8 +1267,9 @@ paths:
         - name: transactionType
           in: query
           required: false
+          description: Which transaction types to count. Defaults to total.
           schema:
-            $ref: "#/components/schemas/ExpenseTransactionType"
+            $ref: "#/components/schemas/ReportTransactionType"
         - name: months
           in: query
           required: false
@@ -1292,8 +1302,9 @@ paths:
         - name: transactionType
           in: query
           required: false
+          description: Which transaction types to count. Defaults to total.
           schema:
-            $ref: "#/components/schemas/ExpenseTransactionType"
+            $ref: "#/components/schemas/ReportTransactionType"
         - name: months
           in: query
           required: false
@@ -2133,6 +2144,14 @@ components:
       type: string
       description: "expense = real consumption. payment = settling a debt, excluded from spending totals."
       enum: [expense, payment]
+    ReportTransactionType:
+      type: string
+      description: >-
+        Which transaction types a report counts. total includes both expenses
+        and payments, expense counts real spending only, and payment counts
+        bill settlements only.
+      enum: [total, expense, payment]
+      default: total
     ExpenseProject:
       type: object
       properties:

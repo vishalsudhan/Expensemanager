@@ -44,6 +44,9 @@ locationId?: string;
  * Filter expenses by top-level category, including all of its subcategories
  */
 parentCategoryId?: string;
+/**
+ * Filter by transaction type.
+ */
 transactionType?: ExpenseTransactionType;
 sort?: ListExpensesSort;
 /**

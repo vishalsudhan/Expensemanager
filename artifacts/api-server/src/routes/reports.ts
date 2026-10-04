@@ -68,19 +68,22 @@ function toLocation(row: {
 }
 
 /**
- * Optional filters shared by every report: a single location, and whether to
- * count payment transactions alongside real spending.
+ * Optional filters shared by every report: a single location, and which
+ * transaction types to count.
  *
- * Reports answer "where did my money go", so spending defaults to expenses only
- * and bill payments are excluded until a caller explicitly asks for them.
+ * "total" (the default) deliberately adds no condition, so expenses and payments
+ * are both included. "expense" narrows to real spending, which is what excludes
+ * a credit-card bill payment from being counted as spending a second time.
  */
 function reportFilters(parsed: {
-  data: { locationId?: string; transactionType?: "expense" | "payment" };
+  data: { locationId?: string; transactionType?: "total" | "expense" | "payment" };
 }) {
   const conditions: (ReturnType<typeof eq> | undefined)[] = [];
-  const { locationId, transactionType } = parsed.data;
+  const { locationId, transactionType = "total" } = parsed.data;
   if (locationId) conditions.push(eq(expensesTable.locationId, locationId));
-  conditions.push(eq(expensesTable.transactionType, transactionType ?? "expense"));
+  if (transactionType !== "total") {
+    conditions.push(eq(expensesTable.transactionType, transactionType));
+  }
   return conditions;
 }
 const projectDefaultCurrencyJoin = eq(projectsTable.defaultCurrencyId, currenciesTable.id);
@@ -294,6 +297,13 @@ router.get("/reports/period", async (req, res): Promise<void> => {
     lte(expensesTable.date, to),
     ...reportFilters(parsed),
   );
+  const trendTypeFilter =
+    (parsed.data.transactionType ?? "total") === "total"
+      ? sql``
+      : sql`and e.transaction_type = ${parsed.data.transactionType}`;
+  const trendLocationFilter = parsed.data.locationId
+    ? sql`and e.location_id = ${parsed.data.locationId}`
+    : sql``;
 
   const [summaryRows, categoryRows, projectRows, labelRows, locationRows, dailyResult] =
     await Promise.all([
@@ -372,6 +382,8 @@ router.get("/reports/period", async (req, res): Promise<void> => {
       left join expenses e on e.date = g::date
       left join currencies c on e.currency_id = c.id
       where c.id is not null
+      ${trendTypeFilter}
+      ${trendLocationFilter}
       group by g, c.id
       order by g
     `),
@@ -773,6 +785,7 @@ router.get("/reports/locations", async (req, res): Promise<void> => {
   const months = parsed.data.months ?? 6;
   const spine = monthSpine(months);
   const firstMonthStart = `${spine[0]}-01`;
+  const typeFilters = reportFilters(parsed);
 
   const [locationRows, totalRows, categoryRows, monthRows] = await Promise.all([
     db.select({ location: locationSelection }).from(locationsTable).orderBy(asc(locationsTable.name)),
@@ -785,8 +798,7 @@ router.get("/reports/locations", async (req, res): Promise<void> => {
       })
       .from(expensesTable)
       .innerJoin(currenciesTable, expenseCurrencyJoin)
-      // This is a spending report, so bill payments never contribute.
-      .where(eq(expensesTable.transactionType, "expense"))
+      .where(and(...typeFilters))
       .groupBy(expensesTable.locationId, currenciesTable.id),
     db
       .select({
@@ -799,7 +811,7 @@ router.get("/reports/locations", async (req, res): Promise<void> => {
       .from(expensesTable)
       .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
       .innerJoin(currenciesTable, expenseCurrencyJoin)
-      .where(eq(expensesTable.transactionType, "expense"))
+      .where(and(...typeFilters))
       .groupBy(expensesTable.locationId, categoriesTable.id, currenciesTable.id)
       .orderBy(desc(sql`sum(${amount})`), asc(categoriesTable.name)),
     db
@@ -812,12 +824,7 @@ router.get("/reports/locations", async (req, res): Promise<void> => {
       })
       .from(expensesTable)
       .innerJoin(currenciesTable, expenseCurrencyJoin)
-      .where(
-        and(
-          eq(expensesTable.transactionType, "expense"),
-          gte(expensesTable.date, firstMonthStart),
-        ),
-      )
+      .where(and(...typeFilters, gte(expensesTable.date, firstMonthStart)))
       .groupBy(expensesTable.locationId, monthExpression, currenciesTable.id),
   ]);
 

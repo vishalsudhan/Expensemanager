@@ -1372,7 +1372,7 @@ export const ListExpensesQueryParams = zod.object({
   "currencyId": zod.coerce.string().uuid().optional().describe('Filter expenses by currency'),
   "locationId": zod.coerce.string().uuid().optional().describe('Filter expenses by location'),
   "parentCategoryId": zod.coerce.string().uuid().optional().describe('Filter expenses by top-level category, including all of its subcategories'),
-  "transactionType": zod.enum(['expense', 'payment']).optional(),
+  "transactionType": zod.enum(['expense', 'payment']).optional().describe('Filter by transaction type.'),
   "sort": zod.enum(['newest', 'oldest', 'highest', 'lowest']).default(listExpensesQuerySortDefault),
   "limit": zod.coerce.number().int().min(1).max(listExpensesQueryLimitMax).default(listExpensesQueryLimitDefault),
   "offset": zod.coerce.number().int().min(listExpensesQueryOffsetMin).default(listExpensesQueryOffsetDefault)
@@ -2405,13 +2405,14 @@ export const GetDashboardResponse = zod.object({
  * Returns totals, location/category/project/label breakdowns, and a daily spending trend for an inclusive date range.
  * @summary Spending report for a date range
  */
+export const getPeriodReportQueryTransactionTypeDefault = `total`;
 export const getPeriodReportQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 export const getPeriodReportQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 
 
 export const GetPeriodReportQueryParams = zod.object({
   "locationId": zod.coerce.string().uuid().optional(),
-  "transactionType": zod.enum(['expense', 'payment']).optional(),
+  "transactionType": zod.enum(['total', 'expense', 'payment']).default(getPeriodReportQueryTransactionTypeDefault).describe('Which transaction types to count. Defaults to total.'),
   "from": zod.coerce.string().regex(getPeriodReportQueryFromRegExp).describe('Inclusive start date'),
   "to": zod.coerce.string().regex(getPeriodReportQueryToRegExp).describe('Inclusive end date')
 })
@@ -2695,10 +2696,11 @@ export const GetPeriodReportResponse = zod.object({
 export const getLocationReportsQueryMonthsDefault = 6;
 export const getLocationReportsQueryMonthsMax = 24;
 
-
+export const getLocationReportsQueryTransactionTypeDefault = `total`;
 
 export const GetLocationReportsQueryParams = zod.object({
-  "months": zod.coerce.number().int().min(1).max(getLocationReportsQueryMonthsMax).default(getLocationReportsQueryMonthsDefault)
+  "months": zod.coerce.number().int().min(1).max(getLocationReportsQueryMonthsMax).default(getLocationReportsQueryMonthsDefault),
+  "transactionType": zod.enum(['total', 'expense', 'payment']).default(getLocationReportsQueryTransactionTypeDefault).describe('Which transaction types to count. Defaults to total.')
 })
 
 export const getLocationReportsResponseLocationCountryCodeMin = 2;
@@ -2833,6 +2835,7 @@ export const GetLocationReportsResponse = zod.array(GetLocationReportsResponseIt
  * Returns every project with its total spending, expense count, category breakdown, and monthly trend.
  * @summary Per-project spending reports
  */
+export const getProjectReportsQueryTransactionTypeDefault = `total`;
 export const getProjectReportsQueryMonthsDefault = 6;
 export const getProjectReportsQueryMonthsMax = 24;
 
@@ -2840,7 +2843,7 @@ export const getProjectReportsQueryMonthsMax = 24;
 
 export const GetProjectReportsQueryParams = zod.object({
   "locationId": zod.coerce.string().uuid().optional(),
-  "transactionType": zod.enum(['expense', 'payment']).optional(),
+  "transactionType": zod.enum(['total', 'expense', 'payment']).default(getProjectReportsQueryTransactionTypeDefault).describe('Which transaction types to count. Defaults to total.'),
   "months": zod.coerce.number().int().min(1).max(getProjectReportsQueryMonthsMax).default(getProjectReportsQueryMonthsDefault).describe('Number of trailing months to include in each monthly trend')
 })
 
@@ -3000,6 +3003,7 @@ export const GetProjectReportsResponse = zod.array(GetProjectReportsResponseItem
  * Returns every category with its total spending, expense count, project distribution, and monthly trend.
  * @summary Per-category spending reports
  */
+export const getCategoryReportsQueryTransactionTypeDefault = `total`;
 export const getCategoryReportsQueryMonthsDefault = 6;
 export const getCategoryReportsQueryMonthsMax = 24;
 
@@ -3007,7 +3011,7 @@ export const getCategoryReportsQueryMonthsMax = 24;
 
 export const GetCategoryReportsQueryParams = zod.object({
   "locationId": zod.coerce.string().uuid().optional(),
-  "transactionType": zod.enum(['expense', 'payment']).optional(),
+  "transactionType": zod.enum(['total', 'expense', 'payment']).default(getCategoryReportsQueryTransactionTypeDefault).describe('Which transaction types to count. Defaults to total.'),
   "months": zod.coerce.number().int().min(1).max(getCategoryReportsQueryMonthsMax).default(getCategoryReportsQueryMonthsDefault).describe('Number of trailing months to include in each monthly trend')
 })
 
@@ -3149,6 +3153,7 @@ export const GetCategoryReportsResponse = zod.array(GetCategoryReportsResponseIt
  * Returns every label with its total spending, expense count, and monthly trend.
  * @summary Per-label spending reports
  */
+export const getLabelReportsQueryTransactionTypeDefault = `total`;
 export const getLabelReportsQueryMonthsDefault = 6;
 export const getLabelReportsQueryMonthsMax = 24;
 
@@ -3156,7 +3161,7 @@ export const getLabelReportsQueryMonthsMax = 24;
 
 export const GetLabelReportsQueryParams = zod.object({
   "locationId": zod.coerce.string().uuid().optional(),
-  "transactionType": zod.enum(['expense', 'payment']).optional(),
+  "transactionType": zod.enum(['total', 'expense', 'payment']).default(getLabelReportsQueryTransactionTypeDefault).describe('Which transaction types to count. Defaults to total.'),
   "months": zod.coerce.number().int().min(1).max(getLabelReportsQueryMonthsMax).default(getLabelReportsQueryMonthsDefault).describe('Number of trailing months to include in each monthly trend')
 })
 

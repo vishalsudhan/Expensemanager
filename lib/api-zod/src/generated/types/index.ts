@@ -127,6 +127,7 @@ export * from './reportProjectBreakdown';
 export * from './reportProjectDistributionRow';
 export * from './reportRange';
 export * from './reportSummary';
+export * from './reportTransactionType';
 export * from './resetPasswordRequest';
 export * from './setupAccountRequest';
 export * from './unauthorizedResponse';

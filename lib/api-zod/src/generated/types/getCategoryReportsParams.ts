@@ -5,11 +5,14 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { ExpenseTransactionType } from './expenseTransactionType';
+import type { ReportTransactionType } from './reportTransactionType';
 
 export type GetCategoryReportsParams = {
 locationId?: string;
-transactionType?: ExpenseTransactionType;
+/**
+ * Which transaction types to count. Defaults to total.
+ */
+transactionType?: ReportTransactionType;
 /**
  * Number of trailing months to include in each monthly trend
  * @minimum 1

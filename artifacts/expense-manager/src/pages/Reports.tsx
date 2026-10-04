@@ -19,6 +19,13 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type Tab = 'monthly' | 'weekly' | 'projects' | 'categories' | 'labels' | 'custom';
+type TransactionType = 'total' | 'expense' | 'payment';
+
+const transactionTypes: { key: TransactionType; label: string }[] = [
+  { key: 'total', label: 'Total' },
+  { key: 'expense', label: 'Expense' },
+  { key: 'payment', label: 'Payment' },
+];
 
 const tabs: { key: Tab; label: string }[] = [
   { key: 'monthly', label: 'Monthly' },
@@ -236,9 +243,12 @@ function SummaryCard({ label, value, hint, icon: Icon, testId, accent }: {
 }
 
 function PeriodReportView({
-  from, to, dailyLabel, locationId,
-}: { from: string; to: string; dailyLabel: 'date' | 'weekday'; locationId?: string }) {
-  const params = { from, to, ...(locationId ? { locationId } : {}) };
+  from, to, dailyLabel, locationId, transactionType,
+}: {
+  from: string; to: string; dailyLabel: 'date' | 'weekday';
+  locationId?: string; transactionType: TransactionType;
+}) {
+  const params = { from, to, transactionType, ...(locationId ? { locationId } : {}) };
   const query = useGetPeriodReport(params, {
     query: { queryKey: getGetPeriodReportQueryKey(params), placeholderData: keepPreviousData },
   });
@@ -447,8 +457,8 @@ function LabelReportCard({ report }: { report: ReportLabel }) {
   );
 }
 
-function ProjectReports() {
-  const params = { months: 6 };
+function ProjectReports({ locationId, transactionType }: { locationId?: string; transactionType: TransactionType }) {
+  const params = { months: 6, transactionType, ...(locationId ? { locationId } : {}) };
   const query = useGetProjectReports(params, { query: { queryKey: getGetProjectReportsQueryKey(params) } });
   if (query.isLoading) return <ReportsSkeleton />;
   if (query.isError) return <ReportError error={query.error} onRetry={() => query.refetch()} />;
@@ -463,8 +473,8 @@ function ProjectReports() {
   );
 }
 
-function CategoryReports() {
-  const params = { months: 6 };
+function CategoryReports({ locationId, transactionType }: { locationId?: string; transactionType: TransactionType }) {
+  const params = { months: 6, transactionType, ...(locationId ? { locationId } : {}) };
   const query = useGetCategoryReports(params, { query: { queryKey: getGetCategoryReportsQueryKey(params) } });
   if (query.isLoading) return <ReportsSkeleton />;
   if (query.isError) return <ReportError error={query.error} onRetry={() => query.refetch()} />;
@@ -479,8 +489,8 @@ function CategoryReports() {
   );
 }
 
-function LabelReports() {
-  const params = { months: 6 };
+function LabelReports({ locationId, transactionType }: { locationId?: string; transactionType: TransactionType }) {
+  const params = { months: 6, transactionType, ...(locationId ? { locationId } : {}) };
   const query = useGetLabelReports(params, { query: { queryKey: getGetLabelReportsQueryKey(params) } });
   if (query.isLoading) return <ReportsSkeleton />;
   if (query.isError) return <ReportError error={query.error} onRetry={() => query.refetch()} />;
@@ -503,7 +513,8 @@ const fieldClass = 'h-10 rounded-xl border border-border bg-card px-3 text-sm fo
 
 export function ReportsPage() {
   const [tab, setTab] = useState<Tab>('monthly');
-  // Location filter applies to every report view.
+  // Transaction type and location apply to every report view.
+  const [transactionType, setTransactionType] = useState<TransactionType>('total');
   const { locations } = useLocations();
   const [locationId, setLocationId] = useState('');
   const current = today();
@@ -538,7 +549,32 @@ export function ReportsPage() {
         <p className="mt-3 text-xs text-muted-foreground" data-testid="text-report-hint">Select any total, row, or month to open the matching expenses.</p>
       </header>
 
-      <div className="mt-7 overflow-x-auto pb-1" role="tablist" aria-label="Report type">
+      <div className="mt-7">
+        <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground" id="label-reports-transaction-type">
+          Transaction Type
+        </span>
+        <div
+          className="mt-2 inline-flex gap-1 rounded-xl bg-secondary/65 p-1"
+          role="group"
+          aria-labelledby="label-reports-transaction-type"
+          data-testid="group-report-transaction-type"
+        >
+          {transactionTypes.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              aria-pressed={transactionType === item.key}
+              onClick={() => setTransactionType(item.key)}
+              className={`min-h-9 rounded-lg px-4 text-xs font-bold transition-colors ${transactionType === item.key ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              data-testid={`button-report-transaction-type-${item.key}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 overflow-x-auto pb-1" role="tablist" aria-label="Report or period">
         <div className="flex w-max gap-1 rounded-xl bg-secondary/65 p-1">
           {tabs.map((item) => (
             <button
@@ -589,7 +625,7 @@ export function ReportsPage() {
               </PeriodControls>
               <span className="text-xs font-semibold text-muted-foreground" data-testid="text-report-period-caption">{new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(monthDate)}</span>
             </div>
-            <PeriodReportView from={monthFrom} to={monthTo} dailyLabel="date" locationId={locationId || undefined} />
+            <PeriodReportView from={monthFrom} to={monthTo} dailyLabel="date" locationId={locationId || undefined} transactionType={transactionType} />
           </div>
         )}
 
@@ -603,7 +639,7 @@ export function ReportsPage() {
               </PeriodControls>
               <span className="text-xs font-semibold text-muted-foreground" data-testid="text-report-period-caption">{shortDate(weekFrom)} – {shortDate(weekTo)}</span>
             </div>
-            <PeriodReportView from={weekFrom} to={weekTo} dailyLabel="weekday" locationId={locationId || undefined} />
+            <PeriodReportView from={weekFrom} to={weekTo} dailyLabel="weekday" locationId={locationId || undefined} transactionType={transactionType} />
           </div>
         )}
 
@@ -619,13 +655,13 @@ export function ReportsPage() {
               <Button type="submit" className="h-10" data-testid="button-report-apply">Apply range</Button>
             </form>
             {customError && <p role="alert" aria-live="polite" className="text-xs font-semibold text-destructive" data-testid="status-report-custom-error">{customError}</p>}
-            <PeriodReportView from={applied.from} to={applied.to} dailyLabel="date" locationId={locationId || undefined} />
+            <PeriodReportView from={applied.from} to={applied.to} dailyLabel="date" locationId={locationId || undefined} transactionType={transactionType} />
           </div>
         )}
 
-        {tab === 'projects' && <ProjectReports />}
-        {tab === 'categories' && <CategoryReports />}
-        {tab === 'labels' && <LabelReports />}
+        {tab === 'projects' && <ProjectReports locationId={locationId || undefined} transactionType={transactionType} />}
+        {tab === 'categories' && <CategoryReports locationId={locationId || undefined} transactionType={transactionType} />}
+        {tab === 'labels' && <LabelReports locationId={locationId || undefined} transactionType={transactionType} />}
       </div>
     </div>
   );

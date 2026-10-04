@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ReportTransactionType } from './reportTransactionType';
 
 export type GetLocationReportsParams = {
 /**
@@ -12,4 +13,8 @@ export type GetLocationReportsParams = {
  * @maximum 24
  */
 months?: number;
+/**
+ * Which transaction types to count. Defaults to total.
+ */
+transactionType?: ReportTransactionType;
 };
