@@ -27,6 +27,13 @@ if (!basePath) {
   );
 }
 
+// The web app always calls same-origin `/api/...` paths. In production the host
+// (Vercel) rewrites those to the API; locally the dev server has to do it, or
+// every request lands on Vite and the app cannot talk to the API at all.
+// Proxying also keeps the request same-origin, so the session cookie is sent
+// without needing cross-origin cookie permissions.
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:8080';
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -78,6 +85,12 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: apiProxyTarget,
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: true,
     },
