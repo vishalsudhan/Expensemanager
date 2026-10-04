@@ -20,7 +20,6 @@ import type {
 import { useToast } from '@/hooks/use-toast';
 import { useOffline } from '@/components/offline-provider';
 import { findCurrency, useCurrencyOptions } from '@/hooks/use-currencies';
-import type { CategoryNode } from '@/hooks/use-locations';
 import { categoryPath, useCategoryTree, useLocations } from '@/hooks/use-locations';
 import { enqueueExpense } from '@/lib/offline-store';
 import { errorText, formatDate, formatTotals, money, moneyByCode } from '@/lib/format';
@@ -99,15 +98,6 @@ const fromExpense = (expense: ExpenseRecord): ExpenseFormValues => ({
   paymentMethod: expense.paymentMethod ?? '',
   notes: expense.notes ?? '',
 });
-
-/** Resolves the parent that owns a leaf category id, for pre-filling the cascade. */
-function parentIdFor(categoryId: string, roots: CategoryNode[]): string {
-  for (const node of roots) {
-    if (node.category.id === categoryId) return categoryId;
-    if (node.children.some((child) => child.id === categoryId)) return node.category.id;
-  }
-  return "";
-}
 
 function CategoryMark({ color, icon }: { color: string; icon: string | null }) {
   return <span className="grid size-11 shrink-0 place-items-center rounded-[15px]" style={{ color, backgroundColor: `${color}1B` }}>
@@ -519,17 +509,32 @@ export function ExpenseEditorPage() {
   // always the leaf, so the parent select would otherwise hold a child id and
   // render as blank while editing an expense that already has a subcategory.
   const [parentCategoryId, setParentCategoryId] = useState('');
+  // Fall back to the parent that owns the stored leaf. Deriving this instead of
+  // only remembering it means the parent select is correct even when the
+  // category tree has not loaded yet, which previously left it blank on edit.
+  const inferredParentId =
+    categoryTree.roots.find((node) =>
+      node.children.some((child) => child.id === watchedCategoryId),
+    )?.category.id ?? '';
+  const effectiveParentId = parentCategoryId || inferredParentId;
   const selectedParent =
     categoryTree.roots.find(
       (node) =>
-        node.category.id === parentCategoryId ||
-        (parentCategoryId === '' &&
-          (node.category.id === watchedCategoryId ||
-            node.children.some((child) => child.id === watchedCategoryId))),
+        node.category.id === effectiveParentId ||
+        node.category.id === watchedCategoryId ||
+        node.children.some((child) => child.id === watchedCategoryId),
     ) ?? null;
   // A parent that has children is a grouping label, not a real destination.
   const parentNeedsChild = Boolean(selectedParent && selectedParent.children.length > 0);
-  const leafChosen = Boolean(watchedCategoryId) && !parentNeedsChild;
+  // Whether the *stored* category is a real leaf. This has to be judged from the
+  // category itself rather than from the parent being browsed: once a
+  // subcategory is chosen the parent still has children, so deriving this from
+  // parentNeedsChild left the subcategory select rendering blank even though the
+  // subcategory was correctly stored.
+  const groupingIds = new Set(
+    categoryTree.roots.filter((node) => node.children.length > 0).map((node) => node.category.id),
+  );
+  const leafChosen = Boolean(watchedCategoryId) && !groupingIds.has(watchedCategoryId);
   // Parents that can be filed under directly, because nothing sits beneath them.
   const directParentIds = new Set(
     categoryTree.roots.filter((node) => node.children.length === 0).map((node) => node.category.id),
@@ -564,10 +569,8 @@ export function ExpenseEditorPage() {
       initializedId.current = expense.id;
       currencyTouched.current = true;
       form.reset(fromExpense(expense));
-      // Pre-select the parent that owns this expense's leaf category.
-      setParentCategoryId(parentIdFor(expense.categoryId, categoryTree.roots));
     }
-  }, [editing, expense, form, categoryTree.roots]);
+  }, [editing, expense, form]);
 
   useEffect(() => {
     // A leaf chosen directly (a parent with no children) needs no parent state.
@@ -713,7 +716,7 @@ export function ExpenseEditorPage() {
                           {...field}
                           aria-label="Category"
                           value={
-                            parentCategoryId ||
+                            effectiveParentId ||
                             (directParentIds.has(watchedCategoryId) ? watchedCategoryId : '')
                           }
                           onChange={(event) => {
