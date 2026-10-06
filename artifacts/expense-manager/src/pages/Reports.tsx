@@ -17,6 +17,7 @@ import { errorText, formatTotals, money } from '@/lib/format';
 import { useLocations } from '@/hooks/use-locations';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TrendsChart } from '@/components/trends-chart';
 
 type Tab = 'monthly' | 'weekly' | 'projects' | 'categories' | 'labels' | 'custom';
 type TransactionType = 'total' | 'expense' | 'payment';
@@ -531,6 +532,18 @@ export function ReportsPage() {
   const weekFrom = toIso(weekStartDate);
   const weekTo = toIso(addDays(weekStartDate, 6));
 
+  // The chart follows whichever period the active view is showing. The entity
+  // tabs have no period of their own, so they fall back to a rolling window.
+  const fallbackMonths = 6;
+  const entityTab = tab === 'projects' || tab === 'categories' || tab === 'labels';
+  const trendRange = entityTab
+    ? { from: toIso(addMonths(current, -(fallbackMonths - 1))), to: toIso(current) }
+    : tab === 'weekly'
+      ? { from: weekFrom, to: weekTo }
+      : tab === 'custom'
+        ? { from: applied.from, to: applied.to }
+        : { from: monthFrom, to: monthTo };
+
   const applyCustom = () => {
     if (!draftFrom || !draftTo) { setCustomError('Choose both a start and an end date.'); return; }
     if (draftFrom > draftTo) { setCustomError('The start date must be on or before the end date.'); return; }
@@ -574,26 +587,7 @@ export function ReportsPage() {
         </div>
       </div>
 
-      <div className="mt-5 overflow-x-auto pb-1" role="tablist" aria-label="Report or period">
-        <div className="flex w-max gap-1 rounded-xl bg-secondary/65 p-1">
-          {tabs.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              role="tab"
-              aria-selected={tab === item.key}
-              onClick={() => setTab(item.key)}
-              className={`min-h-9 whitespace-nowrap rounded-lg px-4 text-xs font-bold transition-colors ${tab === item.key ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              data-testid={`tab-reports-${item.key}`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mt-5 mb-4 flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
             <MapPin size={15} className="text-primary" />
             <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">
@@ -614,7 +608,37 @@ export function ReportsPage() {
               ))}
             </select>
           </label>
+      </div>
+
+      <div className="mt-5">
+        <TrendsChart
+          from={trendRange.from}
+          to={trendRange.to}
+          locationId={locationId || undefined}
+          transactionType={transactionType}
+          fallbackMonths={fallbackMonths}
+        />
+      </div>
+
+      <div className="mt-5 overflow-x-auto pb-1" role="tablist" aria-label="Report or period">
+        <div className="flex w-max gap-1 rounded-xl bg-secondary/65 p-1">
+          {tabs.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.key}
+              onClick={() => setTab(item.key)}
+              className={`min-h-9 whitespace-nowrap rounded-lg px-4 text-xs font-bold transition-colors ${tab === item.key ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              data-testid={`tab-reports-${item.key}`}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
+      </div>
+
+      <div className="mt-6">
         {tab === 'monthly' && (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">

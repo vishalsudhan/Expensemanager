@@ -249,8 +249,83 @@ try {
     `${locSum(locExpense)} < ${locSum(locTotal)}`);
   check('locations report: payment mode is not empty', locSum(locPayment) > 0, locSum(locPayment));
 
-  section('10. Validation');
+  section('10. Trends: one chart, switchable series');
+  const trendsFor = async (extra) => (await call('GET', `/reports/trends?from=${from}&to=${to}${extra}`)).body;
+  const seriesTotal = (report, name) =>
+    report.series.find((entry) => entry.name === name)?.totals ?? [];
+  const sumTotals = (list) => (list ?? []).reduce((n, t) => n + Number(t.total), 0);
+
+  const catTrends = await trendsFor('&groupBy=category');
+  check('category grouping returns series and buckets', catTrends.series.length > 0 && catTrends.buckets.length > 0,
+    `${catTrends.series.length}/${catTrends.buckets.length}`);
+  check('every series carries a stable key, name and colour field',
+    catTrends.series.every((entry) => typeof entry.key === 'string' && typeof entry.name === 'string' && 'color' in entry));
+  check('series are never empty', catTrends.series.every((entry) => entry.count > 0 && sumTotals(entry.totals) > 0));
+
+  // One currency per amount, always. This is what lets a reader chart safely.
+  const duplicateCurrencies = catTrends.series.filter(
+    (entry) => new Set(entry.totals.map((t) => t.currency.code)).size !== entry.totals.length,
+  );
+  check('no series lists the same currency twice', duplicateCurrencies.length === 0, duplicateCurrencies.map((e) => e.name).join(','));
+
+  // Every point must add back up to its own series total, or the chart lies.
+  let reconciles = true;
+  for (const entry of catTrends.series) {
+    const byCurrency = new Map();
+    for (const bucket of catTrends.buckets) {
+      for (const point of bucket.points) {
+        if (point.seriesKey !== entry.key) continue;
+        byCurrency.set(point.currency.code, (byCurrency.get(point.currency.code) ?? 0) + Number(point.total));
+      }
+    }
+    for (const amount of entry.totals) {
+      if (Math.abs((byCurrency.get(amount.currency.code) ?? 0) - Number(amount.total)) > 0.001) {
+        reconciles = false;
+      }
+    }
+  }
+  check('bucket points add up to each series total', reconciles);
+
+  for (const dimension of ['project', 'label', 'location', 'transactionType']) {
+    const report = await trendsFor(`&groupBy=${dimension}`);
+    check(`${dimension} grouping returns data`, report.series.length > 0, report.series.length);
+  }
+  const typeTrends = await trendsFor('&groupBy=transactionType');
+  check('transaction-type grouping yields readable labels',
+    typeTrends.series.some((e) => e.name === 'Expense') && typeTrends.series.some((e) => e.name === 'Payment'),
+    typeTrends.series.map((e) => e.name).join(','));
+
+  const expenseTrends = await trendsFor('&groupBy=transactionType&transactionType=expense');
+  check('trends honour the transaction-type filter',
+    expenseTrends.series.length === 1 && expenseTrends.series[0].name === 'Expense',
+    expenseTrends.series.map((e) => e.name).join(','));
+  const homeTrends = await trendsFor(`&groupBy=location&locationId=${home.id}`);
+  check('trends honour the location filter',
+    homeTrends.series.length === 1 && homeTrends.series[0].name === home.name,
+    homeTrends.series.map((e) => e.name).join(','));
+
+  const dayTrends = await trendsFor('&groupBy=category&granularity=day');
+  const weekTrends = await trendsFor('&groupBy=category&granularity=week');
+  const monthTrends = await trendsFor('&groupBy=category&granularity=month');
+  check('day granularity is the finest', dayTrends.buckets.length >= weekTrends.buckets.length,
+    `${dayTrends.buckets.length} vs ${weekTrends.buckets.length}`);
+  check('month granularity collapses the range', monthTrends.buckets.length === 1, monthTrends.buckets.length);
+  check('bucket keys are always full dates, never a bare month',
+    [dayTrends, weekTrends, monthTrends].every((r) => r.buckets.every((b) => /^\d{4}-\d{2}-\d{2}$/.test(b.key))),
+    JSON.stringify(monthTrends.buckets.map((b) => b.key)));
+  check('every granularity preserves the whole-range total',
+    Math.abs(sumTotals(dayTrends.series.flatMap((e) => e.totals)) - 280) < 0.01
+    && Math.abs(sumTotals(monthTrends.series.flatMap((e) => e.totals)) - 280) < 0.01,
+    `${sumTotals(dayTrends.series.flatMap((e) => e.totals))}/${sumTotals(monthTrends.series.flatMap((e) => e.totals))}`);
+
+  section('11. Validation');
   check('transactionType=bogus -> 400', (await call('GET', range('&transactionType=bogus'))).status === 400);
+  check('trends with an unparseable date -> 400',
+    (await call('GET', '/reports/trends?from=nope&to=2026-10-31')).status === 400);
+  check('trends with an unknown groupBy -> 400',
+    (await call('GET', `/reports/trends?from=${from}&to=${to}&groupBy=bogus`)).status === 400);
+  check('trends with from after to -> 400',
+    (await call('GET', `/reports/trends?from=${to}&to=${from}`)).status === 400);
 } finally {
   if (created.expenses.length > 0) {
     await client

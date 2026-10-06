@@ -51,6 +51,7 @@ import type {
   GetLocationReportsParams,
   GetPeriodReportParams,
   GetProjectReportsParams,
+  GetReportTrendsParams,
   HealthStatus,
   Label,
   LabelCollection,
@@ -77,6 +78,7 @@ import type {
   ProjectUpdate,
   RateLimitedResponse,
   RecordDeleteResult,
+  ReportTrends,
   ResetPasswordRequest,
   SetupAccountRequest,
   UnauthorizedResponse
@@ -2841,6 +2843,91 @@ export const useArchiveLabel = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getArchiveLabelMutationOptions(options));
     }
+
+export const getGetReportTrendsUrl = (params: GetReportTrendsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/trends?${stringifiedParams}` : `/api/reports/trends`
+}
+
+/**
+ * Returns every series and every bucket in one response so the page can draw a single chart and let the reader switch series on and off. Totals are always per currency and never summed across currencies.
+ * @summary One time series split into comparable series, for a single chart
+ */
+export const getReportTrends = async (params: GetReportTrendsParams, options?: Parameters<typeof customFetch>[1]): Promise<ReportTrends> => {
+
+  return customFetch<ReportTrends>(getGetReportTrendsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReportTrendsQueryKey = (params?: GetReportTrendsParams,) => {
+    return [
+    `/api/reports/trends`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetReportTrendsQueryOptions = <TData = Awaited<ReturnType<typeof getReportTrends>>, TError = ErrorType<ErrorResponse>>(params: GetReportTrendsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReportTrends>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReportTrendsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReportTrends>>> = ({ signal }) => getReportTrends(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReportTrends>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReportTrendsQueryResult = NonNullable<Awaited<ReturnType<typeof getReportTrends>>>
+export type GetReportTrendsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary One time series split into comparable series, for a single chart
+ */
+
+export function useGetReportTrends<TData = Awaited<ReturnType<typeof getReportTrends>>, TError = ErrorType<ErrorResponse>>(
+ params: GetReportTrendsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReportTrends>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReportTrendsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListExpensesUrl = (params?: ListExpensesParams,) => {
   const normalizedParams = new URLSearchParams();

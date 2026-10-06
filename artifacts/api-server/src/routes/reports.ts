@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 import {
   GetCategoryReportsQueryParams,
+  GetReportTrendsQueryParams,
+  GetReportTrendsResponse,
   GetLocationReportsQueryParams,
   GetLocationReportsResponse,
   GetCategoryReportsResponse,
@@ -186,6 +188,33 @@ function toAmounts(rows: readonly CurrencyAggregateRow[]): CurrencyAmount[] {
 
 function totalsOf(totals: readonly CurrencyAmount[]): CurrencyAmount[] {
   return [...totals];
+}
+
+/**
+ * Collapses rows that share a currency into one total each.
+ *
+ * The trends query groups by bucket as well as series and currency, so one
+ * series can arrive as many rows per currency. Summing here is what turns those
+ * into a single whole-range figure per currency, and keeps the two currencies
+ * apart instead of adding them together.
+ */
+function aggregateTotalsByCurrency(
+  rows: readonly CurrencyAggregateRow[],
+): CurrencyAggregateRow[] {
+  const byCurrency = new Map<string, CurrencyAggregateRow>();
+  for (const row of rows) {
+    const existing = byCurrency.get(row.currencyId);
+    if (!existing) {
+      byCurrency.set(row.currencyId, { ...row, total: String(row.total), count: Number(row.count) });
+      continue;
+    }
+    byCurrency.set(row.currencyId, {
+      ...existing,
+      total: (Number(existing.total) + Number(row.total)).toFixed(2),
+      count: existing.count + Number(row.count),
+    });
+  }
+  return [...byCurrency.values()];
 }
 
 /** Groups aggregate rows by a key, keeping each currency's total separate. */
@@ -872,6 +901,164 @@ router.get("/reports/locations", async (req, res): Promise<void> => {
         };
       }),
     ),
+  );
+});
+
+/** Series identity for one dimension, plus how to label and colour it. */
+type TrendSeries = { key: string; name: string; color: string | null };
+
+/**
+ * A single time series split into comparable series, so the page can draw one
+ * chart and let the reader switch individual series on and off.
+ *
+ * Two rules shape the response:
+ *   - every amount is per currency. Currencies are never added together, so a
+ *     reader picks a currency and the chart shows only that one.
+ *   - the chart is driven entirely by what is enabled, so the response always
+ *     carries every series that has data in the range rather than a fixed top
+ *     few. Ranking depends on the chosen currency, which only the reader knows.
+ */
+router.get("/reports/trends", async (req, res): Promise<void> => {
+  const parsed = GetReportTrendsQueryParams.safeParse(req.query);
+  if (!parsed.success || !isValidDate(parsed.data.from) || !isValidDate(parsed.data.to)) {
+    res.status(400).json({ error: "A valid start and end date is required." });
+    return;
+  }
+  const { from, to } = parsed.data;
+  if (from > to) {
+    res.status(400).json({ error: "The start date must be on or before the end date." });
+    return;
+  }
+
+  const groupBy = parsed.data.groupBy ?? "category";
+  const granularity = parsed.data.granularity ?? "day";
+  const where = and(gte(expensesTable.date, from), lte(expensesTable.date, to), ...reportFilters(parsed));
+
+  const bucketExpression =
+    granularity === "month"
+      ? sql`date_trunc('month', ${expensesTable.date}::date)`
+      : granularity === "week"
+        ? sql`date_trunc('week', ${expensesTable.date}::date)`
+        : sql`${expensesTable.date}::date`;
+
+  // Labels are many-to-many, so grouping by label needs the join. Everything
+  // else can read the column already on the expense row.
+  const labelJoin = groupBy === "label";
+
+  const [seriesKey, seriesName, seriesColor] =
+    groupBy === "category"
+      ? [expensesTable.categoryId, categoriesTable.name, categoriesTable.color]
+      : groupBy === "project"
+        ? [sql<string>`coalesce(${expensesTable.projectId}::text, '')`, projectsTable.name, projectsTable.color]
+        : groupBy === "label"
+          ? [expenseLabelsTable.labelId, labelsTable.name, labelsTable.color]
+          : groupBy === "location"
+            ? [expensesTable.locationId, locationsTable.name, sql<string | null>`null::text`]
+            : [
+                sql<string>`${expensesTable.transactionType}::text`,
+                sql<string>`null::text`,
+                sql<string | null>`null::text`,
+              ];
+
+  const nameExpression =
+    groupBy === "project" ? sql<string>`coalesce(${projectsTable.name}, 'No project')`
+      : groupBy === "transactionType"
+        ? sql<string>`case ${expensesTable.transactionType}::text
+              when 'expense' then 'Expense'
+              when 'payment' then 'Payment'
+              else ${expensesTable.transactionType}::text end`
+        : seriesName;
+
+  const base = db
+    .select({
+      seriesKey: seriesKey as never,
+      seriesName: nameExpression as never,
+      seriesColor: seriesColor as never,
+      bucket: sql<string>`to_char(${bucketExpression}, 'YYYY-MM-DD')`,
+      ...currencyColumns,
+      total: currencyAmountSum,
+      count: currencyExpenseCount,
+    })
+    .from(expensesTable)
+    .innerJoin(currenciesTable, expenseCurrencyJoin)
+    .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
+    .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
+    .innerJoin(locationsTable, expenseLocationJoin)
+    .$dynamic();
+
+  const rows = await (
+    labelJoin
+      ? base
+          .innerJoin(expenseLabelsTable, eq(expenseLabelsTable.expenseId, expensesTable.id))
+          .innerJoin(labelsTable, eq(expenseLabelsTable.labelId, labelsTable.id))
+      : base
+  )
+    .where(where)
+    .groupBy(seriesKey, nameExpression, seriesColor, bucketExpression, currenciesTable.id)
+    .orderBy(asc(bucketExpression));
+
+  const seriesByKey = new Map<string, TrendSeries>();
+  const totalsBySeriesKey = new Map<string, CurrencyAggregateRow[]>();
+  const pointsByBucket = new Map<string, CurrencyAggregateRow[]>();
+
+  for (const row of rows as unknown as Array<CurrencyAggregateRow & {
+    seriesKey: string | null;
+    seriesName: string;
+    seriesColor: string | null;
+    bucket: string;
+  }>) {
+    const key = row.seriesKey ?? "";
+    if (!seriesByKey.has(key)) {
+      seriesByKey.set(key, {
+        key,
+        name: row.seriesName || key,
+        color: row.seriesColor ?? null,
+      });
+    }
+    totalsBySeriesKey.set(key, [...(totalsBySeriesKey.get(key) ?? []), row]);
+    pointsByBucket.set(row.bucket, [...(pointsByBucket.get(row.bucket) ?? []), row]);
+  }
+
+  const series = [...seriesByKey.values()].map((entry) => {
+    const totals = toAmounts(aggregateTotalsByCurrency(totalsBySeriesKey.get(entry.key) ?? []));
+    return {
+      key: entry.key,
+      name: entry.name,
+      color: entry.color,
+      totals,
+      count: totalCount(totals),
+    };
+  });
+
+  const buckets = [...pointsByBucket.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, points]) => ({
+      key,
+      points: (points as unknown as Array<CurrencyAggregateRow & { seriesKey: string | null }>)
+        .map((point) => ({
+          seriesKey: point.seriesKey ?? "",
+          currency: {
+            id: point.currencyId,
+            code: point.currencyCode,
+            name: point.currencyName,
+            symbol: point.currencySymbol,
+            decimalPlaces: point.currencyDecimalPlaces,
+            isActive: point.currencyIsActive,
+          } satisfies Currency,
+          total: String(point.total),
+          count: Number(point.count),
+        }))
+        .sort((a, b) => a.seriesKey.localeCompare(b.seriesKey)),
+    }));
+
+  res.json(
+    GetReportTrendsResponse.parse({
+      range: { from, to },
+      groupBy,
+      granularity,
+      series,
+      buckets,
+    }),
   );
 });
 

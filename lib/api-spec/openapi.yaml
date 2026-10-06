@@ -903,6 +903,63 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /reports/trends:
+    get:
+      operationId: getReportTrends
+      tags: [reports]
+      summary: One time series split into comparable series, for a single chart
+      description: >-
+        Returns every series and every bucket in one response so the page can
+        draw a single chart and let the reader switch series on and off. Totals
+        are always per currency and never summed across currencies.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: groupBy
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ReportTrendGroupBy"
+        - name: granularity
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ReportTrendGranularity"
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: transactionType
+          in: query
+          required: false
+          description: Which transaction types to count. Defaults to total.
+          schema:
+            $ref: "#/components/schemas/ReportTransactionType"
+      responses:
+        "200":
+          description: Series and buckets for one chart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportTrends"
+        "400":
+          description: Invalid trend options
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /expenses:
     get:
       operationId: listExpenses
@@ -2614,6 +2671,81 @@ components:
           type: integer
           minimum: 0
       required: [label, totals, count]
+    ReportTrendGroupBy:
+      type: string
+      description: Which dimension each series represents.
+      enum: [category, project, label, location, transactionType]
+      default: category
+    ReportTrendGranularity:
+      type: string
+      description: Width of one bucket on the chart's x axis.
+      enum: [day, week, month]
+      default: day
+    ReportTrendSeries:
+      type: object
+      description: One switchable series in the chart.
+      properties:
+        key:
+          type: string
+          description: Stable identifier for this series within the response.
+        name:
+          type: string
+        color:
+          type: [string, "null"]
+          description: Suggested chart colour. Null when the dimension has no colour of its own.
+        totals:
+          type: array
+          description: Whole-range totals for this series, per currency.
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+      required: [key, name, color, totals, count]
+    ReportTrendPoint:
+      type: object
+      description: One series' contribution to one bucket, in one currency.
+      properties:
+        seriesKey:
+          type: string
+        currency:
+          $ref: "#/components/schemas/Currency"
+        total:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        count:
+          type: integer
+          minimum: 0
+      required: [seriesKey, currency, total, count]
+    ReportTrendBucket:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Bucket start date, YYYY-MM-DD.
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportTrendPoint"
+      required: [key, points]
+    ReportTrends:
+      type: object
+      properties:
+        range:
+          $ref: "#/components/schemas/ReportRange"
+        groupBy:
+          $ref: "#/components/schemas/ReportTrendGroupBy"
+        granularity:
+          $ref: "#/components/schemas/ReportTrendGranularity"
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportTrendSeries"
+        buckets:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportTrendBucket"
+      required: [range, groupBy, granularity, series, buckets]
     ReportDayBucket:
       type: object
       properties:

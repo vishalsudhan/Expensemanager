@@ -870,6 +870,76 @@ export interface ReportLabelBreakdown {
   count: number;
 }
 
+/**
+ * Which dimension each series represents.
+ */
+export type ReportTrendGroupBy = typeof ReportTrendGroupBy[keyof typeof ReportTrendGroupBy];
+
+
+export const ReportTrendGroupBy = {
+  category: 'category',
+  project: 'project',
+  label: 'label',
+  location: 'location',
+  transactionType: 'transactionType',
+} as const;
+
+/**
+ * Width of one bucket on the chart's x axis.
+ */
+export type ReportTrendGranularity = typeof ReportTrendGranularity[keyof typeof ReportTrendGranularity];
+
+
+export const ReportTrendGranularity = {
+  day: 'day',
+  week: 'week',
+  month: 'month',
+} as const;
+
+/**
+ * One switchable series in the chart.
+ */
+export interface ReportTrendSeries {
+  /** Stable identifier for this series within the response. */
+  key: string;
+  name: string;
+  /**
+     * Suggested chart colour. Null when the dimension has no colour of its own.
+     * @nullable
+     */
+  color: string | null;
+  /** Whole-range totals for this series, per currency. */
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+}
+
+/**
+ * One series' contribution to one bucket, in one currency.
+ */
+export interface ReportTrendPoint {
+  seriesKey: string;
+  currency: Currency;
+  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
+  total: string;
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface ReportTrendBucket {
+  /** Bucket start date, YYYY-MM-DD. */
+  key: string;
+  points: ReportTrendPoint[];
+}
+
+export interface ReportTrends {
+  range: ReportRange;
+  groupBy: ReportTrendGroupBy;
+  granularity: ReportTrendGranularity;
+  series: ReportTrendSeries[];
+  buckets: ReportTrendBucket[];
+}
+
 export interface ReportDayBucket {
   /** @pattern ^\d{4}-\d{2}-\d{2}$ */
   date: string;
@@ -1279,6 +1349,24 @@ export const ListLabelsStatus = {
   archived: 'archived',
   all: 'all',
 } as const;
+
+export type GetReportTrendsParams = {
+/**
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from: string;
+/**
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to: string;
+groupBy?: ReportTrendGroupBy;
+granularity?: ReportTrendGranularity;
+locationId?: string;
+/**
+ * Which transaction types to count. Defaults to total.
+ */
+transactionType?: ReportTransactionType;
+};
 
 export type ListExpensesParams = {
 /**

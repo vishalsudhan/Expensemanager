@@ -1346,6 +1346,107 @@ export const ArchiveLabelResponse = zod.object({
 
 
 /**
+ * Returns every series and every bucket in one response so the page can draw a single chart and let the reader switch series on and off. Totals are always per currency and never summed across currencies.
+ * @summary One time series split into comparable series, for a single chart
+ */
+export const getReportTrendsQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportTrendsQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportTrendsQueryGroupByDefault = `category`;
+export const getReportTrendsQueryGranularityDefault = `day`;
+export const getReportTrendsQueryTransactionTypeDefault = `total`;
+
+export const GetReportTrendsQueryParams = zod.object({
+  "from": zod.coerce.string().regex(getReportTrendsQueryFromRegExp),
+  "to": zod.coerce.string().regex(getReportTrendsQueryToRegExp),
+  "groupBy": zod.enum(['category', 'project', 'label', 'location', 'transactionType']).default(getReportTrendsQueryGroupByDefault),
+  "granularity": zod.enum(['day', 'week', 'month']).default(getReportTrendsQueryGranularityDefault),
+  "locationId": zod.coerce.string().uuid().optional(),
+  "transactionType": zod.enum(['total', 'expense', 'payment']).default(getReportTrendsQueryTransactionTypeDefault).describe('Which transaction types to count. Defaults to total.')
+})
+
+export const getReportTrendsResponseRangeFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportTrendsResponseRangeToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportTrendsResponseGroupByDefault = `category`;
+export const getReportTrendsResponseGranularityDefault = `day`;
+export const getReportTrendsResponseSeriesItemTotalsItemCurrencyCodeMin = 3;
+export const getReportTrendsResponseSeriesItemTotalsItemCurrencyCodeMax = 3;
+
+export const getReportTrendsResponseSeriesItemTotalsItemCurrencyNameMax = 80;
+
+export const getReportTrendsResponseSeriesItemTotalsItemCurrencySymbolMax = 8;
+
+export const getReportTrendsResponseSeriesItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportTrendsResponseSeriesItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportTrendsResponseSeriesItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportTrendsResponseSeriesItemTotalsItemCountMin = 0;
+
+export const getReportTrendsResponseSeriesItemTotalsItemShareMin = 0;
+export const getReportTrendsResponseSeriesItemTotalsItemShareMax = 1;
+
+export const getReportTrendsResponseSeriesItemCountMin = 0;
+
+export const getReportTrendsResponseBucketsItemPointsItemCurrencyCodeMin = 3;
+export const getReportTrendsResponseBucketsItemPointsItemCurrencyCodeMax = 3;
+
+export const getReportTrendsResponseBucketsItemPointsItemCurrencyNameMax = 80;
+
+export const getReportTrendsResponseBucketsItemPointsItemCurrencySymbolMax = 8;
+
+export const getReportTrendsResponseBucketsItemPointsItemCurrencyDecimalPlacesMin = 0;
+export const getReportTrendsResponseBucketsItemPointsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportTrendsResponseBucketsItemPointsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportTrendsResponseBucketsItemPointsItemCountMin = 0;
+
+
+
+export const GetReportTrendsResponse = zod.object({
+  "range": zod.object({
+  "from": zod.string().regex(getReportTrendsResponseRangeFromRegExp),
+  "to": zod.string().regex(getReportTrendsResponseRangeToRegExp)
+}),
+  "groupBy": zod.enum(['category', 'project', 'label', 'location', 'transactionType']).default(getReportTrendsResponseGroupByDefault).describe('Which dimension each series represents.'),
+  "granularity": zod.enum(['day', 'week', 'month']).default(getReportTrendsResponseGranularityDefault).describe('Width of one bucket on the chart\'s x axis.'),
+  "series": zod.array(zod.object({
+  "key": zod.string().describe('Stable identifier for this series within the response.'),
+  "name": zod.string(),
+  "color": zod.string().nullable().describe('Suggested chart colour. Null when the dimension has no colour of its own.'),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportTrendsResponseSeriesItemTotalsItemCurrencyCodeMin).max(getReportTrendsResponseSeriesItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportTrendsResponseSeriesItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportTrendsResponseSeriesItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportTrendsResponseSeriesItemTotalsItemCurrencyDecimalPlacesMin).max(getReportTrendsResponseSeriesItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportTrendsResponseSeriesItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportTrendsResponseSeriesItemTotalsItemCountMin),
+  "share": zod.number().min(getReportTrendsResponseSeriesItemTotalsItemShareMin).max(getReportTrendsResponseSeriesItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})).describe('Whole-range totals for this series, per currency.'),
+  "count": zod.number().int().min(getReportTrendsResponseSeriesItemCountMin)
+}).describe('One switchable series in the chart.')),
+  "buckets": zod.array(zod.object({
+  "key": zod.string().describe('Bucket start date, YYYY-MM-DD.'),
+  "points": zod.array(zod.object({
+  "seriesKey": zod.string(),
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportTrendsResponseBucketsItemPointsItemCurrencyCodeMin).max(getReportTrendsResponseBucketsItemPointsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportTrendsResponseBucketsItemPointsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportTrendsResponseBucketsItemPointsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportTrendsResponseBucketsItemPointsItemCurrencyDecimalPlacesMin).max(getReportTrendsResponseBucketsItemPointsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportTrendsResponseBucketsItemPointsItemTotalRegExp),
+  "count": zod.number().int().min(getReportTrendsResponseBucketsItemPointsItemCountMin)
+}).describe('One series\' contribution to one bucket, in one currency.'))
+}))
+})
+
+
+/**
  * @summary Search, filter, sort, and page through expenses
  */
 export const listExpensesQuerySearchMax = 80;
