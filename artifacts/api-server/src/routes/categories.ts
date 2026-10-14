@@ -38,6 +38,7 @@ import {
   totalCount,
 } from "../lib/currency-amounts";
 import type { CurrencyAmount } from "@workspace/api-zod";
+import { isSpending } from "../lib/transaction-types";
 
 const router: IRouter = Router();
 
@@ -149,7 +150,7 @@ router.get("/categories", async (req, res): Promise<void> => {
     })
     .from(expensesTable)
     .innerJoin(currenciesTable, expenseCurrencyJoin)
-    .where(eq(expensesTable.transactionType, "expense"))
+    .where(isSpending())
     .groupBy(expensesTable.categoryId, currenciesTable.id);
 
   const totalsByCategory = new Map<string, CurrencyAmount[]>();
@@ -275,7 +276,7 @@ router.get("/categories/:categoryId", async (req, res): Promise<void> => {
       .select({ ...currencyColumns, total: currencyAmountSum, count: currencyExpenseCount })
       .from(expensesTable)
       .innerJoin(currenciesTable, expenseCurrencyJoin)
-      .where(and(eq(expensesTable.categoryId, category.id), eq(expensesTable.transactionType, "expense")))
+      .where(and(eq(expensesTable.categoryId, category.id), isSpending()))
       .groupBy(currenciesTable.id),
     db
       .select({
@@ -317,7 +318,7 @@ router.get("/categories/:categoryId", async (req, res): Promise<void> => {
     .where(
       and(
         eq(expensesTable.categoryId, category.id),
-        eq(expensesTable.transactionType, "expense"),
+        isSpending(),
         gte(expensesTable.date, months[0].startDate),
         lt(expensesTable.date, months[months.length - 1].nextMonthStart),
       ),
@@ -351,7 +352,7 @@ router.get("/categories/:categoryId", async (req, res): Promise<void> => {
     .from(expensesTable)
     .where(
       and(
-        eq(expensesTable.transactionType, "expense"),
+        isSpending(),
         or(
           eq(expensesTable.categoryId, category.id),
           ...childIds.map((childId) => eq(expensesTable.categoryId, childId)),
@@ -489,7 +490,7 @@ router.delete("/categories/:categoryId", async (req, res): Promise<void> => {
     .from(expensesTable)
     .where(
       and(
-        eq(expensesTable.transactionType, "expense"),
+        isSpending(),
         or(
           eq(expensesTable.categoryId, categoryId),
           ...childIds.map((childId) => eq(expensesTable.categoryId, childId)),

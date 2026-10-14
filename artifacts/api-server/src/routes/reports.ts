@@ -33,6 +33,7 @@ import {
   totalCount,
   withShares,
 } from "../lib/currency-amounts";
+import { ofKind } from "../lib/transaction-types";
 
 const router: IRouter = Router();
 
@@ -83,8 +84,11 @@ function reportFilters(parsed: {
   const conditions: (ReturnType<typeof eq> | undefined)[] = [];
   const { locationId, transactionType = "total" } = parsed.data;
   if (locationId) conditions.push(eq(expensesTable.locationId, locationId));
-  if (transactionType !== "total") {
-    conditions.push(eq(expensesTable.transactionType, transactionType));
+  // Total adds no condition, so both kinds are counted. Expense and Payment
+  // select a whole kind rather than one named type, so a type added later is
+  // classified correctly without any change here.
+  if (transactionType === "expense" || transactionType === "payment") {
+    conditions.push(ofKind(transactionType));
   }
   return conditions;
 }

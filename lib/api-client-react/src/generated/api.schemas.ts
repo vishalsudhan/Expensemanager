@@ -520,14 +520,36 @@ export const ExpensePaymentMethod = {
 } as const;
 
 /**
- * expense = real consumption. payment = settling a debt, excluded from spending totals.
+ * Who put the money up. me is an ordinary expense; someone_else is one you owe, which is what surfaces it in the money-to-pay-back report.
  */
-export type ExpenseTransactionType = typeof ExpenseTransactionType[keyof typeof ExpenseTransactionType];
+export type ExpensePaidBy = typeof ExpensePaidBy[keyof typeof ExpensePaidBy];
 
 
-export const ExpenseTransactionType = {
-  expense: 'expense',
-  payment: 'payment',
+export const ExpensePaidBy = {
+  me: 'me',
+  someone_else: 'someone_else',
+} as const;
+
+/**
+ * Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.
+ */
+export type SettlementStatus = typeof SettlementStatus[keyof typeof SettlementStatus];
+
+
+export const SettlementStatus = {
+  pending: 'pending',
+  settled: 'settled',
+} as const;
+
+/**
+ * owed_by_me means the counterparty owes me; owed_to_me means I owe the counterparty.
+ */
+export type MoneyDirection = typeof MoneyDirection[keyof typeof MoneyDirection];
+
+
+export const MoneyDirection = {
+  owed_by_me: 'owed_by_me',
+  owed_to_me: 'owed_to_me',
 } as const;
 
 /**
@@ -723,6 +745,24 @@ export interface LocationUpdate {
   status?: LocationUpdateStatus;
 }
 
+/**
+ * Slug of a transaction type, as listed by /transaction-types. A new type becomes usable immediately, which is why this is not a fixed enum.
+ * @minLength 1
+ * @maxLength 80
+ */
+export type TransactionTypeSlug = string;
+
+/**
+ * Which side of the money this type falls on. Expense kinds count as spending; payment kinds settle a debt and are excluded from spending totals, which is why a new type must declare one.
+ */
+export type TransactionTypeKind = typeof TransactionTypeKind[keyof typeof TransactionTypeKind];
+
+
+export const TransactionTypeKind = {
+  expense: 'expense',
+  payment: 'payment',
+} as const;
+
 export interface ExpenseRecord {
   id: string;
   /** @pattern ^[0-9]{1,12}(\.[0-9]{1,2})?$ */
@@ -738,6 +778,19 @@ export interface ExpenseRecord {
   paymentMethod: ExpensePaymentMethod | null;
   /** @nullable */
   notes: string | null;
+  paidBy?: ExpensePaidBy;
+  /**
+     * Free-text name of the person or organisation on the other side. Leaving this empty turns money tracking off for the expense.
+     * @nullable
+     */
+  counterparty?: string | null;
+  /**
+     * The amount actually being settled, which may be less than the expense. Null when no counterparty is named, meaning nothing is tracked.
+     * @nullable
+     * @pattern ^[0-9]+(\.[0-9]{1,2})?$
+     */
+  trackedAmount?: string | null;
+  settlementStatus?: SettlementStatus | null;
   createdAt: string;
   updatedAt: string;
   project: ExpenseProject | null;
@@ -745,7 +798,8 @@ export interface ExpenseRecord {
   labels: ExpenseLabel[];
   currency: Currency;
   location: ExpenseLocation;
-  transactionType: ExpenseTransactionType;
+  transactionType: TransactionTypeSlug;
+  transactionTypeKind?: TransactionTypeKind;
 }
 
 export interface ExpensePage {
@@ -870,6 +924,76 @@ export interface ReportLabelBreakdown {
   count: number;
 }
 
+export type TransactionTypeStatus = typeof TransactionTypeStatus[keyof typeof TransactionTypeStatus];
+
+
+export const TransactionTypeStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+/**
+ * A kind of transaction. The kind is what decides whether the row counts as spending, so it is chosen deliberately and never inferred.
+ */
+export interface TransactionType {
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  slug: string;
+  kind: TransactionTypeKind;
+  status: TransactionTypeStatus;
+  /**
+     * Expenses recorded against this type.
+     * @minimum 0
+     */
+  expenseCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TransactionTypeInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  kind: TransactionTypeKind;
+}
+
+export type TransactionTypeUpdateStatus = typeof TransactionTypeUpdateStatus[keyof typeof TransactionTypeUpdateStatus];
+
+
+export const TransactionTypeUpdateStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface TransactionTypeUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name?: string;
+  status?: TransactionTypeUpdateStatus;
+}
+
+/**
+ * The transaction type an expense was recorded against.
+ */
+export interface ResolvedTransactionType {
+  id: string;
+  name: string;
+  slug: string;
+  kind: TransactionTypeKind;
+}
+
 /**
  * Which dimension each series represents.
  */
@@ -974,6 +1098,82 @@ export interface ReportLocation {
 
 export type LocationReportCollection = ReportLocation[];
 
+/**
+ * Totals for one currency only. Currencies are reported side by side and are never added together.
+ */
+export interface MoneyReportCurrencyTotal {
+  currency: Currency;
+  /**
+     * Amount still outstanding.
+     * @pattern ^[0-9]+(\.[0-9]{1,2})?$
+     */
+  pendingTotal: string;
+  /**
+     * Amount already received back or paid back.
+     * @pattern ^[0-9]+(\.[0-9]{1,2})?$
+     */
+  settledTotal: string;
+  /**
+     * pendingTotal plus settledTotal for this currency.
+     * @pattern ^[0-9]+(\.[0-9]{1,2})?$
+     */
+  total: string;
+  /** @minimum 0 */
+  pendingCount: number;
+  /** @minimum 0 */
+  settledCount: number;
+  /** @minimum 0 */
+  count: number;
+}
+
+/**
+ * One tracked expense, shown as it stands right now.
+ */
+export interface MoneyReportRow {
+  expenseId: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  /** @nullable */
+  description?: string | null;
+  counterparty: string;
+  settlementStatus: SettlementStatus;
+  /**
+     * The full expense amount.
+     * @pattern ^[0-9]+(\.[0-9]{1,2})?$
+     */
+  amount: string;
+  /**
+     * The amount actually being settled, which may be less than the expense. This is what the totals are made of.
+     * @pattern ^[0-9]+(\.[0-9]{1,2})?$
+     */
+  trackedAmount?: string;
+  currency: Currency;
+  category?: ExpenseCategory;
+  project?: ExpenseProject | null;
+  location: ExpenseLocation;
+}
+
+export interface MoneyReportCounterpartyTotal {
+  counterparty: string;
+  currency: Currency;
+  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
+  pendingTotal: string;
+  /** @pattern ^[0-9]+(\.[0-9]{1,2})?$ */
+  settledTotal: string;
+  /** @minimum 0 */
+  pendingCount: number;
+  /** @minimum 0 */
+  settledCount: number;
+}
+
+export interface MoneyReportResponse {
+  direction: MoneyDirection;
+  summaries: MoneyReportCurrencyTotal[];
+  rows: MoneyReportRow[];
+  /** Outstanding and settled per counterparty, per currency. */
+  counterpartyTotals: MoneyReportCounterpartyTotal[];
+}
+
 export interface PeriodReport {
   range: ReportRange;
   summary: ReportSummary;
@@ -1048,12 +1248,22 @@ export interface ExpenseInput {
      */
   description?: string | null;
   paymentMethod?: ExpensePaymentMethod | null;
-  transactionType?: ExpenseTransactionType | null;
+  transactionType?: TransactionTypeSlug | null;
   /**
      * @maxLength 4000
      * @nullable
      */
   notes?: string | null;
+  paidBy?: ExpensePaidBy;
+  /**
+     * Free-text name of the person or organisation on the other side. Clearing this turns money tracking off for the expense.
+     * @maxLength 200
+     * @nullable
+     */
+  counterparty?: string | null;
+  /** Amount being settled. Defaults to the full expense amount when a counterparty is named and this is omitted. */
+  trackedAmount?: string | null;
+  settlementStatus?: SettlementStatus | null;
   currencyId: string;
 }
 
@@ -1075,12 +1285,22 @@ export interface ExpenseUpdate {
      */
   description?: string | null;
   paymentMethod?: ExpensePaymentMethod | null;
-  transactionType?: ExpenseTransactionType | null;
+  transactionType?: TransactionTypeSlug | null;
   /**
      * @maxLength 4000
      * @nullable
      */
   notes?: string | null;
+  paidBy?: ExpensePaidBy;
+  /**
+     * Free-text name of the person or organisation on the other side. Clearing this turns money tracking off for the expense.
+     * @maxLength 200
+     * @nullable
+     */
+  counterparty?: string | null;
+  /** Amount being settled. Defaults to the full expense amount when a counterparty is named and this is omitted. */
+  trackedAmount?: string | null;
+  settlementStatus?: SettlementStatus | null;
   currencyId?: string;
 }
 
@@ -1192,6 +1412,16 @@ export interface BackupExpense {
      * @nullable
      */
   notes?: string | null;
+  paidBy?: ExpensePaidBy;
+  /**
+     * Free-text name of the person or organisation on the other side. Clearing this turns money tracking off for the expense.
+     * @maxLength 200
+     * @nullable
+     */
+  counterparty?: string | null;
+  /** Amount being settled. Defaults to the full expense amount when a counterparty is named and this is omitted. */
+  trackedAmount?: string | null;
+  settlementStatus?: SettlementStatus | null;
   /**
      * @minLength 3
      * @maxLength 3
@@ -1205,7 +1435,7 @@ export interface BackupExpense {
      */
   location?: string | null;
   /** Optional so backups exported before transaction types existed still import; those rows are treated as expenses. */
-  transactionType?: ExpenseTransactionType | null;
+  transactionType?: TransactionTypeSlug | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1350,6 +1580,19 @@ export const ListLabelsStatus = {
   all: 'all',
 } as const;
 
+export type ListTransactionTypesParams = {
+status?: ListTransactionTypesStatus;
+};
+
+export type ListTransactionTypesStatus = typeof ListTransactionTypesStatus[keyof typeof ListTransactionTypesStatus];
+
+
+export const ListTransactionTypesStatus = {
+  active: 'active',
+  archived: 'archived',
+  all: 'all',
+} as const;
+
 export type GetReportTrendsParams = {
 /**
  * @pattern ^\d{4}-\d{2}-\d{2}$
@@ -1404,9 +1647,9 @@ locationId?: string;
  */
 parentCategoryId?: string;
 /**
- * Filter by transaction type.
+ * Filter by a transaction-type slug.
  */
-transactionType?: ExpenseTransactionType;
+transactionType?: TransactionTypeSlug;
 sort?: ListExpensesSort;
 /**
  * @minimum 1
@@ -1479,6 +1722,35 @@ months?: number;
  * Which transaction types to count. Defaults to total.
  */
 transactionType?: ReportTransactionType;
+};
+
+export type GetMoneyReportParams = {
+direction: MoneyDirection;
+/**
+ * Restrict to outstanding or settled amounts. Omit for both.
+ */
+status?: SettlementStatus;
+/**
+ * Inclusive start date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from?: string;
+/**
+ * Inclusive end date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to?: string;
+/**
+ * Case-insensitive exact-name match.
+ */
+counterparty?: string;
+projectId?: string;
+locationId?: string;
+currencyId?: string;
+/**
+ * Skip the per-expense rows and return just the totals. Used where only the shape of the data matters, such as suggesting names.
+ */
+summaryOnly?: boolean;
 };
 
 export type GetProjectReportsParams = {

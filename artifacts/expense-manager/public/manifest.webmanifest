@@ -1,18 +1,24 @@
 {
   "id": "/",
-  "name": "Personal Expense Manager",
-  "short_name": "Pocketful",
+  "name": "Spendfloww",
+  "short_name": "Spendfloww",
   "description": "A simple, mobile-first space to keep personal spending organized.",
   "lang": "en",
   "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "portrait-primary",
   "background_color": "#1a2321",
   "theme_color": "#1a2321",
-  "categories": ["finance", "utilities"],
+  "categories": [
+    "finance",
+    "utilities"
+  ],
   "prefer_related_applications": false,
   "icons": [
     {
@@ -58,7 +64,13 @@
       "short_name": "Add",
       "description": "Record a new expense",
       "url": "/expenses/new",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

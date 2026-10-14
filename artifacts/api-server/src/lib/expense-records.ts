@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import {
   categoriesTable,
   currenciesTable,
@@ -9,6 +9,7 @@ import {
   locationsTable,
   projectsTable,
 } from "@workspace/db";
+import { transactionTypesTable } from "@workspace/db";
 
 export const expenseSelection = {
   id: expensesTable.id,
@@ -19,6 +20,10 @@ export const expenseSelection = {
   description: expensesTable.description,
   paymentMethod: expensesTable.paymentMethod,
   notes: expensesTable.notes,
+  paidBy: expensesTable.paidBy,
+  counterparty: expensesTable.counterparty,
+  trackedAmount: expensesTable.trackedAmount,
+  settlementStatus: expensesTable.settlementStatus,
   transactionType: expensesTable.transactionType,
   createdAt: expensesTable.createdAt,
   updatedAt: expensesTable.updatedAt,

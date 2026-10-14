@@ -9,9 +9,12 @@ import type { Currency } from './currency';
 import type { ExpenseCategory } from './expenseCategory';
 import type { ExpenseLabel } from './expenseLabel';
 import type { ExpenseLocation } from './expenseLocation';
+import type { ExpensePaidBy } from './expensePaidBy';
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
 import type { ExpenseProject } from './expenseProject';
-import type { ExpenseTransactionType } from './expenseTransactionType';
+import type { SettlementStatus } from './settlementStatus';
+import type { TransactionTypeKind } from './transactionTypeKind';
+import type { TransactionTypeSlug } from './transactionTypeSlug';
 
 export interface ExpenseRecord {
   id: string;
@@ -28,6 +31,19 @@ export interface ExpenseRecord {
   paymentMethod: ExpensePaymentMethod | null;
   /** @nullable */
   notes: string | null;
+  paidBy?: ExpensePaidBy;
+  /**
+     * Free-text name of the person or organisation on the other side. Leaving this empty turns money tracking off for the expense.
+     * @nullable
+     */
+  counterparty?: string | null;
+  /**
+     * The amount actually being settled, which may be less than the expense. Null when no counterparty is named, meaning nothing is tracked.
+     * @nullable
+     * @pattern ^[0-9]+(\.[0-9]{1,2})?$
+     */
+  trackedAmount?: string | null;
+  settlementStatus?: SettlementStatus | null;
   createdAt: Date;
   updatedAt: Date;
   project: ExpenseProject | null;
@@ -35,5 +51,6 @@ export interface ExpenseRecord {
   labels: ExpenseLabel[];
   currency: Currency;
   location: ExpenseLocation;
-  transactionType: ExpenseTransactionType;
+  transactionType: TransactionTypeSlug;
+  transactionTypeKind?: TransactionTypeKind;
 }

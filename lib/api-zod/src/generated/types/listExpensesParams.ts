@@ -6,8 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
-import type { ExpenseTransactionType } from './expenseTransactionType';
 import type { ListExpensesSort } from './listExpensesSort';
+import type { TransactionTypeSlug } from './transactionTypeSlug';
 
 export type ListExpensesParams = {
 /**
@@ -45,9 +45,9 @@ locationId?: string;
  */
 parentCategoryId?: string;
 /**
- * Filter by transaction type.
+ * Filter by a transaction-type slug.
  */
-transactionType?: ExpenseTransactionType;
+transactionType?: TransactionTypeSlug;
 sort?: ListExpensesSort;
 /**
  * @minimum 1

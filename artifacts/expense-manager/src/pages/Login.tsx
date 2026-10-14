@@ -52,7 +52,7 @@ function SignInForm() {
     <AuthCard>
       <AuthHeading
         eyebrow="WELCOME BACK"
-        title="Sign in to Pocketful"
+        title="Sign in to Spendfloww"
         description="Your expenses are private. Enter your details to continue."
       />
 
@@ -142,7 +142,7 @@ export function SetupPage() {
     <AuthCard>
       <AuthHeading
         eyebrow="FIRST RUN"
-        title="Claim this Pocketful"
+        title="Claim this Spendfloww"
         description="No account exists yet. Set the email and password you will use to sign in."
       />
 

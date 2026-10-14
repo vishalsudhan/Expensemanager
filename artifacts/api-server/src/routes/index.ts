@@ -9,7 +9,9 @@ import healthRouter from "./health";
 import labelsRouter from "./labels";
 import locationsRouter from "./locations";
 import projectsRouter from "./projects";
+import moneyRouter from "./money";
 import reportsRouter from "./reports";
+import transactionTypesRouter from "./transaction-types";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -30,7 +32,9 @@ router.use(labelsRouter);
 router.use(projectsRouter);
 router.use(expensesRouter);
 router.use(dashboardRouter);
+router.use(moneyRouter);
 router.use(reportsRouter);
+router.use(transactionTypesRouter);
 router.use(backupRouter);
 
 export default router;

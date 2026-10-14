@@ -11,7 +11,7 @@ export function AuthCard({ children }: { children: ReactNode }) {
       <div className="w-full max-w-[420px]">
         <div className="mb-8 text-center">
           <span className="font-display text-[26px] font-semibold tracking-[-0.05em]">
-            Pocketful
+            Spendfloww
           </span>
         </div>
         <div className="rounded-[24px] border border-border/70 bg-card p-6 shadow-[0_24px_70px_-50px_var(--hover-shadow)] sm:p-8">

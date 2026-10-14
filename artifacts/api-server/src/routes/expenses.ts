@@ -36,8 +36,11 @@ import {
   locationsTable,
   projectsTable,
 } from "@workspace/db";
+import { normalizeMoneyTracking } from "../lib/money-tracking";
+import { transactionTypeRef } from "../lib/transaction-types";
 import { attachLabels, expenseLabelSelection, expenseSelection } from "../lib/expense-records";
 import { sortByCurrencyCode } from "../lib/currency-amounts";
+import { transactionTypesTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -167,7 +170,15 @@ router.get("/expenses", async (req, res): Promise<void> => {
   if (paymentMethod) conditions.push(eq(expensesTable.paymentMethod, paymentMethod));
   if (currencyId) conditions.push(eq(expensesTable.currencyId, currencyId));
   if (locationId) conditions.push(eq(expensesTable.locationId, locationId));
-  if (transactionType) conditions.push(eq(expensesTable.transactionType, transactionType));
+  if (transactionType) {
+    // Addressed by slug so a type renamed in Settings still matches.
+    conditions.push(
+      sql`${expensesTable.transactionTypeId} in (
+        select ${transactionTypesTable.id} from ${transactionTypesTable}
+         where ${transactionTypesTable.slug} = ${transactionType}
+      )`,
+    );
+  }
   if (parentCategoryId) {
     // Parent filter matches the parent itself and every subcategory beneath it.
     conditions.push(
@@ -296,6 +307,14 @@ router.post("/expenses", async (req, res): Promise<void> => {
   }
 
   const data = parsed.data;
+  const money = normalizeMoneyTracking(
+    { paidBy: data.paidBy, counterparty: data.counterparty, trackedAmount: data.trackedAmount, settlementStatus: data.settlementStatus },
+    data.amount,
+  );
+  if (!money.ok) {
+    res.status(400).json({ error: money.problem.message });
+    return;
+  }
   const labelIds = data.labelIds ?? [];
   if (!isValidAmount(data.amount) || !isValidExpenseDate(data.date)) {
     res.status(400).json({ error: "Enter a valid positive amount and calendar date." });
@@ -314,6 +333,15 @@ router.post("/expenses", async (req, res): Promise<void> => {
   }
 
   try {
+    // Both columns are written while the enum is still in use. The enum keeps
+    // the old code working if this release is rolled back, and the foreign key
+    // is what new code reads. They are dropped together in a later migration.
+    const typeSlug = data.transactionType ?? "expense";
+    const typeRef = await transactionTypeRef(typeSlug);
+    if (!typeRef) {
+      res.status(400).json({ error: "That transaction type does not exist." });
+      return;
+    }
     const expenseId = await db.transaction(async (tx) => {
       const [expense] = await tx
         .insert(expensesTable)
@@ -326,8 +354,13 @@ router.post("/expenses", async (req, res): Promise<void> => {
           currencyId: data.currencyId,
           description: normalizeOptionalText(data.description),
           paymentMethod: data.paymentMethod ?? null,
-          transactionType: data.transactionType ?? "expense",
+          transactionType: typeRef.legacy ?? "expense",
+          transactionTypeId: typeRef.id,
           notes: normalizeOptionalText(data.notes),
+          paidBy: money.value.paidBy,
+          counterparty: money.value.counterparty,
+          trackedAmount: money.value.trackedAmount,
+          settlementStatus: money.value.settlementStatus,
         })
         .returning({ id: expensesTable.id });
 
@@ -415,11 +448,67 @@ router.patch("/expenses/:expenseId", async (req, res): Promise<void> => {
   if (changes.notes !== undefined) {
     changes.notes = normalizeOptionalText(changes.notes);
   }
+
+  // Money tracking is only rewritten when the request actually mentions it, so
+  // an unrelated edit cannot silently clear somebody's counterparty.
+  const touchesMoneyTracking =
+    changes.paidBy !== undefined ||
+    changes.counterparty !== undefined ||
+    changes.trackedAmount !== undefined ||
+    changes.settlementStatus !== undefined;
+  let moneyChanges: Record<string, unknown> = {};
+  if (touchesMoneyTracking) {
+    const current = await getExpenseRecord(params.data.expenseId);
+    // The tracked amount can only ever be validated against the expense it
+    // belongs to, so fall back to the stored amount when the request omits it.
+    const expenseAmount =
+      changes.amount ?? current?.amount ?? (await getExpenseRecord(params.data.expenseId))?.amount;
+    const normalized = normalizeMoneyTracking(
+      {
+        paidBy: changes.paidBy ?? current?.paidBy ?? "me",
+        counterparty:
+          changes.counterparty === undefined ? current?.counterparty : changes.counterparty,
+        trackedAmount:
+          changes.trackedAmount === undefined ? current?.trackedAmount : changes.trackedAmount,
+        settlementStatus:
+          changes.settlementStatus === undefined
+            ? current?.settlementStatus
+            : changes.settlementStatus,
+      },
+      String(expenseAmount),
+    );
+    if (!normalized.ok) {
+      res.status(400).json({ error: normalized.problem.message });
+      return;
+    }
+    moneyChanges = normalized.value;
+    delete changes.paidBy;
+    delete changes.counterparty;
+    delete changes.trackedAmount;
+    delete changes.settlementStatus;
+  }
+
   const { date, transactionType, ...rest } = changes;
+  // Both columns move together while the enum is still in use, so a rollback
+  // to the previous release still sees the right value.
+  const typeRef =
+    transactionType !== undefined && transactionType !== null
+      ? await transactionTypeRef(transactionType)
+      : null;
+  if (transactionType && !typeRef) {
+    res.status(400).json({ error: "That transaction type does not exist." });
+    return;
+  }
   const databaseChanges = {
     // A null transactionType means "leave as-is" rather than "clear it".
     ...rest,
-    ...(transactionType !== undefined && transactionType !== null ? { transactionType } : {}),
+    ...moneyChanges,
+    ...(typeRef
+      ? {
+          transactionType: typeRef.legacy ?? "expense",
+          transactionTypeId: typeRef.id,
+        }
+      : {}),
     ...(date !== undefined ? { date: expenseDateToDatabase(date) } : {}),
   };
 

@@ -29,7 +29,7 @@ export type EmailResult =
   | { delivered: false; provider: "resend" | "log"; reason: string };
 
 const RESEND_ENDPOINT = process.env.RESEND_ENDPOINT?.trim() || "https://api.resend.com/emails";
-const DEFAULT_FROM = "Pocketful <onboarding@resend.dev>";
+const DEFAULT_FROM = "Spendfloww <onboarding@resend.dev>";
 
 function apiKey(): string | undefined {
   const key = process.env.RESEND_API_KEY?.trim();
@@ -112,9 +112,9 @@ export function passwordResetEmail(input: {
 }): EmailMessage {
   return {
     to: input.to,
-    subject: "Reset your Pocketful password",
+    subject: "Reset your Spendfloww password",
     text: [
-      "Someone asked to reset the password for this Pocketful account.",
+      "Someone asked to reset the password for this Spendfloww account.",
       "",
       `Open this link to choose a new password:`,
       input.resetUrl,

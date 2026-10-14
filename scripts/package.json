@@ -9,7 +9,9 @@
     "verify:stage17": "node ./verify/verify-stage17.mjs",
     "verify:auth": "node ./verify/verify-auth.mjs",
     "verify:records": "node ./verify/verify-record-management.mjs",
-    "verify:reports": "node ./verify/verify-report-transaction-type.mjs"
+    "verify:reports": "node ./verify/verify-report-transaction-type.mjs",
+    "verify:branding": "node ./verify/verify-branding.mjs",
+    "verify:settlement": "node ./verify/verify-settlement-tracking.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",

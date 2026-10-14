@@ -18,8 +18,9 @@ import { useLocations } from '@/hooks/use-locations';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TrendsChart } from '@/components/trends-chart';
+import { MoneyReportView } from '@/components/money-report-view';
 
-type Tab = 'monthly' | 'weekly' | 'projects' | 'categories' | 'labels' | 'custom';
+type Tab = 'monthly' | 'weekly' | 'projects' | 'categories' | 'labels' | 'custom' | 'owed_by_me' | 'owed_to_me';
 type TransactionType = 'total' | 'expense' | 'payment';
 
 const transactionTypes: { key: TransactionType; label: string }[] = [
@@ -35,6 +36,8 @@ const tabs: { key: Tab; label: string }[] = [
   { key: 'categories', label: 'Categories' },
   { key: 'labels', label: 'Labels' },
   { key: 'custom', label: 'Custom range' },
+  { key: 'owed_by_me', label: 'To get back' },
+  { key: 'owed_to_me', label: 'To pay back' },
 ];
 
 const pad = (value: number) => String(value).padStart(2, '0');
@@ -535,7 +538,9 @@ export function ReportsPage() {
   // The chart follows whichever period the active view is showing. The entity
   // tabs have no period of their own, so they fall back to a rolling window.
   const fallbackMonths = 6;
-  const entityTab = tab === 'projects' || tab === 'categories' || tab === 'labels';
+const entityTab =
+    tab === 'projects' || tab === 'categories' || tab === 'labels' ||
+    tab === 'owed_by_me' || tab === 'owed_to_me';
   const trendRange = entityTab
     ? { from: toIso(addMonths(current, -(fallbackMonths - 1))), to: toIso(current) }
     : tab === 'weekly'
@@ -686,6 +691,8 @@ export function ReportsPage() {
         {tab === 'projects' && <ProjectReports locationId={locationId || undefined} transactionType={transactionType} />}
         {tab === 'categories' && <CategoryReports locationId={locationId || undefined} transactionType={transactionType} />}
         {tab === 'labels' && <LabelReports locationId={locationId || undefined} transactionType={transactionType} />}
+        {tab === 'owed_by_me' && <MoneyReportView direction="owed_by_me" />}
+        {tab === 'owed_to_me' && <MoneyReportView direction="owed_to_me" />}
       </div>
     </div>
   );

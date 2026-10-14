@@ -49,6 +49,7 @@ import type {
   GetDashboardParams,
   GetLabelReportsParams,
   GetLocationReportsParams,
+  GetMoneyReportParams,
   GetPeriodReportParams,
   GetProjectReportsParams,
   GetReportTrendsParams,
@@ -64,11 +65,13 @@ import type {
   ListLabelsParams,
   ListLocationsParams,
   ListProjectsParams,
+  ListTransactionTypesParams,
   Location,
   LocationInput,
   LocationReportCollection,
   LocationUpdate,
   LoginRequest,
+  MoneyReportResponse,
   PeriodReport,
   Project,
   ProjectCollection,
@@ -81,6 +84,9 @@ import type {
   ReportTrends,
   ResetPasswordRequest,
   SetupAccountRequest,
+  TransactionType,
+  TransactionTypeInput,
+  TransactionTypeUpdate,
   UnauthorizedResponse
 } from './api.schemas';
 
@@ -2844,6 +2850,267 @@ export const useArchiveLabel = <TError = ErrorType<ErrorResponse>,
       return useMutation(getArchiveLabelMutationOptions(options));
     }
 
+export const getListTransactionTypesUrl = (params?: ListTransactionTypesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/transaction-types?${stringifiedParams}` : `/api/transaction-types`
+}
+
+/**
+ * @summary List the transaction-type master
+ */
+export const listTransactionTypes = async (params?: ListTransactionTypesParams, options?: Parameters<typeof customFetch>[1]): Promise<TransactionType[]> => {
+
+  return customFetch<TransactionType[]>(getListTransactionTypesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTransactionTypesQueryKey = (params?: ListTransactionTypesParams,) => {
+    return [
+    `/api/transaction-types`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListTransactionTypesQueryOptions = <TData = Awaited<ReturnType<typeof listTransactionTypes>>, TError = ErrorType<unknown>>(params?: ListTransactionTypesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTransactionTypes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTransactionTypesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTransactionTypes>>> = ({ signal }) => listTransactionTypes(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTransactionTypes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTransactionTypesQueryResult = NonNullable<Awaited<ReturnType<typeof listTransactionTypes>>>
+export type ListTransactionTypesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the transaction-type master
+ */
+
+export function useListTransactionTypes<TData = Awaited<ReturnType<typeof listTransactionTypes>>, TError = ErrorType<unknown>>(
+ params?: ListTransactionTypesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTransactionTypes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTransactionTypesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateTransactionTypeUrl = () => {
+
+
+
+
+  return `/api/transaction-types`
+}
+
+/**
+ * @summary Add a transaction type
+ */
+export const createTransactionType = async (transactionTypeInput: TransactionTypeInput, options?: Parameters<typeof customFetch>[1]): Promise<TransactionType> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<TransactionType>(getCreateTransactionTypeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(transactionTypeInput)
+  }
+);}
+
+
+
+
+
+export const getCreateTransactionTypeMutationKey = () => ['createTransactionType'] as const;
+
+export const getCreateTransactionTypeMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTransactionType>>, TError,CreateTransactionTypeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTransactionType>>, TError,CreateTransactionTypeMutationVariables, TContext> => {
+
+const mutationKey = getCreateTransactionTypeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTransactionType>>, CreateTransactionTypeMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createTransactionType(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTransactionTypeMutationResult = NonNullable<Awaited<ReturnType<typeof createTransactionType>>>
+    export type CreateTransactionTypeMutationBody = BodyType<TransactionTypeInput>
+    export type CreateTransactionTypeMutationError = ErrorType<ErrorResponse>
+    export type CreateTransactionTypeMutationVariables = {data: BodyType<TransactionTypeInput>}
+
+    /**
+ * @summary Add a transaction type
+ */
+export const useCreateTransactionType = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTransactionType>>, TError,CreateTransactionTypeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTransactionType>>,
+        TError,
+        CreateTransactionTypeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateTransactionTypeMutationOptions(options));
+    }
+
+export const getUpdateTransactionTypeUrl = (transactionTypeId: string,) => {
+
+
+
+
+  return `/api/transaction-types/${transactionTypeId}`
+}
+
+/**
+ * @summary Rename or archive a transaction type
+ */
+export const updateTransactionType = async (transactionTypeId: string,
+    transactionTypeUpdate: TransactionTypeUpdate, options?: Parameters<typeof customFetch>[1]): Promise<TransactionType> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<TransactionType>(getUpdateTransactionTypeUrl(transactionTypeId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(transactionTypeUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateTransactionTypeMutationKey = () => ['updateTransactionType'] as const;
+
+export const getUpdateTransactionTypeMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTransactionType>>, TError,UpdateTransactionTypeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTransactionType>>, TError,UpdateTransactionTypeMutationVariables, TContext> => {
+
+const mutationKey = getUpdateTransactionTypeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTransactionType>>, UpdateTransactionTypeMutationVariables> = (props) => {
+          const {transactionTypeId,data} = props ?? {};
+
+          return  updateTransactionType(transactionTypeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTransactionTypeMutationResult = NonNullable<Awaited<ReturnType<typeof updateTransactionType>>>
+    export type UpdateTransactionTypeMutationBody = BodyType<TransactionTypeUpdate>
+    export type UpdateTransactionTypeMutationError = ErrorType<ErrorResponse>
+    export type UpdateTransactionTypeMutationVariables = {transactionTypeId: string;data: BodyType<TransactionTypeUpdate>}
+
+    /**
+ * @summary Rename or archive a transaction type
+ */
+export const useUpdateTransactionType = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTransactionType>>, TError,UpdateTransactionTypeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTransactionType>>,
+        TError,
+        UpdateTransactionTypeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateTransactionTypeMutationOptions(options));
+    }
+
 export const getGetReportTrendsUrl = (params: GetReportTrendsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -3583,6 +3850,91 @@ export function useGetLocationReports<TData = Awaited<ReturnType<typeof getLocat
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetLocationReportsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMoneyReportUrl = (params: GetMoneyReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/money?${stringifiedParams}` : `/api/reports/money`
+}
+
+/**
+ * Tracked expenses, split by direction. owed_by_me returns expenses you paid for that a counterparty has not yet given back; owed_to_me returns expenses a counterparty covered that you have not yet settled. Only expenses with a counterparty appear, and totals are always per currency so different currencies are never added together.
+ * @summary Money owed to you, or owed by you
+ */
+export const getMoneyReport = async (params: GetMoneyReportParams, options?: Parameters<typeof customFetch>[1]): Promise<MoneyReportResponse> => {
+
+  return customFetch<MoneyReportResponse>(getGetMoneyReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMoneyReportQueryKey = (params?: GetMoneyReportParams,) => {
+    return [
+    `/api/reports/money`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMoneyReportQueryOptions = <TData = Awaited<ReturnType<typeof getMoneyReport>>, TError = ErrorType<unknown>>(params: GetMoneyReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoneyReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMoneyReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMoneyReport>>> = ({ signal }) => getMoneyReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMoneyReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMoneyReportQueryResult = NonNullable<Awaited<ReturnType<typeof getMoneyReport>>>
+export type GetMoneyReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Money owed to you, or owed by you
+ */
+
+export function useGetMoneyReport<TData = Awaited<ReturnType<typeof getMoneyReport>>, TError = ErrorType<unknown>>(
+ params: GetMoneyReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoneyReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMoneyReportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

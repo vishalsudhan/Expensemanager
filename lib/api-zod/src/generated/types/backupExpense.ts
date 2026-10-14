@@ -5,8 +5,10 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ExpensePaidBy } from './expensePaidBy';
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
-import type { ExpenseTransactionType } from './expenseTransactionType';
+import type { SettlementStatus } from './settlementStatus';
+import type { TransactionTypeSlug } from './transactionTypeSlug';
 
 export interface BackupExpense {
   id: string;
@@ -30,6 +32,16 @@ export interface BackupExpense {
      * @nullable
      */
   notes?: string | null;
+  paidBy?: ExpensePaidBy;
+  /**
+     * Free-text name of the person or organisation on the other side. Clearing this turns money tracking off for the expense.
+     * @maxLength 200
+     * @nullable
+     */
+  counterparty?: string | null;
+  /** Amount being settled. Defaults to the full expense amount when a counterparty is named and this is omitted. */
+  trackedAmount?: string | null;
+  settlementStatus?: SettlementStatus | null;
   /**
      * @minLength 3
      * @maxLength 3
@@ -43,7 +55,7 @@ export interface BackupExpense {
      */
   location?: string | null;
   /** Optional so backups exported before transaction types existed still import; those rows are treated as expenses. */
-  transactionType?: ExpenseTransactionType | null;
+  transactionType?: TransactionTypeSlug | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

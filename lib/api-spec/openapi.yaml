@@ -903,6 +903,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /transaction-types:
+    get:
+      operationId: listTransactionTypes
+      tags: [transaction-types]
+      summary: List the transaction-type master
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, archived, all]
+      responses:
+        "200":
+          description: Transaction types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TransactionType"
+    post:
+      operationId: createTransactionType
+      tags: [transaction-types]
+      summary: Add a transaction type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionTypeInput"
+      responses:
+        "201":
+          description: Created type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionType"
+        "400":
+          description: Invalid type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A type with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /transaction-types/{transactionTypeId}:
+    patch:
+      operationId: updateTransactionType
+      tags: [transaction-types]
+      summary: Rename or archive a transaction type
+      parameters:
+        - name: transactionTypeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionTypeUpdate"
+      responses:
+        "200":
+          description: Updated type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionType"
+        "400":
+          description: Invalid type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Type not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A type with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /reports/trends:
     get:
       operationId: getReportTrends
@@ -1035,9 +1128,9 @@ paths:
         - name: transactionType
           in: query
           required: false
-          description: Filter by transaction type.
+          description: Filter by a transaction-type slug.
           schema:
-            $ref: "#/components/schemas/ExpenseTransactionType"
+            $ref: "#/components/schemas/TransactionTypeSlug"
         - name: sort
           in: query
           required: false
@@ -1273,6 +1366,83 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LocationReportCollection"
+  /reports/money:
+    get:
+      operationId: getMoneyReport
+      tags: [reports]
+      summary: Money owed to you, or owed by you
+      description: >-
+        Tracked expenses, split by direction. owed_by_me returns expenses you
+        paid for that a counterparty has not yet given back; owed_to_me returns
+        expenses a counterparty covered that you have not yet settled. Only
+        expenses with a counterparty appear, and totals are always per currency
+        so different currencies are never added together.
+      parameters:
+        - name: direction
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/MoneyDirection"
+        - name: status
+          in: query
+          required: false
+          description: Restrict to outstanding or settled amounts. Omit for both.
+          schema:
+            $ref: "#/components/schemas/SettlementStatus"
+        - name: from
+          in: query
+          required: false
+          description: Inclusive start date.
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: to
+          in: query
+          required: false
+          description: Inclusive end date.
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: counterparty
+          in: query
+          required: false
+          description: Case-insensitive exact-name match.
+          schema:
+            type: string
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: currencyId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: summaryOnly
+          in: query
+          required: false
+          description: >-
+            Skip the per-expense rows and return just the totals. Used where
+            only the shape of the data matters, such as suggesting names.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Tracked amounts in one direction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoneyReportResponse"
   /reports/projects:
     get:
       operationId: getProjectReports
@@ -2197,10 +2367,27 @@ components:
     ExpensePaymentMethod:
       type: string
       enum: [cash, credit_card, debit_card, bank_transfer, upi, other]
-    ExpenseTransactionType:
+    ExpensePaidBy:
       type: string
-      description: "expense = real consumption. payment = settling a debt, excluded from spending totals."
-      enum: [expense, payment]
+      description: >-
+        Who put the money up. me is an ordinary expense; someone_else is one you
+        owe, which is what surfaces it in the money-to-pay-back report.
+      enum: [me, someone_else]
+      default: me
+    SettlementStatus:
+      type: string
+      description: >-
+        Whether a tracked amount has changed hands. One value covers both
+        directions because "received" and "paid back" are the same fact seen
+        from either side; paidBy decides which label is shown. Settling updates
+        the existing expense and never creates another one.
+      enum: [pending, settled]
+    MoneyDirection:
+      type: string
+      description: >-
+        owed_by_me means the counterparty owes me; owed_to_me means I owe the
+        counterparty.
+      enum: [owed_by_me, owed_to_me]
     ReportTransactionType:
       type: string
       description: >-
@@ -2402,6 +2589,25 @@ components:
             - type: "null"
         notes:
           type: [string, "null"]
+        paidBy:
+          allOf:
+            - $ref: "#/components/schemas/ExpensePaidBy"
+        counterparty:
+          type: [string, "null"]
+          description: >-
+            Free-text name of the person or organisation on the other side.
+            Leaving this empty turns money tracking off for the expense.
+        trackedAmount:
+          type: [string, "null"]
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+          description: >-
+            The amount actually being settled, which may be less than the
+            expense. Null when no counterparty is named, meaning nothing is
+            tracked.
+        settlementStatus:
+          anyOf:
+            - $ref: "#/components/schemas/SettlementStatus"
+            - type: "null"
         createdAt:
           type: string
           format: date-time
@@ -2423,7 +2629,9 @@ components:
         location:
           $ref: "#/components/schemas/ExpenseLocation"
         transactionType:
-          $ref: "#/components/schemas/ExpenseTransactionType"
+            $ref: "#/components/schemas/TransactionTypeSlug"
+        transactionTypeKind:
+          $ref: "#/components/schemas/TransactionTypeKind"
       required:
         - id
         - amount
@@ -2671,6 +2879,89 @@ components:
           type: integer
           minimum: 0
       required: [label, totals, count]
+    TransactionType:
+      type: object
+      description: >-
+        A kind of transaction. The kind is what decides whether the row counts
+        as spending, so it is chosen deliberately and never inferred.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 80
+        kind:
+          $ref: "#/components/schemas/TransactionTypeKind"
+        status:
+          type: string
+          enum: [active, archived]
+        expenseCount:
+          type: integer
+          minimum: 0
+          description: Expenses recorded against this type.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, slug, kind, status, expenseCount, createdAt, updatedAt]
+    TransactionTypeKind:
+      type: string
+      description: >-
+        Which side of the money this type falls on. Expense kinds count as
+        spending; payment kinds settle a debt and are excluded from spending
+        totals, which is why a new type must declare one.
+      enum: [expense, payment]
+    TransactionTypeInput:
+      type: object
+      additionalProperties: false
+      required: [name, kind]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        kind:
+          $ref: "#/components/schemas/TransactionTypeKind"
+    TransactionTypeUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        status:
+          type: string
+          enum: [active, archived]
+    ResolvedTransactionType:
+      type: object
+      description: The transaction type an expense was recorded against.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        kind:
+          $ref: "#/components/schemas/TransactionTypeKind"
+      required: [id, name, slug, kind]
+    TransactionTypeSlug:
+      type: string
+      description: >-
+        Slug of a transaction type, as listed by /transaction-types. A new type
+        becomes usable immediately, which is why this is not a fixed enum.
+      minLength: 1
+      maxLength: 80
     ReportTrendGroupBy:
       type: string
       description: Which dimension each series represents.
@@ -2798,6 +3089,112 @@ components:
       type: array
       items:
         $ref: "#/components/schemas/ReportLocation"
+    MoneyReportCurrencyTotal:
+      type: object
+      description: >-
+        Totals for one currency only. Currencies are reported side by side and
+        are never added together.
+      properties:
+        currency:
+          $ref: "#/components/schemas/Currency"
+        pendingTotal:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+          description: Amount still outstanding.
+        settledTotal:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+          description: Amount already received back or paid back.
+        total:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+          description: pendingTotal plus settledTotal for this currency.
+        pendingCount:
+          type: integer
+          minimum: 0
+        settledCount:
+          type: integer
+          minimum: 0
+        count:
+          type: integer
+          minimum: 0
+      required: [currency, pendingTotal, settledTotal, total, pendingCount, settledCount, count]
+    MoneyReportRow:
+      type: object
+      description: One tracked expense, shown as it stands right now.
+      properties:
+        expenseId:
+          type: string
+          format: uuid
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        description:
+          type: [string, "null"]
+        counterparty:
+          type: string
+        settlementStatus:
+          $ref: "#/components/schemas/SettlementStatus"
+        amount:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+          description: The full expense amount.
+        trackedAmount:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+          description: >-
+            The amount actually being settled, which may be less than the
+            expense. This is what the totals are made of.
+        currency:
+          $ref: "#/components/schemas/Currency"
+        category:
+          $ref: "#/components/schemas/ExpenseCategory"
+        project:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseProject"
+            - type: "null"
+        location:
+          $ref: "#/components/schemas/ExpenseLocation"
+      required: [expenseId, date, counterparty, settlementStatus, amount, currency, location]
+    MoneyReportResponse:
+      type: object
+      properties:
+        direction:
+          $ref: "#/components/schemas/MoneyDirection"
+        summaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoneyReportCurrencyTotal"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoneyReportRow"
+        counterpartyTotals:
+          type: array
+          description: Outstanding and settled per counterparty, per currency.
+          items:
+            $ref: "#/components/schemas/MoneyReportCounterpartyTotal"
+      required: [direction, summaries, rows, counterpartyTotals]
+    MoneyReportCounterpartyTotal:
+      type: object
+      properties:
+        counterparty:
+          type: string
+        currency:
+          $ref: "#/components/schemas/Currency"
+        pendingTotal:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        settledTotal:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+        pendingCount:
+          type: integer
+          minimum: 0
+        settledCount:
+          type: integer
+          minimum: 0
+      required: [counterparty, currency, pendingTotal, settledTotal, pendingCount, settledCount]
     PeriodReport:
       type: object
       properties:
@@ -2974,11 +3371,32 @@ components:
             - type: "null"
         transactionType:
           anyOf:
-            - $ref: "#/components/schemas/ExpenseTransactionType"
+            - $ref: "#/components/schemas/TransactionTypeSlug"
             - type: "null"
         notes:
           type: [string, "null"]
           maxLength: 4000
+        paidBy:
+          allOf:
+            - $ref: "#/components/schemas/ExpensePaidBy"
+        counterparty:
+          type: [string, "null"]
+          maxLength: 200
+          description: >-
+            Free-text name of the person or organisation on the other side.
+            Clearing this turns money tracking off for the expense.
+        trackedAmount:
+          anyOf:
+            - type: string
+              pattern: "^[0-9]{1,12}(\\.[0-9]{1,2})?$"
+            - type: "null"
+          description: >-
+            Amount being settled. Defaults to the full expense amount when
+            a counterparty is named and this is omitted.
+        settlementStatus:
+          anyOf:
+            - $ref: "#/components/schemas/SettlementStatus"
+            - type: "null"
         currencyId:
           type: string
           format: uuid
@@ -3018,11 +3436,32 @@ components:
             - type: "null"
         transactionType:
           anyOf:
-            - $ref: "#/components/schemas/ExpenseTransactionType"
+            - $ref: "#/components/schemas/TransactionTypeSlug"
             - type: "null"
         notes:
           type: [string, "null"]
           maxLength: 4000
+        paidBy:
+          allOf:
+            - $ref: "#/components/schemas/ExpensePaidBy"
+        counterparty:
+          type: [string, "null"]
+          maxLength: 200
+          description: >-
+            Free-text name of the person or organisation on the other side.
+            Clearing this turns money tracking off for the expense.
+        trackedAmount:
+          anyOf:
+            - type: string
+              pattern: "^[0-9]{1,12}(\\.[0-9]{1,2})?$"
+            - type: "null"
+          description: >-
+            Amount being settled. Defaults to the full expense amount when
+            a counterparty is named and this is omitted.
+        settlementStatus:
+          anyOf:
+            - $ref: "#/components/schemas/SettlementStatus"
+            - type: "null"
         currencyId:
           type: string
           format: uuid
@@ -3137,6 +3576,27 @@ components:
         notes:
           type: [string, "null"]
           maxLength: 4000
+        paidBy:
+          allOf:
+            - $ref: "#/components/schemas/ExpensePaidBy"
+        counterparty:
+          type: [string, "null"]
+          maxLength: 200
+          description: >-
+            Free-text name of the person or organisation on the other side.
+            Clearing this turns money tracking off for the expense.
+        trackedAmount:
+          anyOf:
+            - type: string
+              pattern: "^[0-9]{1,12}(\\.[0-9]{1,2})?$"
+            - type: "null"
+          description: >-
+            Amount being settled. Defaults to the full expense amount when
+            a counterparty is named and this is omitted.
+        settlementStatus:
+          anyOf:
+            - $ref: "#/components/schemas/SettlementStatus"
+            - type: "null"
         currency:
           type: string
           minLength: 3
@@ -3150,7 +3610,7 @@ components:
             still import; those rows fall back to the default location.
         transactionType:
           anyOf:
-            - $ref: "#/components/schemas/ExpenseTransactionType"
+            - $ref: "#/components/schemas/TransactionTypeSlug"
             - type: "null"
           description: >
             Optional so backups exported before transaction types existed still

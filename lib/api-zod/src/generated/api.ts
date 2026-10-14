@@ -1346,6 +1346,102 @@ export const ArchiveLabelResponse = zod.object({
 
 
 /**
+ * @summary List the transaction-type master
+ */
+export const ListTransactionTypesQueryParams = zod.object({
+  "status": zod.enum(['active', 'archived', 'all']).optional()
+})
+
+export const listTransactionTypesResponseNameMax = 80;
+
+export const listTransactionTypesResponseSlugMax = 80;
+
+export const listTransactionTypesResponseExpenseCountMin = 0;
+
+
+
+export const ListTransactionTypesResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(listTransactionTypesResponseNameMax),
+  "slug": zod.string().min(1).max(listTransactionTypesResponseSlugMax),
+  "kind": zod.enum(['expense', 'payment']).describe('Which side of the money this type falls on. Expense kinds count as spending; payment kinds settle a debt and are excluded from spending totals, which is why a new type must declare one.'),
+  "status": zod.enum(['active', 'archived']),
+  "expenseCount": zod.number().int().min(listTransactionTypesResponseExpenseCountMin).describe('Expenses recorded against this type.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A kind of transaction. The kind is what decides whether the row counts as spending, so it is chosen deliberately and never inferred.')
+export const ListTransactionTypesResponse = zod.array(ListTransactionTypesResponseItem)
+
+
+/**
+ * @summary Add a transaction type
+ */
+export const createTransactionTypeBodyNameMax = 80;
+
+
+
+export const CreateTransactionTypeBody = zod.object({
+  "name": zod.string().min(1).max(createTransactionTypeBodyNameMax),
+  "kind": zod.enum(['expense', 'payment']).describe('Which side of the money this type falls on. Expense kinds count as spending; payment kinds settle a debt and are excluded from spending totals, which is why a new type must declare one.')
+})
+
+export const createTransactionTypeResponseNameMax = 80;
+
+export const createTransactionTypeResponseSlugMax = 80;
+
+export const createTransactionTypeResponseExpenseCountMin = 0;
+
+
+
+export const CreateTransactionTypeResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(createTransactionTypeResponseNameMax),
+  "slug": zod.string().min(1).max(createTransactionTypeResponseSlugMax),
+  "kind": zod.enum(['expense', 'payment']).describe('Which side of the money this type falls on. Expense kinds count as spending; payment kinds settle a debt and are excluded from spending totals, which is why a new type must declare one.'),
+  "status": zod.enum(['active', 'archived']),
+  "expenseCount": zod.number().int().min(createTransactionTypeResponseExpenseCountMin).describe('Expenses recorded against this type.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A kind of transaction. The kind is what decides whether the row counts as spending, so it is chosen deliberately and never inferred.')
+
+
+/**
+ * @summary Rename or archive a transaction type
+ */
+export const UpdateTransactionTypeParams = zod.object({
+  "transactionTypeId": zod.coerce.string().uuid()
+})
+
+export const updateTransactionTypeBodyNameMax = 80;
+
+
+
+export const UpdateTransactionTypeBody = zod.object({
+  "name": zod.string().min(1).max(updateTransactionTypeBodyNameMax).optional(),
+  "status": zod.enum(['active', 'archived']).optional()
+})
+
+export const updateTransactionTypeResponseNameMax = 80;
+
+export const updateTransactionTypeResponseSlugMax = 80;
+
+export const updateTransactionTypeResponseExpenseCountMin = 0;
+
+
+
+export const UpdateTransactionTypeResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(updateTransactionTypeResponseNameMax),
+  "slug": zod.string().min(1).max(updateTransactionTypeResponseSlugMax),
+  "kind": zod.enum(['expense', 'payment']).describe('Which side of the money this type falls on. Expense kinds count as spending; payment kinds settle a debt and are excluded from spending totals, which is why a new type must declare one.'),
+  "status": zod.enum(['active', 'archived']),
+  "expenseCount": zod.number().int().min(updateTransactionTypeResponseExpenseCountMin).describe('Expenses recorded against this type.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A kind of transaction. The kind is what decides whether the row counts as spending, so it is chosen deliberately and never inferred.')
+
+
+/**
  * Returns every series and every bucket in one response so the page can draw a single chart and let the reader switch series on and off. Totals are always per currency and never summed across currencies.
  * @summary One time series split into comparable series, for a single chart
  */
@@ -1453,6 +1549,8 @@ export const listExpensesQuerySearchMax = 80;
 
 export const listExpensesQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 export const listExpensesQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listExpensesQueryTransactionTypeMax = 80;
+
 export const listExpensesQuerySortDefault = `newest`;
 export const listExpensesQueryLimitDefault = 20;
 export const listExpensesQueryLimitMax = 100;
@@ -1473,7 +1571,7 @@ export const ListExpensesQueryParams = zod.object({
   "currencyId": zod.coerce.string().uuid().optional().describe('Filter expenses by currency'),
   "locationId": zod.coerce.string().uuid().optional().describe('Filter expenses by location'),
   "parentCategoryId": zod.coerce.string().uuid().optional().describe('Filter expenses by top-level category, including all of its subcategories'),
-  "transactionType": zod.enum(['expense', 'payment']).optional().describe('Filter by transaction type.'),
+  "transactionType": zod.coerce.string().min(1).max(listExpensesQueryTransactionTypeMax).optional().describe('Filter by a transaction-type slug.'),
   "sort": zod.enum(['newest', 'oldest', 'highest', 'lowest']).default(listExpensesQuerySortDefault),
   "limit": zod.coerce.number().int().min(1).max(listExpensesQueryLimitMax).default(listExpensesQueryLimitDefault),
   "offset": zod.coerce.number().int().min(listExpensesQueryOffsetMin).default(listExpensesQueryOffsetDefault)
@@ -1481,6 +1579,8 @@ export const ListExpensesQueryParams = zod.object({
 
 export const listExpensesResponseItemsItemAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const listExpensesResponseItemsItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listExpensesResponseItemsItemPaidByOneDefault = `me`;
+export const listExpensesResponseItemsItemTrackedAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
 export const listExpensesResponseItemsItemCurrencyCodeMin = 3;
 export const listExpensesResponseItemsItemCurrencyCodeMax = 3;
 
@@ -1493,6 +1593,8 @@ export const listExpensesResponseItemsItemCurrencyDecimalPlacesMax = 4;
 
 export const listExpensesResponseItemsItemLocationCountryCodeMin = 2;
 export const listExpensesResponseItemsItemLocationCountryCodeMax = 2;
+
+export const listExpensesResponseItemsItemTransactionTypeMax = 80;
 
 export const listExpensesResponseTotalsItemCurrencyCodeMin = 3;
 export const listExpensesResponseTotalsItemCurrencyCodeMax = 3;
@@ -1539,6 +1641,10 @@ export const ListExpensesResponse = zod.object({
   "description": zod.string().nullable(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
   "notes": zod.string().nullable(),
+  "paidBy": zod.enum(['me', 'someone_else']).default(listExpensesResponseItemsItemPaidByOneDefault).describe('Who put the money up. me is an ordinary expense; someone_else is one you owe, which is what surfaces it in the money-to-pay-back report.').optional(),
+  "counterparty": zod.string().nullish().describe('Free-text name of the person or organisation on the other side. Leaving this empty turns money tracking off for the expense.'),
+  "trackedAmount": zod.string().regex(listExpensesResponseItemsItemTrackedAmountRegExp).nullish().describe('The amount actually being settled, which may be less than the expense. Null when no counterparty is named, meaning nothing is tracked.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'settled']).describe('Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.'),zod.null()]).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "project": zod.union([zod.object({
@@ -1577,7 +1683,8 @@ export const ListExpensesResponse = zod.object({
   "countryCode": zod.string().min(listExpensesResponseItemsItemLocationCountryCodeMin).max(listExpensesResponseItemsItemLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.string().min(1).max(listExpensesResponseItemsItemTransactionTypeMax).describe('Slug of a transaction type, as listed by /transaction-types. A new type becomes usable immediately, which is why this is not a fixed enum.'),
+  "transactionTypeKind": zod.enum(['expense', 'payment']).optional().describe('Which side of the money this type falls on. Expense kinds count as spending; payment kinds settle a debt and are excluded from spending totals, which is why a new type must declare one.')
 })),
   "total": zod.number().int().describe('Total expenses matching the current search and filters'),
   "totals": zod.array(zod.object({
@@ -1621,8 +1728,14 @@ export const createExpenseBodyAmountMax = 15;
 export const createExpenseBodyAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const createExpenseBodyDescriptionMax = 1000;
 
+export const createExpenseBodyTransactionTypeOneMax = 80;
+
 export const createExpenseBodyNotesMax = 4000;
 
+export const createExpenseBodyPaidByOneDefault = `me`;
+export const createExpenseBodyCounterpartyMax = 200;
+
+export const createExpenseBodyTrackedAmountOneRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 
 
 export const CreateExpenseBody = zod.object({
@@ -1634,13 +1747,19 @@ export const CreateExpenseBody = zod.object({
   "labelIds": zod.array(zod.string().uuid()).optional(),
   "description": zod.string().max(createExpenseBodyDescriptionMax).nullish(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
-  "transactionType": zod.union([zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),zod.null()]).optional(),
+  "transactionType": zod.union([zod.string().min(1).max(createExpenseBodyTransactionTypeOneMax).describe('Slug of a transaction type, as listed by /transaction-types. A new type becomes usable immediately, which is why this is not a fixed enum.'),zod.null()]).optional(),
   "notes": zod.string().max(createExpenseBodyNotesMax).nullish(),
+  "paidBy": zod.enum(['me', 'someone_else']).default(createExpenseBodyPaidByOneDefault).describe('Who put the money up. me is an ordinary expense; someone_else is one you owe, which is what surfaces it in the money-to-pay-back report.').optional(),
+  "counterparty": zod.string().max(createExpenseBodyCounterpartyMax).nullish().describe('Free-text name of the person or organisation on the other side. Clearing this turns money tracking off for the expense.'),
+  "trackedAmount": zod.union([zod.string().regex(createExpenseBodyTrackedAmountOneRegExp),zod.null()]).optional().describe('Amount being settled. Defaults to the full expense amount when a counterparty is named and this is omitted.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'settled']).describe('Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.'),zod.null()]).optional(),
   "currencyId": zod.string().uuid()
 })
 
 export const createExpenseResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const createExpenseResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const createExpenseResponsePaidByOneDefault = `me`;
+export const createExpenseResponseTrackedAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
 export const createExpenseResponseCurrencyCodeMin = 3;
 export const createExpenseResponseCurrencyCodeMax = 3;
 
@@ -1654,6 +1773,8 @@ export const createExpenseResponseCurrencyDecimalPlacesMax = 4;
 export const createExpenseResponseLocationCountryCodeMin = 2;
 export const createExpenseResponseLocationCountryCodeMax = 2;
 
+export const createExpenseResponseTransactionTypeMax = 80;
+
 
 
 export const CreateExpenseResponse = zod.object({
@@ -1666,6 +1787,10 @@ export const CreateExpenseResponse = zod.object({
   "description": zod.string().nullable(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
   "notes": zod.string().nullable(),
+  "paidBy": zod.enum(['me', 'someone_else']).default(createExpenseResponsePaidByOneDefault).describe('Who put the money up. me is an ordinary expense; someone_else is one you owe, which is what surfaces it in the money-to-pay-back report.').optional(),
+  "counterparty": zod.string().nullish().describe('Free-text name of the person or organisation on the other side. Leaving this empty turns money tracking off for the expense.'),
+  "trackedAmount": zod.string().regex(createExpenseResponseTrackedAmountRegExp).nullish().describe('The amount actually being settled, which may be less than the expense. Null when no counterparty is named, meaning nothing is tracked.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'settled']).describe('Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.'),zod.null()]).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "project": zod.union([zod.object({
@@ -1704,7 +1829,8 @@ export const CreateExpenseResponse = zod.object({
   "countryCode": zod.string().min(createExpenseResponseLocationCountryCodeMin).max(createExpenseResponseLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.string().min(1).max(createExpenseResponseTransactionTypeMax).describe('Slug of a transaction type, as listed by /transaction-types. A new type becomes usable immediately, which is why this is not a fixed enum.'),
+  "transactionTypeKind": zod.enum(['expense', 'payment']).optional().describe('Which side of the money this type falls on. Expense kinds count as spending; payment kinds settle a debt and are excluded from spending totals, which is why a new type must declare one.')
 })
 
 
@@ -1717,6 +1843,8 @@ export const GetExpenseParams = zod.object({
 
 export const getExpenseResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const getExpenseResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getExpenseResponsePaidByOneDefault = `me`;
+export const getExpenseResponseTrackedAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
 export const getExpenseResponseCurrencyCodeMin = 3;
 export const getExpenseResponseCurrencyCodeMax = 3;
 
@@ -1730,6 +1858,8 @@ export const getExpenseResponseCurrencyDecimalPlacesMax = 4;
 export const getExpenseResponseLocationCountryCodeMin = 2;
 export const getExpenseResponseLocationCountryCodeMax = 2;
 
+export const getExpenseResponseTransactionTypeMax = 80;
+
 
 
 export const GetExpenseResponse = zod.object({
@@ -1742,6 +1872,10 @@ export const GetExpenseResponse = zod.object({
   "description": zod.string().nullable(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
   "notes": zod.string().nullable(),
+  "paidBy": zod.enum(['me', 'someone_else']).default(getExpenseResponsePaidByOneDefault).describe('Who put the money up. me is an ordinary expense; someone_else is one you owe, which is what surfaces it in the money-to-pay-back report.').optional(),
+  "counterparty": zod.string().nullish().describe('Free-text name of the person or organisation on the other side. Leaving this empty turns money tracking off for the expense.'),
+  "trackedAmount": zod.string().regex(getExpenseResponseTrackedAmountRegExp).nullish().describe('The amount actually being settled, which may be less than the expense. Null when no counterparty is named, meaning nothing is tracked.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'settled']).describe('Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.'),zod.null()]).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "project": zod.union([zod.object({
@@ -1780,7 +1914,8 @@ export const GetExpenseResponse = zod.object({
   "countryCode": zod.string().min(getExpenseResponseLocationCountryCodeMin).max(getExpenseResponseLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.string().min(1).max(getExpenseResponseTransactionTypeMax).describe('Slug of a transaction type, as listed by /transaction-types. A new type becomes usable immediately, which is why this is not a fixed enum.'),
+  "transactionTypeKind": zod.enum(['expense', 'payment']).optional().describe('Which side of the money this type falls on. Expense kinds count as spending; payment kinds settle a debt and are excluded from spending totals, which is why a new type must declare one.')
 })
 
 
@@ -1797,8 +1932,14 @@ export const updateExpenseBodyAmountMax = 15;
 export const updateExpenseBodyAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const updateExpenseBodyDescriptionMax = 1000;
 
+export const updateExpenseBodyTransactionTypeOneMax = 80;
+
 export const updateExpenseBodyNotesMax = 4000;
 
+export const updateExpenseBodyPaidByOneDefault = `me`;
+export const updateExpenseBodyCounterpartyMax = 200;
+
+export const updateExpenseBodyTrackedAmountOneRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 
 
 export const UpdateExpenseBody = zod.object({
@@ -1810,13 +1951,19 @@ export const UpdateExpenseBody = zod.object({
   "labelIds": zod.array(zod.string().uuid()).optional(),
   "description": zod.string().max(updateExpenseBodyDescriptionMax).nullish(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
-  "transactionType": zod.union([zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),zod.null()]).optional(),
+  "transactionType": zod.union([zod.string().min(1).max(updateExpenseBodyTransactionTypeOneMax).describe('Slug of a transaction type, as listed by /transaction-types. A new type becomes usable immediately, which is why this is not a fixed enum.'),zod.null()]).optional(),
   "notes": zod.string().max(updateExpenseBodyNotesMax).nullish(),
+  "paidBy": zod.enum(['me', 'someone_else']).default(updateExpenseBodyPaidByOneDefault).describe('Who put the money up. me is an ordinary expense; someone_else is one you owe, which is what surfaces it in the money-to-pay-back report.').optional(),
+  "counterparty": zod.string().max(updateExpenseBodyCounterpartyMax).nullish().describe('Free-text name of the person or organisation on the other side. Clearing this turns money tracking off for the expense.'),
+  "trackedAmount": zod.union([zod.string().regex(updateExpenseBodyTrackedAmountOneRegExp),zod.null()]).optional().describe('Amount being settled. Defaults to the full expense amount when a counterparty is named and this is omitted.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'settled']).describe('Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.'),zod.null()]).optional(),
   "currencyId": zod.string().uuid().optional()
 })
 
 export const updateExpenseResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const updateExpenseResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const updateExpenseResponsePaidByOneDefault = `me`;
+export const updateExpenseResponseTrackedAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
 export const updateExpenseResponseCurrencyCodeMin = 3;
 export const updateExpenseResponseCurrencyCodeMax = 3;
 
@@ -1830,6 +1977,8 @@ export const updateExpenseResponseCurrencyDecimalPlacesMax = 4;
 export const updateExpenseResponseLocationCountryCodeMin = 2;
 export const updateExpenseResponseLocationCountryCodeMax = 2;
 
+export const updateExpenseResponseTransactionTypeMax = 80;
+
 
 
 export const UpdateExpenseResponse = zod.object({
@@ -1842,6 +1991,10 @@ export const UpdateExpenseResponse = zod.object({
   "description": zod.string().nullable(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
   "notes": zod.string().nullable(),
+  "paidBy": zod.enum(['me', 'someone_else']).default(updateExpenseResponsePaidByOneDefault).describe('Who put the money up. me is an ordinary expense; someone_else is one you owe, which is what surfaces it in the money-to-pay-back report.').optional(),
+  "counterparty": zod.string().nullish().describe('Free-text name of the person or organisation on the other side. Leaving this empty turns money tracking off for the expense.'),
+  "trackedAmount": zod.string().regex(updateExpenseResponseTrackedAmountRegExp).nullish().describe('The amount actually being settled, which may be less than the expense. Null when no counterparty is named, meaning nothing is tracked.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'settled']).describe('Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.'),zod.null()]).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "project": zod.union([zod.object({
@@ -1880,7 +2033,8 @@ export const UpdateExpenseResponse = zod.object({
   "countryCode": zod.string().min(updateExpenseResponseLocationCountryCodeMin).max(updateExpenseResponseLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.string().min(1).max(updateExpenseResponseTransactionTypeMax).describe('Slug of a transaction type, as listed by /transaction-types. A new type becomes usable immediately, which is why this is not a fixed enum.'),
+  "transactionTypeKind": zod.enum(['expense', 'payment']).optional().describe('Which side of the money this type falls on. Expense kinds count as spending; payment kinds settle a debt and are excluded from spending totals, which is why a new type must declare one.')
 })
 
 
@@ -2081,6 +2235,8 @@ export const getDashboardResponseRecentByLocationItemLocationCountryCodeMax = 2;
 
 export const getDashboardResponseRecentByLocationItemExpensesItemAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const getDashboardResponseRecentByLocationItemExpensesItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getDashboardResponseRecentByLocationItemExpensesItemPaidByOneDefault = `me`;
+export const getDashboardResponseRecentByLocationItemExpensesItemTrackedAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
 export const getDashboardResponseRecentByLocationItemExpensesItemCurrencyCodeMin = 3;
 export const getDashboardResponseRecentByLocationItemExpensesItemCurrencyCodeMax = 3;
 
@@ -2094,8 +2250,12 @@ export const getDashboardResponseRecentByLocationItemExpensesItemCurrencyDecimal
 export const getDashboardResponseRecentByLocationItemExpensesItemLocationCountryCodeMin = 2;
 export const getDashboardResponseRecentByLocationItemExpensesItemLocationCountryCodeMax = 2;
 
+export const getDashboardResponseRecentByLocationItemExpensesItemTransactionTypeMax = 80;
+
 export const getDashboardResponseRecentExpensesItemAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const getDashboardResponseRecentExpensesItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getDashboardResponseRecentExpensesItemPaidByOneDefault = `me`;
+export const getDashboardResponseRecentExpensesItemTrackedAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
 export const getDashboardResponseRecentExpensesItemCurrencyCodeMin = 3;
 export const getDashboardResponseRecentExpensesItemCurrencyCodeMax = 3;
 
@@ -2108,6 +2268,8 @@ export const getDashboardResponseRecentExpensesItemCurrencyDecimalPlacesMax = 4;
 
 export const getDashboardResponseRecentExpensesItemLocationCountryCodeMin = 2;
 export const getDashboardResponseRecentExpensesItemLocationCountryCodeMax = 2;
+
+export const getDashboardResponseRecentExpensesItemTransactionTypeMax = 80;
 
 export const getDashboardResponseCategorySpendingItemTotalsItemCurrencyCodeMin = 3;
 export const getDashboardResponseCategorySpendingItemTotalsItemCurrencyCodeMax = 3;
@@ -2341,6 +2503,10 @@ export const GetDashboardResponse = zod.object({
   "description": zod.string().nullable(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
   "notes": zod.string().nullable(),
+  "paidBy": zod.enum(['me', 'someone_else']).default(getDashboardResponseRecentByLocationItemExpensesItemPaidByOneDefault).describe('Who put the money up. me is an ordinary expense; someone_else is one you owe, which is what surfaces it in the money-to-pay-back report.').optional(),
+  "counterparty": zod.string().nullish().describe('Free-text name of the person or organisation on the other side. Leaving this empty turns money tracking off for the expense.'),
+  "trackedAmount": zod.string().regex(getDashboardResponseRecentByLocationItemExpensesItemTrackedAmountRegExp).nullish().describe('The amount actually being settled, which may be less than the expense. Null when no counterparty is named, meaning nothing is tracked.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'settled']).describe('Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.'),zod.null()]).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "project": zod.union([zod.object({
@@ -2379,7 +2545,8 @@ export const GetDashboardResponse = zod.object({
   "countryCode": zod.string().min(getDashboardResponseRecentByLocationItemExpensesItemLocationCountryCodeMin).max(getDashboardResponseRecentByLocationItemExpensesItemLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.string().min(1).max(getDashboardResponseRecentByLocationItemExpensesItemTransactionTypeMax).describe('Slug of a transaction type, as listed by /transaction-types. A new type becomes usable immediately, which is why this is not a fixed enum.'),
+  "transactionTypeKind": zod.enum(['expense', 'payment']).optional().describe('Which side of the money this type falls on. Expense kinds count as spending; payment kinds settle a debt and are excluded from spending totals, which is why a new type must declare one.')
 }))
 })),
   "recentExpenses": zod.array(zod.object({
@@ -2392,6 +2559,10 @@ export const GetDashboardResponse = zod.object({
   "description": zod.string().nullable(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
   "notes": zod.string().nullable(),
+  "paidBy": zod.enum(['me', 'someone_else']).default(getDashboardResponseRecentExpensesItemPaidByOneDefault).describe('Who put the money up. me is an ordinary expense; someone_else is one you owe, which is what surfaces it in the money-to-pay-back report.').optional(),
+  "counterparty": zod.string().nullish().describe('Free-text name of the person or organisation on the other side. Leaving this empty turns money tracking off for the expense.'),
+  "trackedAmount": zod.string().regex(getDashboardResponseRecentExpensesItemTrackedAmountRegExp).nullish().describe('The amount actually being settled, which may be less than the expense. Null when no counterparty is named, meaning nothing is tracked.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'settled']).describe('Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.'),zod.null()]).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "project": zod.union([zod.object({
@@ -2430,7 +2601,8 @@ export const GetDashboardResponse = zod.object({
   "countryCode": zod.string().min(getDashboardResponseRecentExpensesItemLocationCountryCodeMin).max(getDashboardResponseRecentExpensesItemLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.string().min(1).max(getDashboardResponseRecentExpensesItemTransactionTypeMax).describe('Slug of a transaction type, as listed by /transaction-types. A new type becomes usable immediately, which is why this is not a fixed enum.'),
+  "transactionTypeKind": zod.enum(['expense', 'payment']).optional().describe('Which side of the money this type falls on. Expense kinds count as spending; payment kinds settle a debt and are excluded from spending totals, which is why a new type must declare one.')
 })),
   "categorySpending": zod.array(zod.object({
   "category": zod.object({
@@ -2933,6 +3105,154 @@ export const GetLocationReportsResponse = zod.array(GetLocationReportsResponseIt
 
 
 /**
+ * Tracked expenses, split by direction. owed_by_me returns expenses you paid for that a counterparty has not yet given back; owed_to_me returns expenses a counterparty covered that you have not yet settled. Only expenses with a counterparty appear, and totals are always per currency so different currencies are never added together.
+ * @summary Money owed to you, or owed by you
+ */
+export const getMoneyReportQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getMoneyReportQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getMoneyReportQuerySummaryOnlyDefault = false;
+
+export const GetMoneyReportQueryParams = zod.object({
+  "direction": zod.enum(['owed_by_me', 'owed_to_me']),
+  "status": zod.enum(['pending', 'settled']).optional().describe('Restrict to outstanding or settled amounts. Omit for both.'),
+  "from": zod.coerce.string().regex(getMoneyReportQueryFromRegExp).optional().describe('Inclusive start date.'),
+  "to": zod.coerce.string().regex(getMoneyReportQueryToRegExp).optional().describe('Inclusive end date.'),
+  "counterparty": zod.coerce.string().optional().describe('Case-insensitive exact-name match.'),
+  "projectId": zod.coerce.string().uuid().optional(),
+  "locationId": zod.coerce.string().uuid().optional(),
+  "currencyId": zod.coerce.string().uuid().optional(),
+  "summaryOnly": zod.coerce.boolean().default(getMoneyReportQuerySummaryOnlyDefault).describe('Skip the per-expense rows and return just the totals. Used where only the shape of the data matters, such as suggesting names.')
+})
+
+export const getMoneyReportResponseSummariesItemCurrencyCodeMin = 3;
+export const getMoneyReportResponseSummariesItemCurrencyCodeMax = 3;
+
+export const getMoneyReportResponseSummariesItemCurrencyNameMax = 80;
+
+export const getMoneyReportResponseSummariesItemCurrencySymbolMax = 8;
+
+export const getMoneyReportResponseSummariesItemCurrencyDecimalPlacesMin = 0;
+export const getMoneyReportResponseSummariesItemCurrencyDecimalPlacesMax = 4;
+
+export const getMoneyReportResponseSummariesItemPendingTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getMoneyReportResponseSummariesItemSettledTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getMoneyReportResponseSummariesItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getMoneyReportResponseSummariesItemPendingCountMin = 0;
+
+export const getMoneyReportResponseSummariesItemSettledCountMin = 0;
+
+export const getMoneyReportResponseSummariesItemCountMin = 0;
+
+export const getMoneyReportResponseRowsItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getMoneyReportResponseRowsItemAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getMoneyReportResponseRowsItemTrackedAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getMoneyReportResponseRowsItemCurrencyCodeMin = 3;
+export const getMoneyReportResponseRowsItemCurrencyCodeMax = 3;
+
+export const getMoneyReportResponseRowsItemCurrencyNameMax = 80;
+
+export const getMoneyReportResponseRowsItemCurrencySymbolMax = 8;
+
+export const getMoneyReportResponseRowsItemCurrencyDecimalPlacesMin = 0;
+export const getMoneyReportResponseRowsItemCurrencyDecimalPlacesMax = 4;
+
+export const getMoneyReportResponseRowsItemLocationCountryCodeMin = 2;
+export const getMoneyReportResponseRowsItemLocationCountryCodeMax = 2;
+
+export const getMoneyReportResponseCounterpartyTotalsItemCurrencyCodeMin = 3;
+export const getMoneyReportResponseCounterpartyTotalsItemCurrencyCodeMax = 3;
+
+export const getMoneyReportResponseCounterpartyTotalsItemCurrencyNameMax = 80;
+
+export const getMoneyReportResponseCounterpartyTotalsItemCurrencySymbolMax = 8;
+
+export const getMoneyReportResponseCounterpartyTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getMoneyReportResponseCounterpartyTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getMoneyReportResponseCounterpartyTotalsItemPendingTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getMoneyReportResponseCounterpartyTotalsItemSettledTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getMoneyReportResponseCounterpartyTotalsItemPendingCountMin = 0;
+
+export const getMoneyReportResponseCounterpartyTotalsItemSettledCountMin = 0;
+
+
+
+export const GetMoneyReportResponse = zod.object({
+  "direction": zod.enum(['owed_by_me', 'owed_to_me']).describe('owed_by_me means the counterparty owes me; owed_to_me means I owe the counterparty.'),
+  "summaries": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getMoneyReportResponseSummariesItemCurrencyCodeMin).max(getMoneyReportResponseSummariesItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getMoneyReportResponseSummariesItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getMoneyReportResponseSummariesItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getMoneyReportResponseSummariesItemCurrencyDecimalPlacesMin).max(getMoneyReportResponseSummariesItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "pendingTotal": zod.string().regex(getMoneyReportResponseSummariesItemPendingTotalRegExp).describe('Amount still outstanding.'),
+  "settledTotal": zod.string().regex(getMoneyReportResponseSummariesItemSettledTotalRegExp).describe('Amount already received back or paid back.'),
+  "total": zod.string().regex(getMoneyReportResponseSummariesItemTotalRegExp).describe('pendingTotal plus settledTotal for this currency.'),
+  "pendingCount": zod.number().int().min(getMoneyReportResponseSummariesItemPendingCountMin),
+  "settledCount": zod.number().int().min(getMoneyReportResponseSummariesItemSettledCountMin),
+  "count": zod.number().int().min(getMoneyReportResponseSummariesItemCountMin)
+}).describe('Totals for one currency only. Currencies are reported side by side and are never added together.')),
+  "rows": zod.array(zod.object({
+  "expenseId": zod.string().uuid(),
+  "date": zod.string().regex(getMoneyReportResponseRowsItemDateRegExp),
+  "description": zod.string().nullish(),
+  "counterparty": zod.string(),
+  "settlementStatus": zod.enum(['pending', 'settled']).describe('Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.'),
+  "amount": zod.string().regex(getMoneyReportResponseRowsItemAmountRegExp).describe('The full expense amount.'),
+  "trackedAmount": zod.string().regex(getMoneyReportResponseRowsItemTrackedAmountRegExp).optional().describe('The amount actually being settled, which may be less than the expense. This is what the totals are made of.'),
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getMoneyReportResponseRowsItemCurrencyCodeMin).max(getMoneyReportResponseRowsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getMoneyReportResponseRowsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getMoneyReportResponseRowsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getMoneyReportResponseRowsItemCurrencyDecimalPlacesMin).max(getMoneyReportResponseRowsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "parentId": zod.string().uuid().nullable().describe('Null for a top-level category.'),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}).optional(),
+  "project": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]).optional(),
+  "location": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "countryCode": zod.string().min(getMoneyReportResponseRowsItemLocationCountryCodeMin).max(getMoneyReportResponseRowsItemLocationCountryCodeMax).nullable(),
+  "status": zod.enum(['active', 'archived'])
+})
+}).describe('One tracked expense, shown as it stands right now.')),
+  "counterpartyTotals": zod.array(zod.object({
+  "counterparty": zod.string(),
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getMoneyReportResponseCounterpartyTotalsItemCurrencyCodeMin).max(getMoneyReportResponseCounterpartyTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getMoneyReportResponseCounterpartyTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getMoneyReportResponseCounterpartyTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getMoneyReportResponseCounterpartyTotalsItemCurrencyDecimalPlacesMin).max(getMoneyReportResponseCounterpartyTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "pendingTotal": zod.string().regex(getMoneyReportResponseCounterpartyTotalsItemPendingTotalRegExp),
+  "settledTotal": zod.string().regex(getMoneyReportResponseCounterpartyTotalsItemSettledTotalRegExp),
+  "pendingCount": zod.number().int().min(getMoneyReportResponseCounterpartyTotalsItemPendingCountMin),
+  "settledCount": zod.number().int().min(getMoneyReportResponseCounterpartyTotalsItemSettledCountMin)
+})).describe('Outstanding and settled per counterparty, per currency.')
+})
+
+
+/**
  * Returns every project with its total spending, expense count, category breakdown, and monthly trend.
  * @summary Per-project spending reports
  */
@@ -3424,10 +3744,16 @@ export const getBackupResponseExpensesItemDescriptionMax = 1000;
 
 export const getBackupResponseExpensesItemNotesMax = 4000;
 
+export const getBackupResponseExpensesItemPaidByOneDefault = `me`;
+export const getBackupResponseExpensesItemCounterpartyMax = 200;
+
+export const getBackupResponseExpensesItemTrackedAmountOneRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const getBackupResponseExpensesItemCurrencyMin = 3;
 export const getBackupResponseExpensesItemCurrencyMax = 3;
 
 export const getBackupResponseExpensesItemLocationMax = 80;
+
+export const getBackupResponseExpensesItemTransactionTypeOneMax = 80;
 
 
 
@@ -3479,9 +3805,13 @@ export const GetBackupResponse = zod.object({
   "description": zod.string().max(getBackupResponseExpensesItemDescriptionMax).nullish(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
   "notes": zod.string().max(getBackupResponseExpensesItemNotesMax).nullish(),
+  "paidBy": zod.enum(['me', 'someone_else']).default(getBackupResponseExpensesItemPaidByOneDefault).describe('Who put the money up. me is an ordinary expense; someone_else is one you owe, which is what surfaces it in the money-to-pay-back report.').optional(),
+  "counterparty": zod.string().max(getBackupResponseExpensesItemCounterpartyMax).nullish().describe('Free-text name of the person or organisation on the other side. Clearing this turns money tracking off for the expense.'),
+  "trackedAmount": zod.union([zod.string().regex(getBackupResponseExpensesItemTrackedAmountOneRegExp),zod.null()]).optional().describe('Amount being settled. Defaults to the full expense amount when a counterparty is named and this is omitted.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'settled']).describe('Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.'),zod.null()]).optional(),
   "currency": zod.string().min(getBackupResponseExpensesItemCurrencyMin).max(getBackupResponseExpensesItemCurrencyMax),
   "location": zod.string().min(1).max(getBackupResponseExpensesItemLocationMax).nullish().describe('Location slug. Optional so backups exported before locations existed still import; those rows fall back to the default location.\n'),
-  "transactionType": zod.union([zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),zod.null()]).optional().describe('Optional so backups exported before transaction types existed still import; those rows are treated as expenses.\n'),
+  "transactionType": zod.union([zod.string().min(1).max(getBackupResponseExpensesItemTransactionTypeOneMax).describe('Slug of a transaction type, as listed by /transaction-types. A new type becomes usable immediately, which is why this is not a fixed enum.'),zod.null()]).optional().describe('Optional so backups exported before transaction types existed still import; those rows are treated as expenses.\n'),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })),
@@ -3533,10 +3863,16 @@ export const importBackupBodyExpensesItemDescriptionMax = 1000;
 
 export const importBackupBodyExpensesItemNotesMax = 4000;
 
+export const importBackupBodyExpensesItemPaidByOneDefault = `me`;
+export const importBackupBodyExpensesItemCounterpartyMax = 200;
+
+export const importBackupBodyExpensesItemTrackedAmountOneRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const importBackupBodyExpensesItemCurrencyMin = 3;
 export const importBackupBodyExpensesItemCurrencyMax = 3;
 
 export const importBackupBodyExpensesItemLocationMax = 80;
+
+export const importBackupBodyExpensesItemTransactionTypeOneMax = 80;
 
 
 
@@ -3588,9 +3924,13 @@ export const ImportBackupBody = zod.object({
   "description": zod.string().max(importBackupBodyExpensesItemDescriptionMax).nullish(),
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
   "notes": zod.string().max(importBackupBodyExpensesItemNotesMax).nullish(),
+  "paidBy": zod.enum(['me', 'someone_else']).default(importBackupBodyExpensesItemPaidByOneDefault).describe('Who put the money up. me is an ordinary expense; someone_else is one you owe, which is what surfaces it in the money-to-pay-back report.').optional(),
+  "counterparty": zod.string().max(importBackupBodyExpensesItemCounterpartyMax).nullish().describe('Free-text name of the person or organisation on the other side. Clearing this turns money tracking off for the expense.'),
+  "trackedAmount": zod.union([zod.string().regex(importBackupBodyExpensesItemTrackedAmountOneRegExp),zod.null()]).optional().describe('Amount being settled. Defaults to the full expense amount when a counterparty is named and this is omitted.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'settled']).describe('Whether a tracked amount has changed hands. One value covers both directions because "received" and "paid back" are the same fact seen from either side; paidBy decides which label is shown. Settling updates the existing expense and never creates another one.'),zod.null()]).optional(),
   "currency": zod.string().min(importBackupBodyExpensesItemCurrencyMin).max(importBackupBodyExpensesItemCurrencyMax),
   "location": zod.string().min(1).max(importBackupBodyExpensesItemLocationMax).nullish().describe('Location slug. Optional so backups exported before locations existed still import; those rows fall back to the default location.\n'),
-  "transactionType": zod.union([zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),zod.null()]).optional().describe('Optional so backups exported before transaction types existed still import; those rows are treated as expenses.\n'),
+  "transactionType": zod.union([zod.string().min(1).max(importBackupBodyExpensesItemTransactionTypeOneMax).describe('Slug of a transaction type, as listed by /transaction-types. A new type becomes usable immediately, which is why this is not a fixed enum.'),zod.null()]).optional().describe('Optional so backups exported before transaction types existed still import; those rows are treated as expenses.\n'),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })),

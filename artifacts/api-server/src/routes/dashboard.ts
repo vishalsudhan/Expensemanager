@@ -18,6 +18,7 @@ import {
   withShares,
 } from "../lib/currency-amounts";
 import { attachLabels, expenseSelection } from "../lib/expense-records";
+import { isSpending } from "../lib/transaction-types";
 
 const router: IRouter = Router();
 
@@ -122,7 +123,7 @@ async function locationSpending(monthTotals: CurrencyAmount[]) {
       .from(expensesTable)
       .innerJoin(currenciesTable, expenseCurrencyJoin)
       .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
-      .where(and(currentMonth, eq(expensesTable.transactionType, "expense")))
+      .where(and(currentMonth, isSpending()))
       .groupBy(locationsTable.id, currenciesTable.id),
     db
       .select({
@@ -145,7 +146,7 @@ async function locationSpending(monthTotals: CurrencyAmount[]) {
       .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
       .innerJoin(currenciesTable, expenseCurrencyJoin)
       .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
-      .where(and(currentMonth, eq(expensesTable.transactionType, "expense")))
+      .where(and(currentMonth, isSpending()))
       .groupBy(locationsTable.id, categoriesTable.id, currenciesTable.id)
       .orderBy(desc(sql`sum(${amount})`)),
   ]);
@@ -273,7 +274,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
         .from(expensesTable)
         .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
         .innerJoin(currenciesTable, expenseCurrencyJoin)
-        .where(and(currentMonth, eq(expensesTable.transactionType, "expense")))
+        .where(and(currentMonth, isSpending()))
         .groupBy(categoriesTable.id, currenciesTable.id)
         .orderBy(desc(sql`sum(${amount})`)),
       db
@@ -292,7 +293,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
         .from(expensesTable)
         .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
         .innerJoin(currenciesTable, expenseCurrencyJoin)
-        .where(and(currentMonth, eq(expensesTable.transactionType, "expense")))
+        .where(and(currentMonth, isSpending()))
         .groupBy(projectsTable.id, currenciesTable.id)
         .orderBy(desc(sql`sum(${amount})`)),
       db
@@ -305,6 +306,10 @@ router.get("/dashboard", async (req, res): Promise<void> => {
         .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
         .orderBy(desc(expensesTable.date), desc(expensesTable.createdAt))
         .limit(recentLimit),
+      // Hand-written SQL, so the expenses table is joined under the name
+      // "e". The kind filter is handed that alias deliberately: the default
+      // would reference "expenses"."transaction_type_id", which is not a
+      // valid FROM-clause entry once the table has been renamed.
       db.execute(sql`
         select to_char(g, ${trendDateFormat(granularity)}) as start,
                c.id as "currencyId",
@@ -316,7 +321,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
                coalesce(sum(e.amount), 0)::text as total,
                count(e.id)::int as count
         from ${trendSeries(granularity)} as g
-        left join expenses e on ${trendJoin(granularity)} and e.transaction_type = 'expense'
+        left join expenses e on ${trendJoin(granularity)} and ${isSpending(sql`e.transaction_type_id`)}
         left join currencies c on e.currency_id = c.id
         where c.id is not null
         group by g, c.id

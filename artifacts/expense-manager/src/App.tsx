@@ -81,7 +81,7 @@ function Brand({ subtitle }: { subtitle?: string }) {
         <span className="font-display text-[22px] font-bold leading-none">p</span>
       </span>
       <span className="leading-tight">
-        <span className="block font-display text-[17px] font-bold tracking-[-0.04em]">pocketful</span>
+        <span className="block font-display text-[17px] font-bold tracking-[-0.04em]">spendfloww</span>
         <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{subtitle ?? 'a quieter money space'}</span>
       </span>
     </Link>
@@ -159,7 +159,7 @@ function Shell({ children }: { children: ReactNode }) {
           <p className="font-display text-sm font-bold">A fresh start</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">Your personal money space is ready when you are.</p>
         </div>
-        <div className="mt-5 border-t border-border/70 pt-4 text-[10px] font-semibold tracking-[0.08em] text-muted-foreground">POCKETFUL <span className="mx-1.5">·</span> PERSONAL FINANCE</div>
+        <div className="mt-5 border-t border-border/70 pt-4 text-[10px] font-semibold tracking-[0.08em] text-muted-foreground">SPENDFLOWW <span className="mx-1.5">·</span> PERSONAL FINANCE</div>
       </aside>
 
       <div className="min-h-[100dvh] lg:pl-[252px]">

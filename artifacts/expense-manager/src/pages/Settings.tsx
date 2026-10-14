@@ -33,6 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeControl } from '@/components/theme-control';
+import { TransactionTypesSettings } from '@/components/transaction-types-settings';
 import { DeleteRecordDialog } from '@/components/delete-record-dialog';
 
 const MAX_BACKUP_BYTES = 25 * 1024 * 1024;
@@ -353,7 +354,7 @@ export function SettingsPage() {
     try {
       parsed = JSON.parse(await selectedFile.text());
     } catch {
-      setError('That file is not valid JSON. Choose a Pocketful backup (.json).');
+      setError('That file is not valid JSON. Choose a Spendfloww backup (.json).');
       return;
     }
 
@@ -393,6 +394,8 @@ export function SettingsPage() {
           Your data belongs to you. Export a spreadsheet for any list, keep a complete backup, or restore one you made earlier.
         </p>
       </div>
+
+      <TransactionTypesSettings />
 
       <section className="mt-8 max-w-[760px]">
         <div className="flex flex-col gap-4 rounded-[20px] border border-border/70 bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -782,7 +785,7 @@ export function SettingsPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => runDownload(item.key, item.path, `pocketful-${item.key}.csv`)}
+                onClick={() => runDownload(item.key, item.path, `spendfloww-${item.key}.csv`)}
                 disabled={downloading === item.key}
                 className="mt-4 h-10 w-full gap-2 rounded-xl"
                 data-testid={`button-export-${item.key}`}
@@ -818,7 +821,7 @@ export function SettingsPage() {
             </div>
             <Button
               type="button"
-              onClick={() => runDownload('backup', '/api/backup', 'pocketful-backup.json')}
+              onClick={() => runDownload('backup', '/api/backup', 'spendfloww-backup.json')}
               disabled={downloading === 'backup'}
               className="h-11 shrink-0 gap-2 rounded-xl px-5"
               data-testid="button-download-backup"

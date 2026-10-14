@@ -6,13 +6,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
   ArrowLeft, ArrowUpRight, BriefcaseBusiness, Check, ChevronDown, ChevronRight,
-  CircleAlert, CloudOff, CreditCard, LoaderCircle, Plus, ReceiptText, RefreshCw,
+  CircleAlert, CloudOff, CreditCard, HandCoins, LoaderCircle, Plus, ReceiptText, RefreshCw,
   RotateCcw, Search, SlidersHorizontal, Tag, Trash2, Wallet, X,
 } from 'lucide-react';
 import {
   getGetExpenseQueryKey, getListExpensesQueryKey, listExpenses, useCreateExpense,
   useDeleteExpense, useGetExpense, useListCategories, useListLabels, useListProjects,
-  useUpdateExpense,
+  useGetMoneyReport, useListTransactionTypes, useUpdateExpense,
 } from '@workspace/api-client-react';
 import type {
   ExpenseInput, ExpenseRecord, ExpenseUpdate, ListExpensesParams, ListExpensesSort,
@@ -43,12 +43,17 @@ const expenseSchema = z.object({
   projectId: z.string(),
   categoryId: z.string().min(1, 'Choose a category.'),
   locationId: z.string().min(1, 'Choose a location.'),
-  transactionType: z.enum(['expense', 'payment']),
+  transactionType: z.string().min(1),
   currencyId: z.string().min(1, 'Choose a currency.'),
   labelIds: z.array(z.string()),
   description: z.string().max(1000, 'Keep the description under 1,000 characters.'),
   paymentMethod: z.enum(['', 'cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),
   notes: z.string().max(4000, 'Keep notes under 4,000 characters.'),
+  paidBy: z.enum(['me', 'someone_else']),
+  reimbursable: z.enum(['no', 'yes']),
+  counterparty: z.string().max(200, 'Keep the name under 200 characters.'),
+  trackedAmount: z.string(),
+  settlementStatus: z.enum(['pending', 'settled']),
 });
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
@@ -60,6 +65,9 @@ const paymentOptions = [
   { value: 'upi', label: 'UPI' },
   { value: 'other', label: 'Other' },
 ] as const;
+/** The label for a settlement depends on which side of it you are on. */
+const settlementOption = (paidBy: 'me' | 'someone_else', status: 'pending' | 'settled') =>
+  status === 'settled' ? (paidBy === 'someone_else' ? 'Paid back' : 'Received') : 'Pending';
 const sortOptions = [
   { value: 'newest', label: 'Newest first' },
   { value: 'oldest', label: 'Oldest first' },
@@ -84,6 +92,8 @@ const defaultValues = (currencyId = '', locationId = ''): ExpenseFormValues => (
   amount: '', date: localToday(), projectId: '',
   categoryId: '', locationId, currencyId, labelIds: [], description: '',
   paymentMethod: '', transactionType: 'expense', notes: '',
+  paidBy: 'me', reimbursable: 'no', counterparty: '', trackedAmount: '',
+  settlementStatus: 'pending',
 });
 const fromExpense = (expense: ExpenseRecord): ExpenseFormValues => ({
   amount: expense.amount,
@@ -97,6 +107,11 @@ const fromExpense = (expense: ExpenseRecord): ExpenseFormValues => ({
   description: expense.description ?? '',
   paymentMethod: expense.paymentMethod ?? '',
   notes: expense.notes ?? '',
+  paidBy: expense.paidBy ?? 'me',
+  reimbursable: expense.counterparty ? 'yes' : 'no',
+  counterparty: expense.counterparty ?? '',
+  trackedAmount: expense.trackedAmount ?? expense.amount,
+  settlementStatus: expense.settlementStatus ?? 'pending',
 });
 
 function CategoryMark({ color, icon }: { color: string; icon: string | null }) {
@@ -129,6 +144,7 @@ export function ExpenseListPage() {
   const [locationId, setLocationId] = useState(() => urlParams.get('locationId') ?? '');
   const [parentCategoryId, setParentCategoryId] = useState(() => urlParams.get('parentCategoryId') ?? '');
   const [transactionType, setTransactionType] = useState(() => urlParams.get('transactionType') ?? '');
+  const typesFilter = useListTransactionTypes({ status: 'active' });
   const [sort, setSort] = useState<ListExpensesSort>(() => {
     const value = urlParams.get('sort');
     return value && ['newest', 'oldest', 'highest', 'lowest'].includes(value) ? (value as ListExpensesSort) : 'newest';
@@ -202,7 +218,14 @@ export function ExpenseListPage() {
   if (currencyId) activeFilters.push({ key: 'currency', label: currencies.find((currency) => currency.id === currencyId)?.code ?? 'Currency', clear: () => setCurrencyId('') });
   if (locationId) activeFilters.push({ key: 'location', label: locations?.find((location) => location.id === locationId)?.name ?? 'Location', clear: () => setLocationId('') });
   if (parentCategoryId) activeFilters.push({ key: 'category-group', label: categoryTree.byId.get(parentCategoryId)?.name ?? 'Category', clear: () => setParentCategoryId('') });
-  if (transactionType) activeFilters.push({ key: 'type', label: transactionType === 'payment' ? 'Payments' : 'Expenses', clear: () => setTransactionType('') });
+  if (transactionType) {
+    const chosen = typesFilter.data?.find((type) => type.slug === transactionType);
+    activeFilters.push({
+      key: 'type',
+      label: chosen?.name ?? transactionType,
+      clear: () => setTransactionType(''),
+    });
+  }
 
   const clearAll = () => {
     setSearch('');
@@ -328,9 +351,10 @@ export function ExpenseListPage() {
             <label className="space-y-1.5">
               <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Type</span>
               <select value={transactionType} onChange={(event) => setTransactionType(event.target.value)} className={controlClass} data-testid="select-expense-filter-transaction-type">
-                <option value="">Expenses and payments</option>
-                <option value="expense">Expenses only</option>
-                <option value="payment">Payments only</option>
+                <option value="">All types</option>
+                {(typesFilter.data ?? []).map((type) => (
+                  <option key={type.id} value={type.slug}>{type.name}</option>
+                ))}
               </select>
             </label>
             <label className="space-y-1.5">
@@ -496,6 +520,7 @@ export function ExpenseEditorPage() {
   const labelsQuery = useListLabels({ status: 'active' });
   const { activeCurrencies: currencies, isLoading: currenciesLoading } = useCurrencyOptions();
   const { locations, isLoading: locationsLoading } = useLocations();
+  const transactionTypesQuery = useListTransactionTypes({ status: 'active' });
   const categoryTree = useCategoryTree();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -505,6 +530,27 @@ export function ExpenseEditorPage() {
   const initializedId = useRef<string | null>(null);
   const form = useForm<ExpenseFormValues>({ resolver: zodResolver(expenseSchema), defaultValues: defaultValues() });
   const watchedCategoryId = form.watch('categoryId');
+  const watchedPaidBy = form.watch('paidBy');
+  const watchedReimbursable = form.watch('reimbursable');
+  const watchedCounterparty = form.watch('counterparty');
+  // An expense I paid is only tracked when it is going to come back, so the
+  // name is not even asked for otherwise. Someone else's expense is always
+  // something I owe, so that branch always asks.
+  const tracksMoney =
+    watchedPaidBy === 'someone_else' || watchedReimbursable === 'yes';
+  const askForName = tracksMoney;
+  const watchedExpenseAmount = form.watch('amount');
+  // Suggest names already used, in either direction. summaryOnly keeps this to
+  // the totals rather than pulling every tracked expense just to fill a list.
+  const owedByMeNames = useGetMoneyReport({ direction: 'owed_by_me', summaryOnly: true });
+  const owedToMeNames = useGetMoneyReport({ direction: 'owed_to_me', summaryOnly: true });
+  const knownCounterparties = useMemo(() => {
+    const names = new Set<string>();
+    for (const report of [owedByMeNames.data, owedToMeNames.data]) {
+      for (const entry of report?.counterpartyTotals ?? []) names.add(entry.counterparty);
+    }
+    return [...names].sort((a, b) => a.localeCompare(b)).slice(0, 50);
+  }, [owedByMeNames.data, owedToMeNames.data]);
   // The parent is kept as its own piece of UI state: the stored category is
   // always the leaf, so the parent select would otherwise hold a child id and
   // render as blank while editing an expense that already has a subcategory.
@@ -628,6 +674,17 @@ export function ExpenseEditorPage() {
       paymentMethod: values.paymentMethod || null,
       transactionType: values.transactionType,
       notes: values.notes.trim() || null,
+      paidBy: values.paidBy,
+      // A name typed and then hidden by switching Reimbursable off must not
+      // sneak through in the payload, so tracking keys off the same condition
+      // the form shows rather than off whatever is left in the field.
+      counterparty: askForName ? values.counterparty.trim() || null : null,
+      trackedAmount: askForName
+        ? values.trackedAmount.trim() || values.amount.trim()
+        : null,
+      settlementStatus: askForName
+        ? values.settlementStatus
+        : null,
     };
     if (editing && expenseId) {
       if (!online) {
@@ -789,9 +846,18 @@ export function ExpenseEditorPage() {
                 <FormField control={form.control} name="locationId" render={({ field }) => <FormItem><FormLabel>Location <span className="text-destructive">*</span></FormLabel><FormControl><select {...field} disabled={locationsLoading} aria-label="Location" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60" data-testid="select-expense-location"><option value="">{locationsLoading ? 'Loading locations…' : 'Choose a location'}</option>{(locations ?? []).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></FormControl><p className="text-[11px] text-muted-foreground">Where it happened. Currency is chosen separately.</p><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="projectId" render={({ field }) => <FormItem><FormLabel>Project <span className="font-normal text-muted-foreground">(optional)</span></FormLabel><FormControl><select {...field} onChange={(event) => { field.onChange(event); applyProjectCurrency(event.target.value); }} aria-label="Project" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-project"><option value="">No project</option>{(projectsQuery.data ?? []).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></FormControl>{projectsQuery.isError && <p className="text-xs text-destructive">Projects could not be loaded.</p>}<FormMessage /></FormItem>} />
                 <FormField control={form.control} name="paymentMethod" render={({ field }) => <FormItem><FormLabel>Payment method <span className="font-normal text-muted-foreground">(optional)</span></FormLabel><FormControl><select {...field} aria-label="Payment method" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-payment"><option value="">Not specified</option>{paymentOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="transactionType" render={({ field }) => <FormItem><FormLabel>Type</FormLabel><FormControl><select {...field} aria-label="Transaction type" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-transaction-type"><option value="expense">Expense</option><option value="payment">Payment (settles a bill)</option></select></FormControl><p className="text-[11px] text-muted-foreground" data-testid="text-expense-transaction-type-hint">Payments clear an existing debt and are left out of spending totals.</p><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="transactionType" render={({ field }) => <FormItem><FormLabel>Type</FormLabel><FormControl><select {...field} aria-label="Transaction type" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-transaction-type">{transactionTypesQuery.data?.map((type) => <option key={type.id} value={type.slug}>{type.name}{type.kind === 'payment' ? ' (settles a bill)' : ''}</option>)}</select></FormControl><p className="text-[11px] text-muted-foreground" data-testid="text-expense-transaction-type-hint">Types come from Settings. Payment types clear an existing debt and stay out of spending totals.</p><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="labelIds" render={({ field }) => <FormItem className="sm:col-span-2"><FormLabel>Labels <span className="font-normal text-muted-foreground">(optional)</span></FormLabel><FormControl><div className="flex min-h-11 flex-wrap gap-2" role="group" aria-label="Expense labels" data-testid="group-expense-labels">{(labelsQuery.data ?? []).length ? (labelsQuery.data ?? []).map((label) => { const selected = field.value.includes(label.id); return <button key={label.id} type="button" aria-pressed={selected} onClick={() => field.onChange(selected ? field.value.filter((id) => id !== label.id) : [...field.value, label.id])} className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors ${selected ? 'border-primary/35 bg-secondary text-primary' : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-primary'}`} data-testid={`button-expense-label-${label.id}`}><span className="size-2 rounded-full" style={{ backgroundColor: label.color }} />{label.name}{selected && <Check size={13} />}</button>; }) : <p className="py-2 text-xs text-muted-foreground">{labelsQuery.isError ? 'Labels could not be loaded.' : 'No labels yet. You can leave this empty.'}</p>}</div></FormControl><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="notes" render={({ field }) => <FormItem className="sm:col-span-2"><FormLabel>Notes <span className="font-normal text-muted-foreground">(optional)</span></FormLabel><FormControl><Textarea {...field} maxLength={4000} rows={3} placeholder="A note for future you…" className="resize-y rounded-xl bg-background" data-testid="input-expense-notes" /></FormControl><FormMessage /></FormItem>} />
+              </div>
+            </section>
+            <section className="rounded-[22px] border border-border/70 bg-card p-5 sm:p-7" data-testid="section-expense-money">
+              <div className="mb-6 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-accent/65 text-accent-foreground"><HandCoins size={17} /></span><div><h2 className="font-display text-[17px] font-semibold tracking-[-.025em]">Paid by</h2><p className="text-xs text-muted-foreground">Track money that is owed to you or by you.</p></div></div>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <FormField control={form.control} name="paidBy" render={({ field }) => <FormItem><FormLabel>Who paid <span className="text-destructive">*</span></FormLabel><FormControl><select {...field} aria-label="Who paid" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-paid-by"><option value="me">Me</option><option value="someone_else">Someone else</option></select></FormControl><p className="text-[11px] text-muted-foreground" data-testid="text-expense-paid-by-hint">{watchedPaidBy === 'someone_else' ? 'Someone covered this for you, so you owe them.' : 'You paid this yourself.'}</p><FormMessage /></FormItem>} />
+                  {watchedPaidBy === 'me' && <FormField control={form.control} name="reimbursable" render={({ field }) => <FormItem data-testid="field-expense-reimbursable"><FormLabel>Reimbursable? <span className="text-destructive">*</span></FormLabel><FormControl><select {...field} aria-label="Reimbursable" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring" data-testid="select-expense-reimbursable"><option value="no">No</option><option value="yes">Yes</option></select></FormControl><p className="text-[11px] text-muted-foreground" data-testid="text-expense-reimbursable-hint">{watchedReimbursable === 'yes' ? 'Someone will give this back to you.' : 'Ordinary expense. Nobody needs to be named.'}</p><FormMessage /></FormItem>} />}
+                  {askForName && <FormField control={form.control} name="counterparty" render={({ field }) => <FormItem><FormLabel>{watchedPaidBy === 'someone_else' ? 'Who covered it' : 'Who owes you'} <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} maxLength={200} list="expense-counterparty-names" placeholder="Name" className="h-11 rounded-xl bg-background" data-testid="input-expense-counterparty" /></FormControl><datalist id="expense-counterparty-names">{knownCounterparties.map((name) => <option key={name} value={name} />)}</datalist><FormMessage /></FormItem>} />}
+                  {askForName && <FormField control={form.control} name="trackedAmount" render={({ field }) => <FormItem><FormLabel>{watchedPaidBy === 'someone_else' ? 'Amount you owe' : 'Amount to be reimbursed'}</FormLabel><FormControl><Input {...field} inputMode="decimal" maxLength={15} placeholder={watchedExpenseAmount || '0.00'} className="h-11 rounded-xl bg-background" data-testid="input-expense-tracked-amount" /></FormControl><p className="text-[11px] text-muted-foreground" data-testid="text-expense-tracked-amount-hint">{watchedPaidBy === 'someone_else' ? 'What you owe them for this.' : 'Can be less than the expense if they are only covering part of it.'}</p><FormMessage /></FormItem>} />}
               </div>
             </section>
           </div>

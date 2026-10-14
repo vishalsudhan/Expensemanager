@@ -30,6 +30,7 @@ import {
   currencyExpenseCount,
   totalCount,
 } from "../lib/currency-amounts";
+import { isSpending } from "../lib/transaction-types";
 
 const router: IRouter = Router();
 
@@ -106,7 +107,7 @@ router.get("/projects", async (req, res): Promise<void> => {
       })
       .from(expensesTable)
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
-      .where(eq(expensesTable.transactionType, "expense"))
+      .where(isSpending())
       .groupBy(expensesTable.projectId, currenciesTable.id),
   ]);
 
@@ -121,7 +122,7 @@ router.get("/projects", async (req, res): Promise<void> => {
   const usageRows = await db
     .select({ projectId: expensesTable.projectId, usageCount: sql<number>`count(*)::int` })
     .from(expensesTable)
-    .where(eq(expensesTable.transactionType, "expense"))
+    .where(isSpending())
     .groupBy(expensesTable.projectId);
   const usageByProject = new Map(usageRows.map((row) => [row.projectId, Number(row.usageCount)]));
 
@@ -226,7 +227,7 @@ router.get("/projects/:projectId", async (req, res): Promise<void> => {
       .select({ ...currencyColumns, total: currencyAmountSum, count: currencyExpenseCount })
       .from(expensesTable)
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
-      .where(and(eq(expensesTable.projectId, project.id), eq(expensesTable.transactionType, "expense")))
+      .where(and(eq(expensesTable.projectId, project.id), isSpending()))
       .groupBy(currenciesTable.id),
     db
       .select({
@@ -242,7 +243,7 @@ router.get("/projects/:projectId", async (req, res): Promise<void> => {
       .from(expensesTable)
       .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
-      .where(and(eq(expensesTable.projectId, project.id), eq(expensesTable.transactionType, "expense")))
+      .where(and(eq(expensesTable.projectId, project.id), isSpending()))
       .groupBy(categoriesTable.id, currenciesTable.id)
       .orderBy(desc(sql`sum(${expensesTable.amount})`), asc(categoriesTable.name)),
     db

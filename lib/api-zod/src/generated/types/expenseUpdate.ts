@@ -5,8 +5,10 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ExpensePaidBy } from './expensePaidBy';
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
-import type { ExpenseTransactionType } from './expenseTransactionType';
+import type { SettlementStatus } from './settlementStatus';
+import type { TransactionTypeSlug } from './transactionTypeSlug';
 
 export interface ExpenseUpdate {
   /**
@@ -26,11 +28,21 @@ export interface ExpenseUpdate {
      */
   description?: string | null;
   paymentMethod?: ExpensePaymentMethod | null;
-  transactionType?: ExpenseTransactionType | null;
+  transactionType?: TransactionTypeSlug | null;
   /**
      * @maxLength 4000
      * @nullable
      */
   notes?: string | null;
+  paidBy?: ExpensePaidBy;
+  /**
+     * Free-text name of the person or organisation on the other side. Clearing this turns money tracking off for the expense.
+     * @maxLength 200
+     * @nullable
+     */
+  counterparty?: string | null;
+  /** Amount being settled. Defaults to the full expense amount when a counterparty is named and this is omitted. */
+  trackedAmount?: string | null;
+  settlementStatus?: SettlementStatus | null;
   currencyId?: string;
 }

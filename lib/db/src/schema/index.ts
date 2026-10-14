@@ -26,3 +26,4 @@ export * from "./categories";
 export * from "./labels";
 export * from "./expenses";
 export * from "./expense-labels";
+export * from "./transaction-types";

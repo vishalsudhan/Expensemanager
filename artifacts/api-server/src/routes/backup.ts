@@ -11,6 +11,7 @@ import {
   locationsTable,
   projectsTable,
 } from "@workspace/db";
+import { transactionTypeRef } from "../lib/transaction-types";
 import { ImportBackupBody } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { slugify } from "../lib/slug";
@@ -56,6 +57,10 @@ type WireExpense = {
   description: string | null;
   paymentMethod: ParsedBackup["expenses"][number]["paymentMethod"];
   notes: string | null;
+  paidBy: ParsedBackup["expenses"][number]["paidBy"];
+  counterparty: string | null;
+  trackedAmount: ParsedBackup["expenses"][number]["trackedAmount"];
+  settlementStatus: ParsedBackup["expenses"][number]["settlementStatus"];
   currency: string;
   location: string;
   transactionType: "expense" | "payment" | null;
@@ -191,6 +196,10 @@ export async function loadBackup(): Promise<WireBackup> {
     description: expense.description,
     paymentMethod: expense.paymentMethod,
     notes: expense.notes,
+    paidBy: expense.paidBy,
+    counterparty: expense.counterparty,
+    trackedAmount: expense.trackedAmount,
+    settlementStatus: expense.settlementStatus,
     currency: currencyCode,
     location: locationSlug,
     transactionType: expense.transactionType,
@@ -563,6 +572,17 @@ async function importExpenses(
   locationIds: Map<string, string>,
   defaultLocationId: string | undefined,
 ): Promise<{ counts: BackupCount; importedIds: string[] }> {
+
+  // An import names a type by slug, so it resolves to the pair of columns.
+  // Backups taken before the master existed still carry "expense"/"payment",
+  // which are the two seeded slugs.
+  const backupTypeRef = async (slug: string) => {
+    const ref = await transactionTypeRef(slug);
+    if (ref) return { transactionType: ref.legacy ?? ("expense" as const), transactionTypeId: ref.id };
+    // An unknown type falls back to a plain expense rather than failing the
+    // whole import, so a backup written by a newer release can still be read.
+    return { transactionType: "expense" as const };
+  };
   const counts = emptyCount();
   const existing = new Set(known.expenseIds);
   const importedIds: string[] = [];
@@ -590,7 +610,18 @@ async function importExpenses(
       locationId,
       description: expense.description ?? null,
       paymentMethod: expense.paymentMethod ?? null,
-      transactionType: expense.transactionType ?? "expense",
+      paidBy: expense.paidBy ?? "me",
+      counterparty: expense.counterparty ?? null,
+      // An older backup predates partial tracking; it tracked the whole
+      // expense, so the amount column is the faithful fallback.
+      trackedAmount: expense.counterparty
+        ? (expense.trackedAmount ?? expense.amount)
+        : null,
+      settlementStatus: expense.counterparty ? (expense.settlementStatus ?? "pending") : null,
+      // An import names a type by slug, so it resolves to the pair of
+      // columns. Backups taken before the master existed still carry
+      // "expense"/"payment", which are the two seeded slugs.
+      ...(await backupTypeRef(expense.transactionType ?? "expense")),
       notes: expense.notes ?? null,
     };
 
@@ -680,6 +711,10 @@ router.get("/export/expenses", async (_req, res): Promise<void> => {
         description: expensesTable.description,
         paymentMethod: expensesTable.paymentMethod,
         notes: expensesTable.notes,
+        paidBy: expensesTable.paidBy,
+        counterparty: expensesTable.counterparty,
+        trackedAmount: expensesTable.trackedAmount,
+        settlementStatus: expensesTable.settlementStatus,
         categoryName: categoriesTable.name,
         parentCategoryName: sql<string>`coalesce(${parentCategory.name}, ${categoriesTable.name})`.mapWith(String),
         projectName: projectsTable.name,
@@ -711,7 +746,8 @@ router.get("/export/expenses", async (_req, res): Promise<void> => {
   const rows: unknown[][] = [
     [
       "Date", "Amount", "Currency", "Location", "Category", "Top Category", "Project",
-      "Type", "Description", "Payment Method", "Labels", "Notes",
+      "Type", "Description", "Payment Method", "Paid By", "Counterparty",
+      "Tracked Amount", "Settlement", "Labels", "Notes",
     ],
     ...expenses.map((expense) => [
       expense.date,
@@ -724,12 +760,16 @@ router.get("/export/expenses", async (_req, res): Promise<void> => {
       expense.transactionType,
       expense.description,
       expense.paymentMethod,
+      expense.paidBy,
+      expense.counterparty ?? "",
+      expense.trackedAmount ?? "",
+      expense.settlementStatus ?? "",
       (labelsByExpense.get(expense.id) ?? []).join(" | "),
       expense.notes,
     ]),
   ];
 
-  sendCsv(res, `pocketful-expenses-${today()}.csv`, csvDocument(rows));
+  sendCsv(res, `spendfloww-expenses-${today()}.csv`, csvDocument(rows));
 });
 
 router.get("/export/projects", async (_req, res): Promise<void> => {
@@ -758,7 +798,7 @@ router.get("/export/projects", async (_req, res): Promise<void> => {
       project.createdAt.toISOString(),
     ]),
   ];
-  sendCsv(res, `pocketful-projects-${today()}.csv`, csvDocument(rows));
+  sendCsv(res, `spendfloww-projects-${today()}.csv`, csvDocument(rows));
 });
 
 router.get("/export/categories", async (_req, res): Promise<void> => {
@@ -773,7 +813,7 @@ router.get("/export/categories", async (_req, res): Promise<void> => {
       category.createdAt.toISOString(),
     ]),
   ];
-  sendCsv(res, `pocketful-categories-${today()}.csv`, csvDocument(rows));
+  sendCsv(res, `spendfloww-categories-${today()}.csv`, csvDocument(rows));
 });
 
 router.get("/export/labels", async (_req, res): Promise<void> => {
@@ -787,13 +827,13 @@ router.get("/export/labels", async (_req, res): Promise<void> => {
       label.createdAt.toISOString(),
     ]),
   ];
-  sendCsv(res, `pocketful-labels-${today()}.csv`, csvDocument(rows));
+  sendCsv(res, `spendfloww-labels-${today()}.csv`, csvDocument(rows));
 });
 
 router.get("/backup", async (_req, res): Promise<void> => {
   const backup = await loadBackup();
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="pocketful-backup-${today()}.json"`);
+  res.setHeader("Content-Disposition", `attachment; filename="spendfloww-backup-${today()}.json"`);
   res.send(JSON.stringify(backup));
 });
 
@@ -801,7 +841,7 @@ router.post("/backup/import", async (req, res): Promise<void> => {
   const parsed = ImportBackupBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({
-      error: "This file is not a valid Pocketful backup.",
+      error: "This file is not a valid Spendfloww backup.",
       details: parsed.error.issues.slice(0, 10).map((issue) => {
         const path = issue.path.join(".");
         return path ? `${path}: ${issue.message}` : issue.message;
