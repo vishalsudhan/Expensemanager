@@ -10,6 +10,7 @@ import {
   inArray,
   isNotNull,
   lte,
+  ne,
   or,
   sql,
   type SQL,
@@ -296,6 +297,9 @@ router.get("/expenses", async (req, res): Promise<void> => {
     conditions.push(eq(expensesTable.settlementStatus, settlementStatus));
   }
   if (counterpartyId) conditions.push(eq(expensesTable.counterpartyId, counterpartyId));
+  // Read directly: zod's coerce.boolean would turn the string "false" into true.
+  const ownCostOnly = req.query["ownCostOnly"] === "true" || req.query["ownCostOnly"] === "1";
+  if (ownCostOnly) conditions.push(ne(expensesTable.settlementType, "reimbursable"));
   if (parentCategoryId) {
     // Parent filter matches the parent itself and every subcategory beneath it.
     conditions.push(

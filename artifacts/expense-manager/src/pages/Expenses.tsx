@@ -157,6 +157,7 @@ export function ExpenseListPage() {
   const [settlementType, setSettlementType] = useState(() => urlParams.get('settlementType') ?? '');
   const [settlementStatus, setSettlementStatus] = useState(() => urlParams.get('settlementStatus') ?? '');
   const [counterpartyId, setCounterpartyId] = useState(() => urlParams.get('counterpartyId') ?? '');
+  const [ownCostOnly, setOwnCostOnly] = useState(() => urlParams.get('ownCostOnly') === 'true');
   const { counterparties } = useCounterparties();
   const [sort, setSort] = useState<ListExpensesSort>(() => {
     const value = urlParams.get('sort');
@@ -179,6 +180,7 @@ export function ExpenseListPage() {
     setSettlementType(params.get('settlementType') ?? '');
     setSettlementStatus(params.get('settlementStatus') ?? '');
     setCounterpartyId(params.get('counterpartyId') ?? '');
+    setOwnCostOnly(params.get('ownCostOnly') === 'true');
     const nextSearch = params.get('search') ?? '';
     setSearch(nextSearch);
     setDebouncedSearch(nextSearch);
@@ -207,9 +209,10 @@ export function ExpenseListPage() {
     settlementType: (settlementType || undefined) as ListExpensesParams['settlementType'],
     settlementStatus: (settlementStatus || undefined) as ListExpensesParams['settlementStatus'],
     counterpartyId: counterpartyId || undefined,
+    ownCostOnly: ownCostOnly || undefined,
     sort,
     limit: PAGE_SIZE,
-  }), [debouncedSearch, from, to, projectId, categoryId, labelId, paymentMethod, currencyId, locationId, parentCategoryId, transactionType, settlementType, settlementStatus, counterpartyId, sort]);
+  }), [debouncedSearch, from, to, projectId, categoryId, labelId, paymentMethod, currencyId, locationId, parentCategoryId, transactionType, settlementType, settlementStatus, counterpartyId, ownCostOnly, sort]);
 
   const queryKey = useMemo(() => [...getListExpensesQueryKey(params), 'infinite'] as const, [params]);
 
@@ -241,6 +244,7 @@ export function ExpenseListPage() {
   if (transactionType) activeFilters.push({ key: 'type', label: transactionType === 'payment' ? 'Payments' : 'Expenses', clear: () => setTransactionType('') });
   if (settlementType) activeFilters.push({ key: 'settlement', label: settlementType === 'reimbursable' ? 'Reimbursable' : settlementType === 'paid_by_other' ? 'Paid by someone else' : 'I paid', clear: () => setSettlementType('') });
   if (settlementStatus) activeFilters.push({ key: 'settlement-status', label: settlementStatus === 'open' ? 'Not settled yet' : settlementStatus === 'settled' ? 'Settled' : settlementStatus === 'claimed' ? 'Claimed' : 'Pending', clear: () => setSettlementStatus('') });
+  if (ownCostOnly) activeFilters.push({ key: 'own-cost', label: 'Own cost only', clear: () => setOwnCostOnly(false) });
   if (counterpartyId) activeFilters.push({ key: 'counterparty', label: counterparties.find((item) => item.id === counterpartyId)?.name ?? 'Person or company', clear: () => setCounterpartyId('') });
 
   const clearAll = () => {
@@ -258,6 +262,7 @@ export function ExpenseListPage() {
     setSettlementType('');
     setSettlementStatus('');
     setCounterpartyId('');
+    setOwnCostOnly(false);
   };
 
   const hasAnyFilter = activeFilters.length > 0 || debouncedSearch.trim().length > 0;

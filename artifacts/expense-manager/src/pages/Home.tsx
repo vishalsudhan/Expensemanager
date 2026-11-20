@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLocations } from '@/hooks/use-locations';
 import { subtractTotals } from '@/lib/settlements';
+import { CountryInsights } from '@/components/country-insights';
 
 type Granularity = 'day' | 'week' | 'month';
 
@@ -100,28 +101,7 @@ function LocationCard({
         </div>
       </div>
 
-      {categories.length > 0 && (
-        <div className="mt-5 space-y-3">
-          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">
-            Major categories
-          </p>
-          {categories.map((row) => (
-            <div key={row.category.name}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: row.category.color }} />
-                  <span className="truncate text-[13px] font-semibold">{row.category.name}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{row.count}</span>
-                </div>
-                <span className="shrink-0 text-[12px] font-semibold tabular-nums">
-                  {formatTotals(row.totals)}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
+      {/* Category detail per country now lives in the "Where your money goes" section. */}
       {recent.length > 0 && (
         <div className="mt-5 space-y-2 border-t border-border/60 pt-4">
           <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">
@@ -312,6 +292,8 @@ export function HomePage() {
               <span className="inline-flex items-center gap-1 text-xs font-bold text-primary">Details <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" /></span>
             </Link>
           )}
+
+          <CountryInsights />
 
           <section className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-7" data-testid="section-spending-trend">
             <div className="flex flex-wrap items-start justify-between gap-3">

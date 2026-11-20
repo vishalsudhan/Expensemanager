@@ -59,6 +59,10 @@ settlementType?: ExpenseSettlementType;
  */
 settlementStatus?: ListExpensesSettlementStatus;
 /**
+ * Leave out reimbursable expenses, keeping only what is the user's own cost.
+ */
+ownCostOnly?: boolean;
+/**
  * Only expenses settled with this person or company
  */
 counterpartyId?: string;

@@ -680,6 +680,94 @@ export interface DashboardSettlements {
   monthReimbursable: CurrencyAmount[];
 }
 
+export interface InsightRange {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  from: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  to: string;
+  /**
+     * Days in the range, inclusive. Averages per day divide by this.
+     * @minimum 0
+     */
+  days: number;
+}
+
+export type ExpenseCategoryStatus = typeof ExpenseCategoryStatus[keyof typeof ExpenseCategoryStatus];
+
+
+export const ExpenseCategoryStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  slug: string;
+  /**
+     * Null for a top-level category.
+     * @nullable
+     */
+  parentId: string | null;
+  /** @nullable */
+  icon: string | null;
+  color: string;
+  status: ExpenseCategoryStatus;
+}
+
+export interface CountrySubcategoryRow {
+  category: ExpenseCategory;
+  /** share is measured within the parent category, same currency only. */
+  totals: CurrencyAmount[];
+  previousTotals: CurrencyAmount[];
+}
+
+export interface CountryCategoryRow {
+  category: ExpenseCategory;
+  /** share is measured within the country, same currency only. */
+  totals: CurrencyAmount[];
+  previousTotals: CurrencyAmount[];
+  averagePerDay: CurrencyAverage[];
+  children: CountrySubcategoryRow[];
+}
+
+export type ExpenseLocationStatus = typeof ExpenseLocationStatus[keyof typeof ExpenseLocationStatus];
+
+
+export const ExpenseLocationStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface ExpenseLocation {
+  id: string;
+  name: string;
+  slug: string;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     * @nullable
+     */
+  countryCode: string | null;
+  status: ExpenseLocationStatus;
+}
+
+export interface CountryBreakdown {
+  location: ExpenseLocation;
+  totals: CurrencyAmount[];
+  previousTotals: CurrencyAmount[];
+  averagePerDay: CurrencyAverage[];
+  categories: CountryCategoryRow[];
+}
+
+export interface CountryCategoryReport {
+  range: InsightRange;
+  /** The same-length period just before; null for all time. */
+  previousRange: InsightRange | null;
+  includeReimbursable: boolean;
+  countries: CountryBreakdown[];
+}
+
 export type ExpensePaymentMethod = typeof ExpensePaymentMethod[keyof typeof ExpensePaymentMethod];
 
 
@@ -728,50 +816,6 @@ export interface ExpenseProject {
   name: string;
   color: string;
   status: ExpenseProjectStatus;
-}
-
-export type ExpenseLocationStatus = typeof ExpenseLocationStatus[keyof typeof ExpenseLocationStatus];
-
-
-export const ExpenseLocationStatus = {
-  active: 'active',
-  archived: 'archived',
-} as const;
-
-export interface ExpenseLocation {
-  id: string;
-  name: string;
-  slug: string;
-  /**
-     * @minLength 2
-     * @maxLength 2
-     * @nullable
-     */
-  countryCode: string | null;
-  status: ExpenseLocationStatus;
-}
-
-export type ExpenseCategoryStatus = typeof ExpenseCategoryStatus[keyof typeof ExpenseCategoryStatus];
-
-
-export const ExpenseCategoryStatus = {
-  active: 'active',
-  archived: 'archived',
-} as const;
-
-export interface ExpenseCategory {
-  id: string;
-  name: string;
-  slug: string;
-  /**
-     * Null for a top-level category.
-     * @nullable
-     */
-  parentId: string | null;
-  /** @nullable */
-  icon: string | null;
-  color: string;
-  status: ExpenseCategoryStatus;
 }
 
 export type ExpenseLabelStatus = typeof ExpenseLabelStatus[keyof typeof ExpenseLabelStatus];
@@ -1592,6 +1636,20 @@ export type GetSettlementReportParams = {
 months?: number;
 };
 
+export type GetCountryCategoryReportParams = {
+/**
+ * First day of the range. Omit for all time (from the earliest expense).
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from?: string;
+/**
+ * Last day of the range, inclusive. Omit for today.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to?: string;
+includeReimbursable?: boolean;
+};
+
 export type GetReportTrendsParams = {
 /**
  * @pattern ^\d{4}-\d{2}-\d{2}$
@@ -1657,6 +1715,10 @@ settlementType?: ExpenseSettlementType;
  * open matches pending and claimed - anything not yet settled.
  */
 settlementStatus?: ListExpensesSettlementStatus;
+/**
+ * Leave out reimbursable expenses, keeping only what is the user's own cost.
+ */
+ownCostOnly?: boolean;
 /**
  * Only expenses settled with this person or company
  */

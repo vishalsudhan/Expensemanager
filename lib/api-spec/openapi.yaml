@@ -1079,6 +1079,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SettlementReport"
+  /reports/country-categories:
+    get:
+      operationId: getCountryCategoryReport
+      tags: [reports]
+      summary: Spending per country by top-level category and subcategory, for any date range
+      description: >-
+        Real spending only (bill payments are excluded). Reimbursable expenses
+        are left out unless includeReimbursable is true, so totals show the
+        user's own cost. Amounts stay separated by currency. Each figure comes
+        with the same-length period immediately before it for comparison.
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: First day of the range. Omit for all time (from the earliest expense).
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: to
+          in: query
+          required: false
+          description: Last day of the range, inclusive. Omit for today.
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: includeReimbursable
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Per-country category breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountryCategoryReport"
+        "400":
+          description: Invalid range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /reports/trends:
     get:
       operationId: getReportTrends
@@ -1227,6 +1271,12 @@ paths:
           schema:
             type: string
             enum: [open, pending, claimed, settled]
+        - name: ownCostOnly
+          in: query
+          required: false
+          description: Leave out reimbursable expenses, keeping only what is the user's own cost.
+          schema:
+            type: boolean
         - name: counterpartyId
           in: query
           required: false
@@ -2587,6 +2637,97 @@ components:
           items:
             $ref: "#/components/schemas/CurrencyAmount"
       required: [owedToMe, iOwe, monthReimbursable]
+    InsightRange:
+      type: object
+      properties:
+        from:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        to:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        days:
+          type: integer
+          minimum: 0
+          description: Days in the range, inclusive. Averages per day divide by this.
+      required: [from, to, days]
+    CountrySubcategoryRow:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/ExpenseCategory"
+        totals:
+          type: array
+          description: share is measured within the parent category, same currency only.
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        previousTotals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+      required: [category, totals, previousTotals]
+    CountryCategoryRow:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/ExpenseCategory"
+        totals:
+          type: array
+          description: share is measured within the country, same currency only.
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        previousTotals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        averagePerDay:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAverage"
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountrySubcategoryRow"
+      required: [category, totals, previousTotals, averagePerDay, children]
+    CountryBreakdown:
+      type: object
+      properties:
+        location:
+          $ref: "#/components/schemas/ExpenseLocation"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        previousTotals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        averagePerDay:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAverage"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountryCategoryRow"
+      required: [location, totals, previousTotals, averagePerDay, categories]
+    CountryCategoryReport:
+      type: object
+      properties:
+        range:
+          $ref: "#/components/schemas/InsightRange"
+        previousRange:
+          anyOf:
+            - $ref: "#/components/schemas/InsightRange"
+            - type: "null"
+          description: The same-length period just before; null for all time.
+        includeReimbursable:
+          type: boolean
+        countries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountryBreakdown"
+      required: [range, previousRange, includeReimbursable, countries]
     ExpensePaymentMethod:
       type: string
       enum: [cash, credit_card, debit_card, bank_transfer, upi, other]

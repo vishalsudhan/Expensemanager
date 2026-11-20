@@ -37,6 +37,7 @@ import type {
   CounterpartyCollection,
   CounterpartyInput,
   CounterpartyUpdate,
+  CountryCategoryReport,
   Currency,
   CurrencyInput,
   CurrencyUpdate,
@@ -51,6 +52,7 @@ import type {
   ForgotPasswordRequest,
   GenericMessage,
   GetCategoryReportsParams,
+  GetCountryCategoryReportParams,
   GetDashboardParams,
   GetLabelReportsParams,
   GetLocationReportsParams,
@@ -3350,6 +3352,91 @@ export function useGetSettlementReport<TData = Awaited<ReturnType<typeof getSett
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetSettlementReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCountryCategoryReportUrl = (params?: GetCountryCategoryReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/country-categories?${stringifiedParams}` : `/api/reports/country-categories`
+}
+
+/**
+ * Real spending only (bill payments are excluded). Reimbursable expenses are left out unless includeReimbursable is true, so totals show the user's own cost. Amounts stay separated by currency. Each figure comes with the same-length period immediately before it for comparison.
+ * @summary Spending per country by top-level category and subcategory, for any date range
+ */
+export const getCountryCategoryReport = async (params?: GetCountryCategoryReportParams, options?: Parameters<typeof customFetch>[1]): Promise<CountryCategoryReport> => {
+
+  return customFetch<CountryCategoryReport>(getGetCountryCategoryReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCountryCategoryReportQueryKey = (params?: GetCountryCategoryReportParams,) => {
+    return [
+    `/api/reports/country-categories`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCountryCategoryReportQueryOptions = <TData = Awaited<ReturnType<typeof getCountryCategoryReport>>, TError = ErrorType<ErrorResponse>>(params?: GetCountryCategoryReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCountryCategoryReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCountryCategoryReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCountryCategoryReport>>> = ({ signal }) => getCountryCategoryReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCountryCategoryReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCountryCategoryReportQueryResult = NonNullable<Awaited<ReturnType<typeof getCountryCategoryReport>>>
+export type GetCountryCategoryReportQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Spending per country by top-level category and subcategory, for any date range
+ */
+
+export function useGetCountryCategoryReport<TData = Awaited<ReturnType<typeof getCountryCategoryReport>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetCountryCategoryReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCountryCategoryReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCountryCategoryReportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
