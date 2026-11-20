@@ -16,6 +16,8 @@ export interface ExpensePage {
   totals: CurrencyAmount[];
   /** Sum of matching payment transactions grouped by currency */
   paymentTotals: CurrencyAmount[];
+  /** The part of totals that is reimbursable - spent, but not your own cost */
+  reimbursableTotals: CurrencyAmount[];
   limit: number;
   offset: number;
   hasMore: boolean;

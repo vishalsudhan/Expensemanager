@@ -14,5 +14,6 @@ export interface BackupImportResult {
   expenses: BackupImportCount;
   /** @minimum 0 */
   expenseLabels: number;
+  counterparties?: BackupImportCount;
   warnings: string[];
 }

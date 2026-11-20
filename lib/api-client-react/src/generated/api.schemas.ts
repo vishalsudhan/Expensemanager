@@ -207,6 +207,20 @@ export const ProjectStatus = {
   archived: 'archived',
 } as const;
 
+export type ExpenseCounterpartyStatus = typeof ExpenseCounterpartyStatus[keyof typeof ExpenseCounterpartyStatus];
+
+
+export const ExpenseCounterpartyStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface ExpenseCounterparty {
+  id: string;
+  name: string;
+  status: ExpenseCounterpartyStatus;
+}
+
 export interface Project {
   id: string;
   /**
@@ -222,6 +236,8 @@ export interface Project {
   icon: string | null;
   status: ProjectStatus;
   defaultCurrency: Currency;
+  /** Suggested reimburser for reimbursable expenses in this project. */
+  defaultCounterparty?: ExpenseCounterparty | null;
   /**
      * Expenses assigned to this project.
      * @minimum 0
@@ -244,6 +260,8 @@ export interface ProjectInput {
   /** @maxLength 64 */
   icon?: string;
   defaultCurrencyId: string;
+  /** @nullable */
+  defaultCounterpartyId?: string | null;
 }
 
 export interface ProjectUpdate {
@@ -265,6 +283,8 @@ export interface ProjectUpdate {
      */
   icon?: string | null;
   defaultCurrencyId?: string;
+  /** @nullable */
+  defaultCounterpartyId?: string | null;
 }
 
 export type ProjectListItem = Project & {
@@ -507,6 +527,159 @@ export interface LabelUpdate {
 
 export type LabelCollection = Label[];
 
+export type BackupCounterpartyStatus = typeof BackupCounterpartyStatus[keyof typeof BackupCounterpartyStatus];
+
+
+export const BackupCounterpartyStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface BackupCounterparty {
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  status: BackupCounterpartyStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.
+ */
+export type ExpenseSettlementType = typeof ExpenseSettlementType[keyof typeof ExpenseSettlementType];
+
+
+export const ExpenseSettlementType = {
+  none: 'none',
+  reimbursable: 'reimbursable',
+  paid_by_other: 'paid_by_other',
+} as const;
+
+/**
+ * claimed only applies to reimbursable expenses.
+ */
+export type ExpenseSettlementStatus = typeof ExpenseSettlementStatus[keyof typeof ExpenseSettlementStatus];
+
+
+export const ExpenseSettlementStatus = {
+  pending: 'pending',
+  claimed: 'claimed',
+  settled: 'settled',
+} as const;
+
+export type CounterpartyStatus = typeof CounterpartyStatus[keyof typeof CounterpartyStatus];
+
+
+export const CounterpartyStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface Counterparty {
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  status: CounterpartyStatus;
+  /**
+     * Expenses settled with this person or company.
+     * @minimum 0
+     */
+  usageCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CounterpartyInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+}
+
+export type CounterpartyUpdateStatus = typeof CounterpartyUpdateStatus[keyof typeof CounterpartyUpdateStatus];
+
+
+export const CounterpartyUpdateStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface CounterpartyUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name?: string;
+  status?: CounterpartyUpdateStatus;
+}
+
+export type CounterpartyCollection = Counterparty[];
+
+export interface ExpenseSettlementUpdate {
+  status: ExpenseSettlementStatus;
+  /**
+     * Required when status is settled; defaults to today when omitted.
+     * @nullable
+     */
+  settledOn?: string | null;
+}
+
+export interface SettlementPartyRow {
+  counterparty: ExpenseCounterparty;
+  totals: CurrencyAmount[];
+  /** @minimum 0 */
+  count: number;
+  /** @minimum 0 */
+  claimedCount: number;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  oldestDate: string;
+  /**
+     * Days since the oldest open expense with this counterparty.
+     * @minimum 0
+     */
+  oldestDays: number;
+}
+
+export interface SettlementSide {
+  totals: CurrencyAmount[];
+  parties: SettlementPartyRow[];
+}
+
+export interface SettlementMonth {
+  /**
+     * First day of the month the money moved (settled_on), not the expense month.
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  month: string;
+  /** Reimbursements paid back to you in this month. */
+  received: CurrencyAmount[];
+  /** Money you paid back to people who covered for you in this month. */
+  repaid: CurrencyAmount[];
+}
+
+export interface SettlementReport {
+  owedToMe: SettlementSide;
+  iOwe: SettlementSide;
+  monthly: SettlementMonth[];
+}
+
+export interface DashboardSettlements {
+  /** Reimbursements still open (pending or claimed). */
+  owedToMe: CurrencyAmount[];
+  /** Money still to pay back to people who paid for you. */
+  iOwe: CurrencyAmount[];
+  /** The part of this month's spending that is reimbursable. */
+  monthReimbursable: CurrencyAmount[];
+}
+
 export type ExpensePaymentMethod = typeof ExpensePaymentMethod[keyof typeof ExpensePaymentMethod];
 
 
@@ -746,6 +919,14 @@ export interface ExpenseRecord {
   currency: Currency;
   location: ExpenseLocation;
   transactionType: ExpenseTransactionType;
+  settlementType: ExpenseSettlementType;
+  settlementStatus: ExpenseSettlementStatus | null;
+  /**
+     * @nullable
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  settledOn: string | null;
+  counterparty: ExpenseCounterparty | null;
 }
 
 export interface ExpensePage {
@@ -756,6 +937,8 @@ export interface ExpensePage {
   totals: CurrencyAmount[];
   /** Sum of matching payment transactions grouped by currency */
   paymentTotals: CurrencyAmount[];
+  /** The part of totals that is reimbursable - spent, but not your own cost */
+  reimbursableTotals: CurrencyAmount[];
   limit: number;
   offset: number;
   hasMore: boolean;
@@ -830,6 +1013,7 @@ export interface Dashboard {
   categorySpending: DashboardCategorySpending[];
   projectSpending: DashboardProjectSpending[];
   trend: DashboardTrend;
+  settlements: DashboardSettlements;
 }
 
 export interface ReportRange {
@@ -1055,6 +1239,12 @@ export interface ExpenseInput {
      */
   notes?: string | null;
   currencyId: string;
+  settlementType?: ExpenseSettlementType;
+  /** @nullable */
+  counterpartyId?: string | null;
+  settlementStatus?: ExpenseSettlementStatus | null;
+  /** @nullable */
+  settledOn?: string | null;
 }
 
 export interface ExpenseUpdate {
@@ -1082,6 +1272,12 @@ export interface ExpenseUpdate {
      */
   notes?: string | null;
   currencyId?: string;
+  settlementType?: ExpenseSettlementType;
+  /** @nullable */
+  counterpartyId?: string | null;
+  settlementStatus?: ExpenseSettlementStatus | null;
+  /** @nullable */
+  settledOn?: string | null;
 }
 
 export type BackupProjectStatus = typeof BackupProjectStatus[keyof typeof BackupProjectStatus];
@@ -1117,6 +1313,13 @@ export interface BackupProject {
      * @maxLength 3
      */
   defaultCurrency: string;
+  /**
+     * Counterparty name. Optional so older backups still import.
+     * @minLength 1
+     * @maxLength 80
+     * @nullable
+     */
+  defaultCounterparty?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1206,6 +1409,18 @@ export interface BackupExpense {
   location?: string | null;
   /** Optional so backups exported before transaction types existed still import; those rows are treated as expenses. */
   transactionType?: ExpenseTransactionType | null;
+  /** Optional so older backups still import; those rows are ordinary expenses. */
+  settlementType?: ExpenseSettlementType | null;
+  /**
+     * Counterparty name, portable across installs.
+     * @minLength 1
+     * @maxLength 80
+     * @nullable
+     */
+  counterparty?: string | null;
+  settlementStatus?: ExpenseSettlementStatus | null;
+  /** @nullable */
+  settledOn?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1226,6 +1441,8 @@ export interface BackupDocumentCounts {
   expenses?: number;
   /** @minimum 0 */
   expenseLabels?: number;
+  /** @minimum 0 */
+  counterparties?: number;
 }
 
 export type BackupDocumentFormat = typeof BackupDocumentFormat[keyof typeof BackupDocumentFormat];
@@ -1246,6 +1463,8 @@ export interface BackupDocument {
   labels: BackupLabel[];
   expenses: BackupExpense[];
   expenseLabels: BackupExpenseLabel[];
+  /** Optional so backups exported before settlements existed still import. */
+  counterparties?: BackupCounterparty[];
 }
 
 export interface BackupImportCount {
@@ -1264,6 +1483,7 @@ export interface BackupImportResult {
   expenses: BackupImportCount;
   /** @minimum 0 */
   expenseLabels: number;
+  counterparties?: BackupImportCount;
   warnings: string[];
 }
 
@@ -1350,6 +1570,28 @@ export const ListLabelsStatus = {
   all: 'all',
 } as const;
 
+export type ListCounterpartiesParams = {
+status?: ListCounterpartiesStatus;
+};
+
+export type ListCounterpartiesStatus = typeof ListCounterpartiesStatus[keyof typeof ListCounterpartiesStatus];
+
+
+export const ListCounterpartiesStatus = {
+  active: 'active',
+  archived: 'archived',
+  all: 'all',
+} as const;
+
+export type GetSettlementReportParams = {
+/**
+ * How many months of settled history to return
+ * @minimum 1
+ * @maximum 36
+ */
+months?: number;
+};
+
 export type GetReportTrendsParams = {
 /**
  * @pattern ^\d{4}-\d{2}-\d{2}$
@@ -1407,6 +1649,18 @@ parentCategoryId?: string;
  * Filter by transaction type.
  */
 transactionType?: ExpenseTransactionType;
+/**
+ * Only reimbursable expenses, only ones someone else paid, or only ordinary ones.
+ */
+settlementType?: ExpenseSettlementType;
+/**
+ * open matches pending and claimed - anything not yet settled.
+ */
+settlementStatus?: ListExpensesSettlementStatus;
+/**
+ * Only expenses settled with this person or company
+ */
+counterpartyId?: string;
 sort?: ListExpensesSort;
 /**
  * @minimum 1
@@ -1418,6 +1672,16 @@ limit?: number;
  */
 offset?: number;
 };
+
+export type ListExpensesSettlementStatus = typeof ListExpensesSettlementStatus[keyof typeof ListExpensesSettlementStatus];
+
+
+export const ListExpensesSettlementStatus = {
+  open: 'open',
+  pending: 'pending',
+  claimed: 'claimed',
+  settled: 'settled',
+} as const;
 
 export type ListExpensesSort = typeof ListExpensesSort[keyof typeof ListExpensesSort];
 

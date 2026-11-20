@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
+import type { ExpenseSettlementStatus } from './expenseSettlementStatus';
+import type { ExpenseSettlementType } from './expenseSettlementType';
 import type { ExpenseTransactionType } from './expenseTransactionType';
 
 export interface BackupExpense {
@@ -44,6 +46,18 @@ export interface BackupExpense {
   location?: string | null;
   /** Optional so backups exported before transaction types existed still import; those rows are treated as expenses. */
   transactionType?: ExpenseTransactionType | null;
+  /** Optional so older backups still import; those rows are ordinary expenses. */
+  settlementType?: ExpenseSettlementType | null;
+  /**
+     * Counterparty name, portable across installs.
+     * @minLength 1
+     * @maxLength 80
+     * @nullable
+     */
+  counterparty?: string | null;
+  settlementStatus?: ExpenseSettlementStatus | null;
+  /** @nullable */
+  settledOn?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

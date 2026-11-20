@@ -4,6 +4,7 @@ import { GetDashboardQueryParams, GetDashboardResponse } from "@workspace/api-zo
 import type { Currency, CurrencyAmount } from "@workspace/api-zod";
 import {
   categoriesTable,
+  counterpartiesTable,
   currenciesTable,
   db,
   expensesTable,
@@ -14,10 +15,12 @@ import {
   currencyAmountSum,
   currencyColumns,
   currencyExpenseCount,
+  toCurrency,
   totalCount,
   withShares,
 } from "../lib/currency-amounts";
-import { attachLabels, expenseSelection } from "../lib/expense-records";
+import { attachLabels, counterpartyJoin, expenseSelection } from "../lib/expense-records";
+import { openSettlementTotals } from "./settlements";
 
 const router: IRouter = Router();
 
@@ -122,6 +125,7 @@ async function locationSpending(monthTotals: CurrencyAmount[]) {
       .from(expensesTable)
       .innerJoin(currenciesTable, expenseCurrencyJoin)
       .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
+      .leftJoin(counterpartiesTable, counterpartyJoin)
       .where(and(currentMonth, eq(expensesTable.transactionType, "expense")))
       .groupBy(locationsTable.id, currenciesTable.id),
     db
@@ -145,6 +149,7 @@ async function locationSpending(monthTotals: CurrencyAmount[]) {
       .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
       .innerJoin(currenciesTable, expenseCurrencyJoin)
       .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
+      .leftJoin(counterpartiesTable, counterpartyJoin)
       .where(and(currentMonth, eq(expensesTable.transactionType, "expense")))
       .groupBy(locationsTable.id, categoriesTable.id, currenciesTable.id)
       .orderBy(desc(sql`sum(${amount})`)),
@@ -303,6 +308,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
         .innerJoin(currenciesTable, expenseCurrencyJoin)
         // expenseSelection includes the location, so the join is required.
         .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
+        .leftJoin(counterpartiesTable, counterpartyJoin)
         .orderBy(desc(expensesTable.date), desc(expensesTable.createdAt))
         .limit(recentLimit),
       db.execute(sql`
@@ -324,7 +330,24 @@ router.get("/dashboard", async (req, res): Promise<void> => {
       `),
     ]);
 
-  const locationTotals = await locationSpending(month);
+  const [locationTotals, openSettlements, monthReimbursableRows] = await Promise.all([
+    locationSpending(month),
+    openSettlementTotals(),
+    // The reimbursable part of this month's spending: spent, but not the user's own cost.
+    db
+      .select({ ...currencyColumns, total: currencyAmountSum, count: currencyExpenseCount })
+      .from(expensesTable)
+      .innerJoin(currenciesTable, expenseCurrencyJoin)
+      .where(
+        and(
+          currentMonth,
+          eq(expensesTable.transactionType, "expense"),
+          eq(expensesTable.settlementType, "reimbursable"),
+        ),
+      )
+      .groupBy(currenciesTable.id)
+      .orderBy(currenciesTable.code),
+  ]);
   const recentExpenses = await attachLabels(recentRows);
 
   // A few recent expenses per location so each place has its own feed.
@@ -339,6 +362,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
           .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
           .innerJoin(currenciesTable, expenseCurrencyJoin)
           .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
+          .leftJoin(counterpartiesTable, counterpartyJoin)
           .where(eq(expensesTable.locationId, entry.location.id))
           .orderBy(desc(expensesTable.date), desc(expensesTable.createdAt))
           .limit(3),
@@ -411,6 +435,15 @@ router.get("/dashboard", async (req, res): Promise<void> => {
           const totals = trendsByStart.get(start) ?? [];
           return { start, totals, count: totalCount(totals) };
         }),
+      },
+      settlements: {
+        owedToMe: openSettlements.reimbursable,
+        iOwe: openSettlements.paid_by_other,
+        monthReimbursable: monthReimbursableRows.map((row) => ({
+          currency: toCurrency(row),
+          total: String(row.total),
+          count: Number(row.count),
+        })),
       },
     }),
   );

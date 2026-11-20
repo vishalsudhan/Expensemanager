@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import authRouter from "./auth";
 import backupRouter from "./backup";
 import categoriesRouter from "./categories";
+import counterpartiesRouter from "./counterparties";
 import currenciesRouter from "./currencies";
 import dashboardRouter from "./dashboard";
 import expensesRouter from "./expenses";
@@ -10,6 +11,7 @@ import labelsRouter from "./labels";
 import locationsRouter from "./locations";
 import projectsRouter from "./projects";
 import reportsRouter from "./reports";
+import settlementsRouter from "./settlements";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -27,9 +29,11 @@ router.use(categoriesRouter);
 router.use(currenciesRouter);
 router.use(locationsRouter);
 router.use(labelsRouter);
+router.use(counterpartiesRouter);
 router.use(projectsRouter);
 router.use(expensesRouter);
 router.use(dashboardRouter);
+router.use(settlementsRouter);
 router.use(reportsRouter);
 router.use(backupRouter);
 

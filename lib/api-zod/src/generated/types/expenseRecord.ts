@@ -7,10 +7,13 @@
  */
 import type { Currency } from './currency';
 import type { ExpenseCategory } from './expenseCategory';
+import type { ExpenseCounterparty } from './expenseCounterparty';
 import type { ExpenseLabel } from './expenseLabel';
 import type { ExpenseLocation } from './expenseLocation';
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
 import type { ExpenseProject } from './expenseProject';
+import type { ExpenseSettlementStatus } from './expenseSettlementStatus';
+import type { ExpenseSettlementType } from './expenseSettlementType';
 import type { ExpenseTransactionType } from './expenseTransactionType';
 
 export interface ExpenseRecord {
@@ -36,4 +39,12 @@ export interface ExpenseRecord {
   currency: Currency;
   location: ExpenseLocation;
   transactionType: ExpenseTransactionType;
+  settlementType: ExpenseSettlementType;
+  settlementStatus: ExpenseSettlementStatus | null;
+  /**
+     * @nullable
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  settledOn: string | null;
+  counterparty: ExpenseCounterparty | null;
 }

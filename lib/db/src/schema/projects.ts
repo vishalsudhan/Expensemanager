@@ -1,6 +1,7 @@
 import { createInsertSchema } from "drizzle-zod";
 import { check, index, pgTable, text, timestamp, unique, uuid, varchar } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { counterpartiesTable } from "./counterparties";
 import { currenciesTable } from "./currencies";
 import { recordStatusEnum } from "./shared";
 import { z } from "zod/v4";
@@ -17,6 +18,11 @@ export const projectsTable = pgTable(
     defaultCurrencyId: uuid("default_currency_id")
       .notNull()
       .references(() => currenciesTable.id, { onDelete: "restrict" }),
+    // Suggested reimburser when a reimbursable expense is filed under this project.
+    defaultCounterpartyId: uuid("default_counterparty_id").references(
+      () => counterpartiesTable.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

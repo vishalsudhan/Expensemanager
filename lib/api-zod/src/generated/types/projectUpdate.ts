@@ -25,4 +25,6 @@ export interface ProjectUpdate {
      */
   icon?: string | null;
   defaultCurrencyId?: string;
+  /** @nullable */
+  defaultCounterpartyId?: string | null;
 }

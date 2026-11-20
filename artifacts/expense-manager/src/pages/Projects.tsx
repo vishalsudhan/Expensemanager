@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useParams } from 'wouter';
 import { z } from 'zod';
@@ -15,7 +15,8 @@ import {
 } from '@workspace/api-client-react';
 import type { Project, ProjectInput, ProjectUpdate } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
-import { useCurrencyOptions } from '@/hooks/use-currencies';
+import { useCounterparties } from '@/hooks/use-counterparties';
+import { defaultCurrency, useCurrencyOptions } from '@/hooks/use-currencies';
 import { errorText, formatDate, formatTotals, money } from '@/lib/format';
 import { DeleteRecordDialog } from '@/components/delete-record-dialog';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ const formSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Choose a valid project color.'),
   icon: z.string().max(64),
   defaultCurrencyId: z.string().min(1, 'Choose a default currency.'),
+  defaultCounterpartyId: z.string(),
 });
 type FormValues = z.infer<typeof formSchema>;
 const palette = ['#47796A', '#B9795E', '#66869A', '#9C8050', '#7D7397', '#71834E'];
@@ -90,7 +92,16 @@ function ProjectFormDialog({ open, onOpenChange, project }: {
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { activeCurrencies: currencies, isLoading: currenciesLoading } = useCurrencyOptions();
+  const { currencies: allCurrencies, activeCurrencies, isLoading: currenciesLoading } = useCurrencyOptions();
+  // A project keeps its default currency even after that currency is switched off.
+  const currencies = useMemo(
+    () => [
+      ...activeCurrencies,
+      ...allCurrencies.filter((currency) => !currency.isActive && currency.id === project?.defaultCurrency?.id),
+    ],
+    [activeCurrencies, allCurrencies, project?.defaultCurrency?.id],
+  );
+  const { counterparties } = useCounterparties();
   const createProject = useCreateProject();
   const updateProject = useUpdateProject();
   const isEditing = Boolean(project);
@@ -102,6 +113,7 @@ function ProjectFormDialog({ open, onOpenChange, project }: {
       color: project?.color ?? palette[0],
       icon: project?.icon ?? 'FolderKanban',
       defaultCurrencyId: project?.defaultCurrency?.id ?? '',
+      defaultCounterpartyId: project?.defaultCounterparty?.id ?? '',
     },
   });
 
@@ -109,7 +121,7 @@ function ProjectFormDialog({ open, onOpenChange, project }: {
   useEffect(() => {
     const current = form.getValues('defaultCurrencyId');
     if (current && currencies.some((currency) => currency.id === current)) return;
-    const fallback = project?.defaultCurrency?.id ?? currencies[0]?.id ?? '';
+    const fallback = project?.defaultCurrency?.id ?? defaultCurrency(currencies)?.id ?? '';
     if (fallback && fallback !== current) {
       form.setValue('defaultCurrencyId', fallback, { shouldValidate: false });
     }
@@ -118,7 +130,7 @@ function ProjectFormDialog({ open, onOpenChange, project }: {
   const busy = createProject.isPending || updateProject.isPending;
   const onSubmit = (values: FormValues) => {
     if (project) {
-      const data: ProjectUpdate = { name: values.name, description: values.description || null, color: values.color, icon: values.icon, defaultCurrencyId: values.defaultCurrencyId };
+      const data: ProjectUpdate = { name: values.name, description: values.description || null, color: values.color, icon: values.icon, defaultCurrencyId: values.defaultCurrencyId, defaultCounterpartyId: values.defaultCounterpartyId || null };
       updateProject.mutate({ projectId: project.id, data }, {
         onSuccess: async () => {
           await refreshProjectLists(queryClient, project.id);
@@ -129,12 +141,12 @@ function ProjectFormDialog({ open, onOpenChange, project }: {
       });
       return;
     }
-    const data: ProjectInput = { name: values.name, description: values.description || undefined, color: values.color, icon: values.icon, defaultCurrencyId: values.defaultCurrencyId };
+    const data: ProjectInput = { name: values.name, description: values.description || undefined, color: values.color, icon: values.icon, defaultCurrencyId: values.defaultCurrencyId, defaultCounterpartyId: values.defaultCounterpartyId || null };
     createProject.mutate({ data }, {
       onSuccess: async () => {
         await refreshProjectLists(queryClient);
         toast({ title: 'Project created', description: 'A new place for related expenses is ready.' });
-        form.reset({ name: '', description: '', color: palette[0], icon: 'FolderKanban', defaultCurrencyId: currencies[0]?.id ?? '' });
+        form.reset({ name: '', description: '', color: palette[0], icon: 'FolderKanban', defaultCurrencyId: defaultCurrency(currencies)?.id ?? '', defaultCounterpartyId: '' });
         onOpenChange(false);
       },
       onError: (error) => toast({ title: 'Could not create project', description: errorText(error), variant: 'destructive' }),
@@ -179,7 +191,7 @@ function ProjectFormDialog({ open, onOpenChange, project }: {
                     <option value="">{currenciesLoading ? 'Loading currencies…' : 'Choose a currency'}</option>
                     {currencies.map((currency) => (
                       <option key={currency.id} value={currency.id}>
-                        {currency.symbol} {currency.code} · {currency.name}
+                        {currency.symbol} {currency.code} · {currency.name}{currency.isActive ? '' : ' (switched off)'}
                       </option>
                     ))}
                   </select>
@@ -187,6 +199,27 @@ function ProjectFormDialog({ open, onOpenChange, project }: {
                 <p className="text-[11px] text-muted-foreground" data-testid="text-project-currency-hint">
                   New expenses in this project start with this currency. Every expense keeps its own currency and nothing is converted.
                 </p>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="defaultCounterpartyId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Usually reimbursed by <span className="font-normal text-muted-foreground">(optional)</span></FormLabel>
+                <FormControl>
+                  <select
+                    {...field}
+                    aria-label="Usually reimbursed by"
+                    className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
+                    data-testid="select-project-counterparty"
+                  >
+                    <option value="">No one in particular</option>
+                    {counterparties.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    {project?.defaultCounterparty && !counterparties.some((item) => item.id === project.defaultCounterparty?.id) && (
+                      <option value={project.defaultCounterparty.id}>{project.defaultCounterparty.name} (archived)</option>
+                    )}
+                  </select>
+                </FormControl>
+                <p className="text-[11px] text-muted-foreground">Suggested when you mark an expense in this project as reimbursable. Add names under Owed &amp; owing.</p>
                 <FormMessage />
               </FormItem>
             )} />

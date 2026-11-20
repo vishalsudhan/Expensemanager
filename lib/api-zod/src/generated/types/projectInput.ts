@@ -19,4 +19,6 @@ export interface ProjectInput {
   /** @maxLength 64 */
   icon?: string;
   defaultCurrencyId: string;
+  /** @nullable */
+  defaultCounterpartyId?: string | null;
 }

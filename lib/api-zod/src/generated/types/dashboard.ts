@@ -9,6 +9,7 @@ import type { DashboardCategorySpending } from './dashboardCategorySpending';
 import type { DashboardLocationRecent } from './dashboardLocationRecent';
 import type { DashboardLocationSpending } from './dashboardLocationSpending';
 import type { DashboardProjectSpending } from './dashboardProjectSpending';
+import type { DashboardSettlements } from './dashboardSettlements';
 import type { DashboardSummary } from './dashboardSummary';
 import type { DashboardTrend } from './dashboardTrend';
 import type { ExpenseRecord } from './expenseRecord';
@@ -22,4 +23,5 @@ export interface Dashboard {
   categorySpending: DashboardCategorySpending[];
   projectSpending: DashboardProjectSpending[];
   trend: DashboardTrend;
+  settlements: DashboardSettlements;
 }

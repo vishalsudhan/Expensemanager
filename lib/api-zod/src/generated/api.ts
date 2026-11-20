@@ -218,6 +218,11 @@ export const ListProjectsResponseItem = zod.object({
   "decimalPlaces": zod.number().int().min(listProjectsResponseOneDefaultCurrencyDecimalPlacesMin).max(listProjectsResponseOneDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "defaultCounterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]).optional().describe('Suggested reimburser for reimbursable expenses in this project.'),
   "usageCount": zod.number().int().min(listProjectsResponseOneUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -257,7 +262,8 @@ export const CreateProjectBody = zod.object({
   "description": zod.string().max(createProjectBodyDescriptionMax).optional(),
   "color": zod.string().regex(createProjectBodyColorRegExp).optional(),
   "icon": zod.string().max(createProjectBodyIconMax).optional(),
-  "defaultCurrencyId": zod.string().uuid()
+  "defaultCurrencyId": zod.string().uuid(),
+  "defaultCounterpartyId": zod.string().uuid().nullish()
 })
 
 export const createProjectResponseNameMax = 120;
@@ -292,6 +298,11 @@ export const CreateProjectResponse = zod.object({
   "decimalPlaces": zod.number().int().min(createProjectResponseDefaultCurrencyDecimalPlacesMin).max(createProjectResponseDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "defaultCounterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]).optional().describe('Suggested reimburser for reimbursable expenses in this project.'),
   "usageCount": zod.number().int().min(createProjectResponseUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -386,6 +397,11 @@ export const GetProjectResponse = zod.object({
   "decimalPlaces": zod.number().int().min(getProjectResponseProjectDefaultCurrencyDecimalPlacesMin).max(getProjectResponseProjectDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "defaultCounterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]).optional().describe('Suggested reimburser for reimbursable expenses in this project.'),
   "usageCount": zod.number().int().min(getProjectResponseProjectUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -467,7 +483,8 @@ export const UpdateProjectBody = zod.object({
   "description": zod.string().max(updateProjectBodyDescriptionMax).nullish(),
   "color": zod.string().regex(updateProjectBodyColorRegExp).optional(),
   "icon": zod.string().max(updateProjectBodyIconMax).nullish(),
-  "defaultCurrencyId": zod.string().uuid().optional()
+  "defaultCurrencyId": zod.string().uuid().optional(),
+  "defaultCounterpartyId": zod.string().uuid().nullish()
 })
 
 export const updateProjectResponseNameMax = 120;
@@ -502,6 +519,11 @@ export const UpdateProjectResponse = zod.object({
   "decimalPlaces": zod.number().int().min(updateProjectResponseDefaultCurrencyDecimalPlacesMin).max(updateProjectResponseDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "defaultCounterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]).optional().describe('Suggested reimburser for reimbursable expenses in this project.'),
   "usageCount": zod.number().int().min(updateProjectResponseUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -568,6 +590,11 @@ export const ArchiveProjectResponse = zod.object({
   "decimalPlaces": zod.number().int().min(archiveProjectResponseDefaultCurrencyDecimalPlacesMin).max(archiveProjectResponseDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "defaultCounterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]).optional().describe('Suggested reimburser for reimbursable expenses in this project.'),
   "usageCount": zod.number().int().min(archiveProjectResponseUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1346,6 +1373,437 @@ export const ArchiveLabelResponse = zod.object({
 
 
 /**
+ * @summary List the people and companies money is settled with
+ */
+export const ListCounterpartiesQueryParams = zod.object({
+  "status": zod.enum(['active', 'archived', 'all']).optional()
+})
+
+export const listCounterpartiesResponseNameMax = 80;
+
+export const listCounterpartiesResponseUsageCountMin = 0;
+
+
+
+export const ListCounterpartiesResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(listCounterpartiesResponseNameMax),
+  "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(listCounterpartiesResponseUsageCountMin).optional().describe('Expenses settled with this person or company.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListCounterpartiesResponse = zod.array(ListCounterpartiesResponseItem)
+
+
+/**
+ * @summary Add a person or company
+ */
+export const createCounterpartyBodyNameMax = 80;
+
+
+
+export const CreateCounterpartyBody = zod.object({
+  "name": zod.string().min(1).max(createCounterpartyBodyNameMax)
+})
+
+export const createCounterpartyResponseNameMax = 80;
+
+export const createCounterpartyResponseUsageCountMin = 0;
+
+
+
+export const CreateCounterpartyResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(createCounterpartyResponseNameMax),
+  "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(createCounterpartyResponseUsageCountMin).optional().describe('Expenses settled with this person or company.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Rename, archive, or restore a person or company
+ */
+export const UpdateCounterpartyParams = zod.object({
+  "counterpartyId": zod.coerce.string().uuid()
+})
+
+export const updateCounterpartyBodyNameMax = 80;
+
+
+
+export const UpdateCounterpartyBody = zod.object({
+  "name": zod.string().min(1).max(updateCounterpartyBodyNameMax).optional(),
+  "status": zod.enum(['active', 'archived']).optional()
+})
+
+export const updateCounterpartyResponseNameMax = 80;
+
+export const updateCounterpartyResponseUsageCountMin = 0;
+
+
+
+export const UpdateCounterpartyResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(updateCounterpartyResponseNameMax),
+  "status": zod.enum(['active', 'archived']),
+  "usageCount": zod.number().int().min(updateCounterpartyResponseUsageCountMin).optional().describe('Expenses settled with this person or company.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Removes the record when no expense uses it. When expenses still point at it the record is archived instead, so no expense is ever broken.
+ * @summary Delete a person or company
+ */
+export const DeleteCounterpartyParams = zod.object({
+  "counterpartyId": zod.coerce.string().uuid()
+})
+
+export const deleteCounterpartyResponseUsageCountMin = 0;
+
+
+
+export const DeleteCounterpartyResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "deleted": zod.boolean().describe('True when the record was removed outright.'),
+  "archived": zod.boolean().describe('True when the record is in use and was archived instead.'),
+  "usageCount": zod.number().int().min(deleteCounterpartyResponseUsageCountMin).describe('Records that referenced this one.')
+}).describe('Outcome of a delete request. A record that is still referenced by expenses is archived rather than destroyed, so existing expenses keep their link and their label stays readable.')
+
+
+/**
+ * Marks the expense claimed, settled (paid back to you, or by you), or reopens it. Only the settlement changes; the expense itself, its amount and its date stay as they were, so past months never change.
+ * @summary Move a reimbursable or paid-by-someone-else expense along
+ */
+export const UpdateExpenseSettlementParams = zod.object({
+  "expenseId": zod.coerce.string().uuid()
+})
+
+export const UpdateExpenseSettlementBody = zod.object({
+  "status": zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),
+  "settledOn": zod.coerce.date().nullish().describe('Required when status is settled; defaults to today when omitted.')
+})
+
+export const updateExpenseSettlementResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
+export const updateExpenseSettlementResponseDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const updateExpenseSettlementResponseCurrencyCodeMin = 3;
+export const updateExpenseSettlementResponseCurrencyCodeMax = 3;
+
+export const updateExpenseSettlementResponseCurrencyNameMax = 80;
+
+export const updateExpenseSettlementResponseCurrencySymbolMax = 8;
+
+export const updateExpenseSettlementResponseCurrencyDecimalPlacesMin = 0;
+export const updateExpenseSettlementResponseCurrencyDecimalPlacesMax = 4;
+
+export const updateExpenseSettlementResponseLocationCountryCodeMin = 2;
+export const updateExpenseSettlementResponseLocationCountryCodeMax = 2;
+
+export const updateExpenseSettlementResponseSettledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const UpdateExpenseSettlementResponse = zod.object({
+  "id": zod.string().uuid(),
+  "amount": zod.string().regex(updateExpenseSettlementResponseAmountRegExp),
+  "date": zod.string().regex(updateExpenseSettlementResponseDateRegExp),
+  "projectId": zod.string().uuid().nullable(),
+  "categoryId": zod.string().uuid(),
+  "labelIds": zod.array(zod.string().uuid()),
+  "description": zod.string().nullable(),
+  "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "project": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]),
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "parentId": zod.string().uuid().nullable().describe('Null for a top-level category.'),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "labels": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+})),
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(updateExpenseSettlementResponseCurrencyCodeMin).max(updateExpenseSettlementResponseCurrencyCodeMax),
+  "name": zod.string().min(1).max(updateExpenseSettlementResponseCurrencyNameMax),
+  "symbol": zod.string().min(1).max(updateExpenseSettlementResponseCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(updateExpenseSettlementResponseCurrencyDecimalPlacesMin).max(updateExpenseSettlementResponseCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "location": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "countryCode": zod.string().min(updateExpenseSettlementResponseLocationCountryCodeMin).max(updateExpenseSettlementResponseLocationCountryCodeMax).nullable(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),
+  "settlementType": zod.enum(['none', 'reimbursable', 'paid_by_other']).describe('none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),zod.null()]),
+  "settledOn": zod.string().regex(updateExpenseSettlementResponseSettledOnRegExp).nullable(),
+  "counterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()])
+})
+
+
+/**
+ * @summary What is owed to you, what you owe, and what was settled each month
+ */
+export const getSettlementReportQueryMonthsDefault = 12;
+export const getSettlementReportQueryMonthsMax = 36;
+
+
+
+export const GetSettlementReportQueryParams = zod.object({
+  "months": zod.coerce.number().int().min(1).max(getSettlementReportQueryMonthsMax).default(getSettlementReportQueryMonthsDefault).describe('How many months of settled history to return')
+})
+
+export const getSettlementReportResponseOwedToMeTotalsItemCurrencyCodeMin = 3;
+export const getSettlementReportResponseOwedToMeTotalsItemCurrencyCodeMax = 3;
+
+export const getSettlementReportResponseOwedToMeTotalsItemCurrencyNameMax = 80;
+
+export const getSettlementReportResponseOwedToMeTotalsItemCurrencySymbolMax = 8;
+
+export const getSettlementReportResponseOwedToMeTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getSettlementReportResponseOwedToMeTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getSettlementReportResponseOwedToMeTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getSettlementReportResponseOwedToMeTotalsItemCountMin = 0;
+
+export const getSettlementReportResponseOwedToMeTotalsItemShareMin = 0;
+export const getSettlementReportResponseOwedToMeTotalsItemShareMax = 1;
+
+export const getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencyCodeMin = 3;
+export const getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencyCodeMax = 3;
+
+export const getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencyNameMax = 80;
+
+export const getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencySymbolMax = 8;
+
+export const getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getSettlementReportResponseOwedToMePartiesItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getSettlementReportResponseOwedToMePartiesItemTotalsItemCountMin = 0;
+
+export const getSettlementReportResponseOwedToMePartiesItemTotalsItemShareMin = 0;
+export const getSettlementReportResponseOwedToMePartiesItemTotalsItemShareMax = 1;
+
+export const getSettlementReportResponseOwedToMePartiesItemCountMin = 0;
+
+export const getSettlementReportResponseOwedToMePartiesItemClaimedCountMin = 0;
+
+export const getSettlementReportResponseOwedToMePartiesItemOldestDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getSettlementReportResponseOwedToMePartiesItemOldestDaysMin = 0;
+
+export const getSettlementReportResponseIOweTotalsItemCurrencyCodeMin = 3;
+export const getSettlementReportResponseIOweTotalsItemCurrencyCodeMax = 3;
+
+export const getSettlementReportResponseIOweTotalsItemCurrencyNameMax = 80;
+
+export const getSettlementReportResponseIOweTotalsItemCurrencySymbolMax = 8;
+
+export const getSettlementReportResponseIOweTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getSettlementReportResponseIOweTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getSettlementReportResponseIOweTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getSettlementReportResponseIOweTotalsItemCountMin = 0;
+
+export const getSettlementReportResponseIOweTotalsItemShareMin = 0;
+export const getSettlementReportResponseIOweTotalsItemShareMax = 1;
+
+export const getSettlementReportResponseIOwePartiesItemTotalsItemCurrencyCodeMin = 3;
+export const getSettlementReportResponseIOwePartiesItemTotalsItemCurrencyCodeMax = 3;
+
+export const getSettlementReportResponseIOwePartiesItemTotalsItemCurrencyNameMax = 80;
+
+export const getSettlementReportResponseIOwePartiesItemTotalsItemCurrencySymbolMax = 8;
+
+export const getSettlementReportResponseIOwePartiesItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getSettlementReportResponseIOwePartiesItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getSettlementReportResponseIOwePartiesItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getSettlementReportResponseIOwePartiesItemTotalsItemCountMin = 0;
+
+export const getSettlementReportResponseIOwePartiesItemTotalsItemShareMin = 0;
+export const getSettlementReportResponseIOwePartiesItemTotalsItemShareMax = 1;
+
+export const getSettlementReportResponseIOwePartiesItemCountMin = 0;
+
+export const getSettlementReportResponseIOwePartiesItemClaimedCountMin = 0;
+
+export const getSettlementReportResponseIOwePartiesItemOldestDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getSettlementReportResponseIOwePartiesItemOldestDaysMin = 0;
+
+export const getSettlementReportResponseMonthlyItemMonthRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getSettlementReportResponseMonthlyItemReceivedItemCurrencyCodeMin = 3;
+export const getSettlementReportResponseMonthlyItemReceivedItemCurrencyCodeMax = 3;
+
+export const getSettlementReportResponseMonthlyItemReceivedItemCurrencyNameMax = 80;
+
+export const getSettlementReportResponseMonthlyItemReceivedItemCurrencySymbolMax = 8;
+
+export const getSettlementReportResponseMonthlyItemReceivedItemCurrencyDecimalPlacesMin = 0;
+export const getSettlementReportResponseMonthlyItemReceivedItemCurrencyDecimalPlacesMax = 4;
+
+export const getSettlementReportResponseMonthlyItemReceivedItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getSettlementReportResponseMonthlyItemReceivedItemCountMin = 0;
+
+export const getSettlementReportResponseMonthlyItemReceivedItemShareMin = 0;
+export const getSettlementReportResponseMonthlyItemReceivedItemShareMax = 1;
+
+export const getSettlementReportResponseMonthlyItemRepaidItemCurrencyCodeMin = 3;
+export const getSettlementReportResponseMonthlyItemRepaidItemCurrencyCodeMax = 3;
+
+export const getSettlementReportResponseMonthlyItemRepaidItemCurrencyNameMax = 80;
+
+export const getSettlementReportResponseMonthlyItemRepaidItemCurrencySymbolMax = 8;
+
+export const getSettlementReportResponseMonthlyItemRepaidItemCurrencyDecimalPlacesMin = 0;
+export const getSettlementReportResponseMonthlyItemRepaidItemCurrencyDecimalPlacesMax = 4;
+
+export const getSettlementReportResponseMonthlyItemRepaidItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getSettlementReportResponseMonthlyItemRepaidItemCountMin = 0;
+
+export const getSettlementReportResponseMonthlyItemRepaidItemShareMin = 0;
+export const getSettlementReportResponseMonthlyItemRepaidItemShareMax = 1;
+
+
+
+export const GetSettlementReportResponse = zod.object({
+  "owedToMe": zod.object({
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getSettlementReportResponseOwedToMeTotalsItemCurrencyCodeMin).max(getSettlementReportResponseOwedToMeTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getSettlementReportResponseOwedToMeTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getSettlementReportResponseOwedToMeTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getSettlementReportResponseOwedToMeTotalsItemCurrencyDecimalPlacesMin).max(getSettlementReportResponseOwedToMeTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getSettlementReportResponseOwedToMeTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getSettlementReportResponseOwedToMeTotalsItemCountMin),
+  "share": zod.number().min(getSettlementReportResponseOwedToMeTotalsItemShareMin).max(getSettlementReportResponseOwedToMeTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "parties": zod.array(zod.object({
+  "counterparty": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencyCodeMin).max(getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencyDecimalPlacesMin).max(getSettlementReportResponseOwedToMePartiesItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getSettlementReportResponseOwedToMePartiesItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getSettlementReportResponseOwedToMePartiesItemTotalsItemCountMin),
+  "share": zod.number().min(getSettlementReportResponseOwedToMePartiesItemTotalsItemShareMin).max(getSettlementReportResponseOwedToMePartiesItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getSettlementReportResponseOwedToMePartiesItemCountMin),
+  "claimedCount": zod.number().int().min(getSettlementReportResponseOwedToMePartiesItemClaimedCountMin),
+  "oldestDate": zod.string().regex(getSettlementReportResponseOwedToMePartiesItemOldestDateRegExp),
+  "oldestDays": zod.number().int().min(getSettlementReportResponseOwedToMePartiesItemOldestDaysMin).describe('Days since the oldest open expense with this counterparty.')
+}))
+}),
+  "iOwe": zod.object({
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getSettlementReportResponseIOweTotalsItemCurrencyCodeMin).max(getSettlementReportResponseIOweTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getSettlementReportResponseIOweTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getSettlementReportResponseIOweTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getSettlementReportResponseIOweTotalsItemCurrencyDecimalPlacesMin).max(getSettlementReportResponseIOweTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getSettlementReportResponseIOweTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getSettlementReportResponseIOweTotalsItemCountMin),
+  "share": zod.number().min(getSettlementReportResponseIOweTotalsItemShareMin).max(getSettlementReportResponseIOweTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "parties": zod.array(zod.object({
+  "counterparty": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getSettlementReportResponseIOwePartiesItemTotalsItemCurrencyCodeMin).max(getSettlementReportResponseIOwePartiesItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getSettlementReportResponseIOwePartiesItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getSettlementReportResponseIOwePartiesItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getSettlementReportResponseIOwePartiesItemTotalsItemCurrencyDecimalPlacesMin).max(getSettlementReportResponseIOwePartiesItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getSettlementReportResponseIOwePartiesItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getSettlementReportResponseIOwePartiesItemTotalsItemCountMin),
+  "share": zod.number().min(getSettlementReportResponseIOwePartiesItemTotalsItemShareMin).max(getSettlementReportResponseIOwePartiesItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "count": zod.number().int().min(getSettlementReportResponseIOwePartiesItemCountMin),
+  "claimedCount": zod.number().int().min(getSettlementReportResponseIOwePartiesItemClaimedCountMin),
+  "oldestDate": zod.string().regex(getSettlementReportResponseIOwePartiesItemOldestDateRegExp),
+  "oldestDays": zod.number().int().min(getSettlementReportResponseIOwePartiesItemOldestDaysMin).describe('Days since the oldest open expense with this counterparty.')
+}))
+}),
+  "monthly": zod.array(zod.object({
+  "month": zod.string().regex(getSettlementReportResponseMonthlyItemMonthRegExp).describe('First day of the month the money moved (settled_on), not the expense month.'),
+  "received": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getSettlementReportResponseMonthlyItemReceivedItemCurrencyCodeMin).max(getSettlementReportResponseMonthlyItemReceivedItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getSettlementReportResponseMonthlyItemReceivedItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getSettlementReportResponseMonthlyItemReceivedItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getSettlementReportResponseMonthlyItemReceivedItemCurrencyDecimalPlacesMin).max(getSettlementReportResponseMonthlyItemReceivedItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getSettlementReportResponseMonthlyItemReceivedItemTotalRegExp),
+  "count": zod.number().int().min(getSettlementReportResponseMonthlyItemReceivedItemCountMin),
+  "share": zod.number().min(getSettlementReportResponseMonthlyItemReceivedItemShareMin).max(getSettlementReportResponseMonthlyItemReceivedItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})).describe('Reimbursements paid back to you in this month.'),
+  "repaid": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getSettlementReportResponseMonthlyItemRepaidItemCurrencyCodeMin).max(getSettlementReportResponseMonthlyItemRepaidItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getSettlementReportResponseMonthlyItemRepaidItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getSettlementReportResponseMonthlyItemRepaidItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getSettlementReportResponseMonthlyItemRepaidItemCurrencyDecimalPlacesMin).max(getSettlementReportResponseMonthlyItemRepaidItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getSettlementReportResponseMonthlyItemRepaidItemTotalRegExp),
+  "count": zod.number().int().min(getSettlementReportResponseMonthlyItemRepaidItemCountMin),
+  "share": zod.number().min(getSettlementReportResponseMonthlyItemRepaidItemShareMin).max(getSettlementReportResponseMonthlyItemRepaidItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})).describe('Money you paid back to people who covered for you in this month.')
+}))
+})
+
+
+/**
  * Returns every series and every bucket in one response so the page can draw a single chart and let the reader switch series on and off. Totals are always per currency and never summed across currencies.
  * @summary One time series split into comparable series, for a single chart
  */
@@ -1474,6 +1932,9 @@ export const ListExpensesQueryParams = zod.object({
   "locationId": zod.coerce.string().uuid().optional().describe('Filter expenses by location'),
   "parentCategoryId": zod.coerce.string().uuid().optional().describe('Filter expenses by top-level category, including all of its subcategories'),
   "transactionType": zod.enum(['expense', 'payment']).optional().describe('Filter by transaction type.'),
+  "settlementType": zod.enum(['none', 'reimbursable', 'paid_by_other']).optional().describe('Only reimbursable expenses, only ones someone else paid, or only ordinary ones.'),
+  "settlementStatus": zod.enum(['open', 'pending', 'claimed', 'settled']).optional().describe('open matches pending and claimed - anything not yet settled.'),
+  "counterpartyId": zod.coerce.string().uuid().optional().describe('Only expenses settled with this person or company'),
   "sort": zod.enum(['newest', 'oldest', 'highest', 'lowest']).default(listExpensesQuerySortDefault),
   "limit": zod.coerce.number().int().min(1).max(listExpensesQueryLimitMax).default(listExpensesQueryLimitDefault),
   "offset": zod.coerce.number().int().min(listExpensesQueryOffsetMin).default(listExpensesQueryOffsetDefault)
@@ -1494,6 +1955,7 @@ export const listExpensesResponseItemsItemCurrencyDecimalPlacesMax = 4;
 export const listExpensesResponseItemsItemLocationCountryCodeMin = 2;
 export const listExpensesResponseItemsItemLocationCountryCodeMax = 2;
 
+export const listExpensesResponseItemsItemSettledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 export const listExpensesResponseTotalsItemCurrencyCodeMin = 3;
 export const listExpensesResponseTotalsItemCurrencyCodeMax = 3;
 
@@ -1525,6 +1987,22 @@ export const listExpensesResponsePaymentTotalsItemCountMin = 0;
 
 export const listExpensesResponsePaymentTotalsItemShareMin = 0;
 export const listExpensesResponsePaymentTotalsItemShareMax = 1;
+
+export const listExpensesResponseReimbursableTotalsItemCurrencyCodeMin = 3;
+export const listExpensesResponseReimbursableTotalsItemCurrencyCodeMax = 3;
+
+export const listExpensesResponseReimbursableTotalsItemCurrencyNameMax = 80;
+
+export const listExpensesResponseReimbursableTotalsItemCurrencySymbolMax = 8;
+
+export const listExpensesResponseReimbursableTotalsItemCurrencyDecimalPlacesMin = 0;
+export const listExpensesResponseReimbursableTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const listExpensesResponseReimbursableTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const listExpensesResponseReimbursableTotalsItemCountMin = 0;
+
+export const listExpensesResponseReimbursableTotalsItemShareMin = 0;
+export const listExpensesResponseReimbursableTotalsItemShareMax = 1;
 
 
 
@@ -1577,7 +2055,15 @@ export const ListExpensesResponse = zod.object({
   "countryCode": zod.string().min(listExpensesResponseItemsItemLocationCountryCodeMin).max(listExpensesResponseItemsItemLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),
+  "settlementType": zod.enum(['none', 'reimbursable', 'paid_by_other']).describe('none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),zod.null()]),
+  "settledOn": zod.string().regex(listExpensesResponseItemsItemSettledOnRegExp).nullable(),
+  "counterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()])
 })),
   "total": zod.number().int().describe('Total expenses matching the current search and filters'),
   "totals": zod.array(zod.object({
@@ -1606,6 +2092,19 @@ export const ListExpensesResponse = zod.object({
   "count": zod.number().int().min(listExpensesResponsePaymentTotalsItemCountMin),
   "share": zod.number().min(listExpensesResponsePaymentTotalsItemShareMin).max(listExpensesResponsePaymentTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
 })).describe('Sum of matching payment transactions grouped by currency'),
+  "reimbursableTotals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(listExpensesResponseReimbursableTotalsItemCurrencyCodeMin).max(listExpensesResponseReimbursableTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(listExpensesResponseReimbursableTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(listExpensesResponseReimbursableTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(listExpensesResponseReimbursableTotalsItemCurrencyDecimalPlacesMin).max(listExpensesResponseReimbursableTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(listExpensesResponseReimbursableTotalsItemTotalRegExp),
+  "count": zod.number().int().min(listExpensesResponseReimbursableTotalsItemCountMin),
+  "share": zod.number().min(listExpensesResponseReimbursableTotalsItemShareMin).max(listExpensesResponseReimbursableTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})).describe('The part of totals that is reimbursable - spent, but not your own cost'),
   "limit": zod.number().int(),
   "offset": zod.number().int(),
   "hasMore": zod.boolean()
@@ -1636,7 +2135,11 @@ export const CreateExpenseBody = zod.object({
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
   "transactionType": zod.union([zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),zod.null()]).optional(),
   "notes": zod.string().max(createExpenseBodyNotesMax).nullish(),
-  "currencyId": zod.string().uuid()
+  "currencyId": zod.string().uuid(),
+  "settlementType": zod.enum(['none', 'reimbursable', 'paid_by_other']).optional().describe('none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.'),
+  "counterpartyId": zod.string().uuid().nullish(),
+  "settlementStatus": zod.union([zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),zod.null()]).optional(),
+  "settledOn": zod.coerce.date().nullish()
 })
 
 export const createExpenseResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
@@ -1654,6 +2157,7 @@ export const createExpenseResponseCurrencyDecimalPlacesMax = 4;
 export const createExpenseResponseLocationCountryCodeMin = 2;
 export const createExpenseResponseLocationCountryCodeMax = 2;
 
+export const createExpenseResponseSettledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 
 
 export const CreateExpenseResponse = zod.object({
@@ -1704,7 +2208,15 @@ export const CreateExpenseResponse = zod.object({
   "countryCode": zod.string().min(createExpenseResponseLocationCountryCodeMin).max(createExpenseResponseLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),
+  "settlementType": zod.enum(['none', 'reimbursable', 'paid_by_other']).describe('none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),zod.null()]),
+  "settledOn": zod.string().regex(createExpenseResponseSettledOnRegExp).nullable(),
+  "counterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()])
 })
 
 
@@ -1730,6 +2242,7 @@ export const getExpenseResponseCurrencyDecimalPlacesMax = 4;
 export const getExpenseResponseLocationCountryCodeMin = 2;
 export const getExpenseResponseLocationCountryCodeMax = 2;
 
+export const getExpenseResponseSettledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 
 
 export const GetExpenseResponse = zod.object({
@@ -1780,7 +2293,15 @@ export const GetExpenseResponse = zod.object({
   "countryCode": zod.string().min(getExpenseResponseLocationCountryCodeMin).max(getExpenseResponseLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),
+  "settlementType": zod.enum(['none', 'reimbursable', 'paid_by_other']).describe('none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),zod.null()]),
+  "settledOn": zod.string().regex(getExpenseResponseSettledOnRegExp).nullable(),
+  "counterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()])
 })
 
 
@@ -1812,7 +2333,11 @@ export const UpdateExpenseBody = zod.object({
   "paymentMethod": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]).optional(),
   "transactionType": zod.union([zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),zod.null()]).optional(),
   "notes": zod.string().max(updateExpenseBodyNotesMax).nullish(),
-  "currencyId": zod.string().uuid().optional()
+  "currencyId": zod.string().uuid().optional(),
+  "settlementType": zod.enum(['none', 'reimbursable', 'paid_by_other']).optional().describe('none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.'),
+  "counterpartyId": zod.string().uuid().nullish(),
+  "settlementStatus": zod.union([zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),zod.null()]).optional(),
+  "settledOn": zod.coerce.date().nullish()
 })
 
 export const updateExpenseResponseAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
@@ -1830,6 +2355,7 @@ export const updateExpenseResponseCurrencyDecimalPlacesMax = 4;
 export const updateExpenseResponseLocationCountryCodeMin = 2;
 export const updateExpenseResponseLocationCountryCodeMax = 2;
 
+export const updateExpenseResponseSettledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 
 
 export const UpdateExpenseResponse = zod.object({
@@ -1880,7 +2406,15 @@ export const UpdateExpenseResponse = zod.object({
   "countryCode": zod.string().min(updateExpenseResponseLocationCountryCodeMin).max(updateExpenseResponseLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),
+  "settlementType": zod.enum(['none', 'reimbursable', 'paid_by_other']).describe('none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),zod.null()]),
+  "settledOn": zod.string().regex(updateExpenseResponseSettledOnRegExp).nullable(),
+  "counterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()])
 })
 
 
@@ -2094,6 +2628,7 @@ export const getDashboardResponseRecentByLocationItemExpensesItemCurrencyDecimal
 export const getDashboardResponseRecentByLocationItemExpensesItemLocationCountryCodeMin = 2;
 export const getDashboardResponseRecentByLocationItemExpensesItemLocationCountryCodeMax = 2;
 
+export const getDashboardResponseRecentByLocationItemExpensesItemSettledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 export const getDashboardResponseRecentExpensesItemAmountRegExp = new RegExp('^[0-9]{1,12}(\\.[0-9]{1,2})?$');
 export const getDashboardResponseRecentExpensesItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 export const getDashboardResponseRecentExpensesItemCurrencyCodeMin = 3;
@@ -2109,6 +2644,7 @@ export const getDashboardResponseRecentExpensesItemCurrencyDecimalPlacesMax = 4;
 export const getDashboardResponseRecentExpensesItemLocationCountryCodeMin = 2;
 export const getDashboardResponseRecentExpensesItemLocationCountryCodeMax = 2;
 
+export const getDashboardResponseRecentExpensesItemSettledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 export const getDashboardResponseCategorySpendingItemTotalsItemCurrencyCodeMin = 3;
 export const getDashboardResponseCategorySpendingItemTotalsItemCurrencyCodeMax = 3;
 
@@ -2163,6 +2699,54 @@ export const getDashboardResponseTrendBucketsItemTotalsItemShareMin = 0;
 export const getDashboardResponseTrendBucketsItemTotalsItemShareMax = 1;
 
 export const getDashboardResponseTrendBucketsItemCountMin = 0;
+
+export const getDashboardResponseSettlementsOwedToMeItemCurrencyCodeMin = 3;
+export const getDashboardResponseSettlementsOwedToMeItemCurrencyCodeMax = 3;
+
+export const getDashboardResponseSettlementsOwedToMeItemCurrencyNameMax = 80;
+
+export const getDashboardResponseSettlementsOwedToMeItemCurrencySymbolMax = 8;
+
+export const getDashboardResponseSettlementsOwedToMeItemCurrencyDecimalPlacesMin = 0;
+export const getDashboardResponseSettlementsOwedToMeItemCurrencyDecimalPlacesMax = 4;
+
+export const getDashboardResponseSettlementsOwedToMeItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getDashboardResponseSettlementsOwedToMeItemCountMin = 0;
+
+export const getDashboardResponseSettlementsOwedToMeItemShareMin = 0;
+export const getDashboardResponseSettlementsOwedToMeItemShareMax = 1;
+
+export const getDashboardResponseSettlementsIOweItemCurrencyCodeMin = 3;
+export const getDashboardResponseSettlementsIOweItemCurrencyCodeMax = 3;
+
+export const getDashboardResponseSettlementsIOweItemCurrencyNameMax = 80;
+
+export const getDashboardResponseSettlementsIOweItemCurrencySymbolMax = 8;
+
+export const getDashboardResponseSettlementsIOweItemCurrencyDecimalPlacesMin = 0;
+export const getDashboardResponseSettlementsIOweItemCurrencyDecimalPlacesMax = 4;
+
+export const getDashboardResponseSettlementsIOweItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getDashboardResponseSettlementsIOweItemCountMin = 0;
+
+export const getDashboardResponseSettlementsIOweItemShareMin = 0;
+export const getDashboardResponseSettlementsIOweItemShareMax = 1;
+
+export const getDashboardResponseSettlementsMonthReimbursableItemCurrencyCodeMin = 3;
+export const getDashboardResponseSettlementsMonthReimbursableItemCurrencyCodeMax = 3;
+
+export const getDashboardResponseSettlementsMonthReimbursableItemCurrencyNameMax = 80;
+
+export const getDashboardResponseSettlementsMonthReimbursableItemCurrencySymbolMax = 8;
+
+export const getDashboardResponseSettlementsMonthReimbursableItemCurrencyDecimalPlacesMin = 0;
+export const getDashboardResponseSettlementsMonthReimbursableItemCurrencyDecimalPlacesMax = 4;
+
+export const getDashboardResponseSettlementsMonthReimbursableItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getDashboardResponseSettlementsMonthReimbursableItemCountMin = 0;
+
+export const getDashboardResponseSettlementsMonthReimbursableItemShareMin = 0;
+export const getDashboardResponseSettlementsMonthReimbursableItemShareMax = 1;
 
 
 
@@ -2379,7 +2963,15 @@ export const GetDashboardResponse = zod.object({
   "countryCode": zod.string().min(getDashboardResponseRecentByLocationItemExpensesItemLocationCountryCodeMin).max(getDashboardResponseRecentByLocationItemExpensesItemLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),
+  "settlementType": zod.enum(['none', 'reimbursable', 'paid_by_other']).describe('none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),zod.null()]),
+  "settledOn": zod.string().regex(getDashboardResponseRecentByLocationItemExpensesItemSettledOnRegExp).nullable(),
+  "counterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()])
 }))
 })),
   "recentExpenses": zod.array(zod.object({
@@ -2430,7 +3022,15 @@ export const GetDashboardResponse = zod.object({
   "countryCode": zod.string().min(getDashboardResponseRecentExpensesItemLocationCountryCodeMin).max(getDashboardResponseRecentExpensesItemLocationCountryCodeMax).nullable(),
   "status": zod.enum(['active', 'archived'])
 }),
-  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.')
+  "transactionType": zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),
+  "settlementType": zod.enum(['none', 'reimbursable', 'paid_by_other']).describe('none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),zod.null()]),
+  "settledOn": zod.string().regex(getDashboardResponseRecentExpensesItemSettledOnRegExp).nullable(),
+  "counterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()])
 })),
   "categorySpending": zod.array(zod.object({
   "category": zod.object({
@@ -2498,6 +3098,47 @@ export const GetDashboardResponse = zod.object({
 })),
   "count": zod.number().int().min(getDashboardResponseTrendBucketsItemCountMin)
 }))
+}),
+  "settlements": zod.object({
+  "owedToMe": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getDashboardResponseSettlementsOwedToMeItemCurrencyCodeMin).max(getDashboardResponseSettlementsOwedToMeItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getDashboardResponseSettlementsOwedToMeItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getDashboardResponseSettlementsOwedToMeItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getDashboardResponseSettlementsOwedToMeItemCurrencyDecimalPlacesMin).max(getDashboardResponseSettlementsOwedToMeItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getDashboardResponseSettlementsOwedToMeItemTotalRegExp),
+  "count": zod.number().int().min(getDashboardResponseSettlementsOwedToMeItemCountMin),
+  "share": zod.number().min(getDashboardResponseSettlementsOwedToMeItemShareMin).max(getDashboardResponseSettlementsOwedToMeItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})).describe('Reimbursements still open (pending or claimed).'),
+  "iOwe": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getDashboardResponseSettlementsIOweItemCurrencyCodeMin).max(getDashboardResponseSettlementsIOweItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getDashboardResponseSettlementsIOweItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getDashboardResponseSettlementsIOweItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getDashboardResponseSettlementsIOweItemCurrencyDecimalPlacesMin).max(getDashboardResponseSettlementsIOweItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getDashboardResponseSettlementsIOweItemTotalRegExp),
+  "count": zod.number().int().min(getDashboardResponseSettlementsIOweItemCountMin),
+  "share": zod.number().min(getDashboardResponseSettlementsIOweItemShareMin).max(getDashboardResponseSettlementsIOweItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})).describe('Money still to pay back to people who paid for you.'),
+  "monthReimbursable": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getDashboardResponseSettlementsMonthReimbursableItemCurrencyCodeMin).max(getDashboardResponseSettlementsMonthReimbursableItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getDashboardResponseSettlementsMonthReimbursableItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getDashboardResponseSettlementsMonthReimbursableItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getDashboardResponseSettlementsMonthReimbursableItemCurrencyDecimalPlacesMin).max(getDashboardResponseSettlementsMonthReimbursableItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getDashboardResponseSettlementsMonthReimbursableItemTotalRegExp),
+  "count": zod.number().int().min(getDashboardResponseSettlementsMonthReimbursableItemCountMin),
+  "share": zod.number().min(getDashboardResponseSettlementsMonthReimbursableItemShareMin).max(getDashboardResponseSettlementsMonthReimbursableItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})).describe('The part of this month\'s spending that is reimbursable.')
 })
 })
 
@@ -3036,6 +3677,11 @@ export const GetProjectReportsResponseItem = zod.object({
   "decimalPlaces": zod.number().int().min(getProjectReportsResponseProjectDefaultCurrencyDecimalPlacesMin).max(getProjectReportsResponseProjectDefaultCurrencyDecimalPlacesMax),
   "isActive": zod.boolean()
 }),
+  "defaultCounterparty": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]).optional().describe('Suggested reimburser for reimbursable expenses in this project.'),
   "usageCount": zod.number().int().min(getProjectReportsResponseProjectUsageCountMin).optional().describe('Expenses assigned to this project.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -3398,6 +4044,8 @@ export const getBackupResponseCountsExpensesMin = 0;
 
 export const getBackupResponseCountsExpenseLabelsMin = 0;
 
+export const getBackupResponseCountsCounterpartiesMin = 0;
+
 export const getBackupResponseProjectsItemNameMax = 120;
 
 export const getBackupResponseProjectsItemDescriptionMax = 4000;
@@ -3407,6 +4055,8 @@ export const getBackupResponseProjectsItemIconMax = 64;
 
 export const getBackupResponseProjectsItemDefaultCurrencyMin = 3;
 export const getBackupResponseProjectsItemDefaultCurrencyMax = 3;
+
+export const getBackupResponseProjectsItemDefaultCounterpartyMax = 80;
 
 export const getBackupResponseCategoriesItemNameMax = 80;
 
@@ -3429,6 +4079,10 @@ export const getBackupResponseExpensesItemCurrencyMax = 3;
 
 export const getBackupResponseExpensesItemLocationMax = 80;
 
+export const getBackupResponseExpensesItemCounterpartyMax = 80;
+
+export const getBackupResponseCounterpartiesItemNameMax = 80;
+
 
 
 export const GetBackupResponse = zod.object({
@@ -3440,7 +4094,8 @@ export const GetBackupResponse = zod.object({
   "categories": zod.number().int().min(getBackupResponseCountsCategoriesMin).optional(),
   "labels": zod.number().int().min(getBackupResponseCountsLabelsMin).optional(),
   "expenses": zod.number().int().min(getBackupResponseCountsExpensesMin).optional(),
-  "expenseLabels": zod.number().int().min(getBackupResponseCountsExpenseLabelsMin).optional()
+  "expenseLabels": zod.number().int().min(getBackupResponseCountsExpenseLabelsMin).optional(),
+  "counterparties": zod.number().int().min(getBackupResponseCountsCounterpartiesMin).optional()
 }).optional(),
   "projects": zod.array(zod.object({
   "id": zod.string().uuid(),
@@ -3450,6 +4105,7 @@ export const GetBackupResponse = zod.object({
   "icon": zod.string().max(getBackupResponseProjectsItemIconMax).nullish(),
   "status": zod.enum(['active', 'archived']),
   "defaultCurrency": zod.string().min(getBackupResponseProjectsItemDefaultCurrencyMin).max(getBackupResponseProjectsItemDefaultCurrencyMax),
+  "defaultCounterparty": zod.string().min(1).max(getBackupResponseProjectsItemDefaultCounterpartyMax).nullish().describe('Counterparty name. Optional so older backups still import.'),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })),
@@ -3482,13 +4138,24 @@ export const GetBackupResponse = zod.object({
   "currency": zod.string().min(getBackupResponseExpensesItemCurrencyMin).max(getBackupResponseExpensesItemCurrencyMax),
   "location": zod.string().min(1).max(getBackupResponseExpensesItemLocationMax).nullish().describe('Location slug. Optional so backups exported before locations existed still import; those rows fall back to the default location.\n'),
   "transactionType": zod.union([zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),zod.null()]).optional().describe('Optional so backups exported before transaction types existed still import; those rows are treated as expenses.\n'),
+  "settlementType": zod.union([zod.enum(['none', 'reimbursable', 'paid_by_other']).describe('none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.'),zod.null()]).optional().describe('Optional so older backups still import; those rows are ordinary expenses.'),
+  "counterparty": zod.string().min(1).max(getBackupResponseExpensesItemCounterpartyMax).nullish().describe('Counterparty name, portable across installs.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),zod.null()]).optional(),
+  "settledOn": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })),
   "expenseLabels": zod.array(zod.object({
   "expenseId": zod.string().uuid(),
   "labelId": zod.string().uuid()
-}))
+})),
+  "counterparties": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(getBackupResponseCounterpartiesItemNameMax),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})).optional().describe('Optional so backups exported before settlements existed still import.')
 })
 
 
@@ -3507,6 +4174,8 @@ export const importBackupBodyCountsExpensesMin = 0;
 
 export const importBackupBodyCountsExpenseLabelsMin = 0;
 
+export const importBackupBodyCountsCounterpartiesMin = 0;
+
 export const importBackupBodyProjectsItemNameMax = 120;
 
 export const importBackupBodyProjectsItemDescriptionMax = 4000;
@@ -3516,6 +4185,8 @@ export const importBackupBodyProjectsItemIconMax = 64;
 
 export const importBackupBodyProjectsItemDefaultCurrencyMin = 3;
 export const importBackupBodyProjectsItemDefaultCurrencyMax = 3;
+
+export const importBackupBodyProjectsItemDefaultCounterpartyMax = 80;
 
 export const importBackupBodyCategoriesItemNameMax = 80;
 
@@ -3538,6 +4209,10 @@ export const importBackupBodyExpensesItemCurrencyMax = 3;
 
 export const importBackupBodyExpensesItemLocationMax = 80;
 
+export const importBackupBodyExpensesItemCounterpartyMax = 80;
+
+export const importBackupBodyCounterpartiesItemNameMax = 80;
+
 
 
 export const ImportBackupBody = zod.object({
@@ -3549,7 +4224,8 @@ export const ImportBackupBody = zod.object({
   "categories": zod.number().int().min(importBackupBodyCountsCategoriesMin).optional(),
   "labels": zod.number().int().min(importBackupBodyCountsLabelsMin).optional(),
   "expenses": zod.number().int().min(importBackupBodyCountsExpensesMin).optional(),
-  "expenseLabels": zod.number().int().min(importBackupBodyCountsExpenseLabelsMin).optional()
+  "expenseLabels": zod.number().int().min(importBackupBodyCountsExpenseLabelsMin).optional(),
+  "counterparties": zod.number().int().min(importBackupBodyCountsCounterpartiesMin).optional()
 }).optional(),
   "projects": zod.array(zod.object({
   "id": zod.string().uuid(),
@@ -3559,6 +4235,7 @@ export const ImportBackupBody = zod.object({
   "icon": zod.string().max(importBackupBodyProjectsItemIconMax).nullish(),
   "status": zod.enum(['active', 'archived']),
   "defaultCurrency": zod.string().min(importBackupBodyProjectsItemDefaultCurrencyMin).max(importBackupBodyProjectsItemDefaultCurrencyMax),
+  "defaultCounterparty": zod.string().min(1).max(importBackupBodyProjectsItemDefaultCounterpartyMax).nullish().describe('Counterparty name. Optional so older backups still import.'),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })),
@@ -3591,13 +4268,24 @@ export const ImportBackupBody = zod.object({
   "currency": zod.string().min(importBackupBodyExpensesItemCurrencyMin).max(importBackupBodyExpensesItemCurrencyMax),
   "location": zod.string().min(1).max(importBackupBodyExpensesItemLocationMax).nullish().describe('Location slug. Optional so backups exported before locations existed still import; those rows fall back to the default location.\n'),
   "transactionType": zod.union([zod.enum(['expense', 'payment']).describe('expense = real consumption. payment = settling a debt, excluded from spending totals.'),zod.null()]).optional().describe('Optional so backups exported before transaction types existed still import; those rows are treated as expenses.\n'),
+  "settlementType": zod.union([zod.enum(['none', 'reimbursable', 'paid_by_other']).describe('none = you paid and it is your cost. reimbursable = you paid and someone will pay you back. paid_by_other = someone paid for you and you owe them. All three are real expenses dated when they happened.'),zod.null()]).optional().describe('Optional so older backups still import; those rows are ordinary expenses.'),
+  "counterparty": zod.string().min(1).max(importBackupBodyExpensesItemCounterpartyMax).nullish().describe('Counterparty name, portable across installs.'),
+  "settlementStatus": zod.union([zod.enum(['pending', 'claimed', 'settled']).describe('claimed only applies to reimbursable expenses.'),zod.null()]).optional(),
+  "settledOn": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })),
   "expenseLabels": zod.array(zod.object({
   "expenseId": zod.string().uuid(),
   "labelId": zod.string().uuid()
-}))
+})),
+  "counterparties": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().min(1).max(importBackupBodyCounterpartiesItemNameMax),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})).optional().describe('Optional so backups exported before settlements existed still import.')
 })
 
 export const importBackupResponseProjectsCreatedMin = 0;
@@ -3626,6 +4314,12 @@ export const importBackupResponseExpensesSkippedMin = 0;
 
 export const importBackupResponseExpenseLabelsMin = 0;
 
+export const importBackupResponseCounterpartiesCreatedMin = 0;
+
+export const importBackupResponseCounterpartiesUpdatedMin = 0;
+
+export const importBackupResponseCounterpartiesSkippedMin = 0;
+
 
 
 export const ImportBackupResponse = zod.object({
@@ -3650,6 +4344,11 @@ export const ImportBackupResponse = zod.object({
   "skipped": zod.number().int().min(importBackupResponseExpensesSkippedMin)
 }),
   "expenseLabels": zod.number().int().min(importBackupResponseExpenseLabelsMin),
+  "counterparties": zod.object({
+  "created": zod.number().int().min(importBackupResponseCounterpartiesCreatedMin),
+  "updated": zod.number().int().min(importBackupResponseCounterpartiesUpdatedMin),
+  "skipped": zod.number().int().min(importBackupResponseCounterpartiesSkippedMin)
+}).optional(),
   "warnings": zod.array(zod.string())
 })
 

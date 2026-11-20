@@ -18,6 +18,8 @@ tags:
     description: Currency management
   - name: locations
     description: Location management
+  - name: counterparties
+    description: People and companies that reimburse you or paid on your behalf
   - name: backup
     description: Data export and backup management
 paths:
@@ -903,6 +905,180 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /counterparties:
+    get:
+      operationId: listCounterparties
+      tags: [counterparties]
+      summary: List the people and companies money is settled with
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, archived, all]
+      responses:
+        "200":
+          description: Counterparties with how many expenses use each
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CounterpartyCollection"
+    post:
+      operationId: createCounterparty
+      tags: [counterparties]
+      summary: Add a person or company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CounterpartyInput"
+      responses:
+        "201":
+          description: Created counterparty
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Counterparty"
+        "400":
+          description: Invalid name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A person or company with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /counterparties/{counterpartyId}:
+    parameters:
+      - name: counterpartyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateCounterparty
+      tags: [counterparties]
+      summary: Rename, archive, or restore a person or company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CounterpartyUpdate"
+      responses:
+        "200":
+          description: Updated counterparty
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Counterparty"
+        "400":
+          description: Invalid data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A person or company with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteCounterparty
+      tags: [counterparties]
+      summary: Delete a person or company
+      description: >-
+        Removes the record when no expense uses it. When expenses still point
+        at it the record is archived instead, so no expense is ever broken.
+      responses:
+        "200":
+          description: Deleted, or archived because it is still in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordDeleteResult"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /expenses/{expenseId}/settlement:
+    parameters:
+      - name: expenseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateExpenseSettlement
+      tags: [expenses]
+      summary: Move a reimbursable or paid-by-someone-else expense along
+      description: >-
+        Marks the expense claimed, settled (paid back to you, or by you), or
+        reopens it. Only the settlement changes; the expense itself, its
+        amount and its date stay as they were, so past months never change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExpenseSettlementUpdate"
+      responses:
+        "200":
+          description: Updated expense
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseRecord"
+        "400":
+          description: This expense has nothing to settle, or the status is not valid for it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Expense not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /reports/settlements:
+    get:
+      operationId: getSettlementReport
+      tags: [reports]
+      summary: What is owed to you, what you owe, and what was settled each month
+      parameters:
+        - name: months
+          in: query
+          required: false
+          description: How many months of settled history to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 36
+            default: 12
+      responses:
+        "200":
+          description: Outstanding balances by person or company, and monthly settled history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettlementReport"
   /reports/trends:
     get:
       operationId: getReportTrends
@@ -1038,6 +1214,26 @@ paths:
           description: Filter by transaction type.
           schema:
             $ref: "#/components/schemas/ExpenseTransactionType"
+        - name: settlementType
+          in: query
+          required: false
+          description: Only reimbursable expenses, only ones someone else paid, or only ordinary ones.
+          schema:
+            $ref: "#/components/schemas/ExpenseSettlementType"
+        - name: settlementStatus
+          in: query
+          required: false
+          description: open matches pending and claimed - anything not yet settled.
+          schema:
+            type: string
+            enum: [open, pending, claimed, settled]
+        - name: counterpartyId
+          in: query
+          required: false
+          description: Only expenses settled with this person or company
+          schema:
+            type: string
+            format: uuid
         - name: sort
           in: query
           required: false
@@ -1768,6 +1964,11 @@ components:
           enum: [active, archived]
         defaultCurrency:
           $ref: "#/components/schemas/Currency"
+        defaultCounterparty:
+          description: Suggested reimburser for reimbursable expenses in this project.
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseCounterparty"
+            - type: "null"
         usageCount:
           type: integer
           minimum: 0
@@ -1808,6 +2009,9 @@ components:
         defaultCurrencyId:
           type: string
           format: uuid
+        defaultCounterpartyId:
+          type: [string, "null"]
+          format: uuid
       required:
         - name
         - defaultCurrencyId
@@ -1830,6 +2034,9 @@ components:
           maxLength: 64
         defaultCurrencyId:
           type: string
+          format: uuid
+        defaultCounterpartyId:
+          type: [string, "null"]
           format: uuid
     ProjectListItem:
       allOf:
@@ -2194,6 +2401,192 @@ components:
       type: array
       items:
         $ref: "#/components/schemas/Label"
+    BackupCounterparty:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, status]
+    ExpenseSettlementType:
+      type: string
+      description: >-
+        none = you paid and it is your cost. reimbursable = you paid and someone
+        will pay you back. paid_by_other = someone paid for you and you owe them.
+        All three are real expenses dated when they happened.
+      enum: [none, reimbursable, paid_by_other]
+    ExpenseSettlementStatus:
+      type: string
+      description: claimed only applies to reimbursable expenses.
+      enum: [pending, claimed, settled]
+    ExpenseCounterparty:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, archived]
+      required: [id, name, status]
+    Counterparty:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        status:
+          type: string
+          enum: [active, archived]
+        usageCount:
+          type: integer
+          minimum: 0
+          description: Expenses settled with this person or company.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, status, createdAt, updatedAt]
+    CounterpartyInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+      required: [name]
+    CounterpartyUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        status:
+          type: string
+          enum: [active, archived]
+    CounterpartyCollection:
+      type: array
+      items:
+        $ref: "#/components/schemas/Counterparty"
+    ExpenseSettlementUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          $ref: "#/components/schemas/ExpenseSettlementStatus"
+        settledOn:
+          type: [string, "null"]
+          format: date
+          description: Required when status is settled; defaults to today when omitted.
+      required: [status]
+    SettlementPartyRow:
+      type: object
+      properties:
+        counterparty:
+          $ref: "#/components/schemas/ExpenseCounterparty"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        count:
+          type: integer
+          minimum: 0
+        claimedCount:
+          type: integer
+          minimum: 0
+        oldestDate:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        oldestDays:
+          type: integer
+          minimum: 0
+          description: Days since the oldest open expense with this counterparty.
+      required: [counterparty, totals, count, claimedCount, oldestDate, oldestDays]
+    SettlementSide:
+      type: object
+      properties:
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        parties:
+          type: array
+          items:
+            $ref: "#/components/schemas/SettlementPartyRow"
+      required: [totals, parties]
+    SettlementMonth:
+      type: object
+      properties:
+        month:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+          description: First day of the month the money moved (settled_on), not the expense month.
+        received:
+          type: array
+          description: Reimbursements paid back to you in this month.
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        repaid:
+          type: array
+          description: Money you paid back to people who covered for you in this month.
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+      required: [month, received, repaid]
+    SettlementReport:
+      type: object
+      properties:
+        owedToMe:
+          $ref: "#/components/schemas/SettlementSide"
+        iOwe:
+          $ref: "#/components/schemas/SettlementSide"
+        monthly:
+          type: array
+          items:
+            $ref: "#/components/schemas/SettlementMonth"
+      required: [owedToMe, iOwe, monthly]
+    DashboardSettlements:
+      type: object
+      properties:
+        owedToMe:
+          type: array
+          description: Reimbursements still open (pending or claimed).
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        iOwe:
+          type: array
+          description: Money still to pay back to people who paid for you.
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        monthReimbursable:
+          type: array
+          description: The part of this month's spending that is reimbursable.
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+      required: [owedToMe, iOwe, monthReimbursable]
     ExpensePaymentMethod:
       type: string
       enum: [cash, credit_card, debit_card, bank_transfer, upi, other]
@@ -2424,6 +2817,19 @@ components:
           $ref: "#/components/schemas/ExpenseLocation"
         transactionType:
           $ref: "#/components/schemas/ExpenseTransactionType"
+        settlementType:
+          $ref: "#/components/schemas/ExpenseSettlementType"
+        settlementStatus:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseSettlementStatus"
+            - type: "null"
+        settledOn:
+          type: [string, "null"]
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        counterparty:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseCounterparty"
+            - type: "null"
       required:
         - id
         - amount
@@ -2442,6 +2848,10 @@ components:
         - currency
         - location
         - transactionType
+        - settlementType
+        - settlementStatus
+        - settledOn
+        - counterparty
     ExpensePage:
       type: object
       properties:
@@ -2462,13 +2872,18 @@ components:
           description: Sum of matching payment transactions grouped by currency
           items:
             $ref: "#/components/schemas/CurrencyAmount"
+        reimbursableTotals:
+          type: array
+          description: The part of totals that is reimbursable - spent, but not your own cost
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
         limit:
           type: integer
         offset:
           type: integer
         hasMore:
           type: boolean
-      required: [items, total, totals, paymentTotals, limit, offset, hasMore]
+      required: [items, total, totals, paymentTotals, reimbursableTotals, limit, offset, hasMore]
     DashboardSummary:
       type: object
       description: Spending only - payment transactions are excluded so a card bill never double-counts its purchases.
@@ -2600,7 +3015,9 @@ components:
             $ref: "#/components/schemas/DashboardProjectSpending"
         trend:
           $ref: "#/components/schemas/DashboardTrend"
-      required: [summary, payments, locationSpending, recentByLocation, recentExpenses, categorySpending, projectSpending, trend]
+        settlements:
+          $ref: "#/components/schemas/DashboardSettlements"
+      required: [summary, payments, locationSpending, recentByLocation, recentExpenses, categorySpending, projectSpending, trend, settlements]
     ReportRange:
       type: object
       properties:
@@ -2982,6 +3399,18 @@ components:
         currencyId:
           type: string
           format: uuid
+        settlementType:
+          $ref: "#/components/schemas/ExpenseSettlementType"
+        counterpartyId:
+          type: [string, "null"]
+          format: uuid
+        settlementStatus:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseSettlementStatus"
+            - type: "null"
+        settledOn:
+          type: [string, "null"]
+          format: date
       required: [amount, date, categoryId, currencyId, locationId]
     ExpenseUpdate:
       type: object
@@ -3026,6 +3455,18 @@ components:
         currencyId:
           type: string
           format: uuid
+        settlementType:
+          $ref: "#/components/schemas/ExpenseSettlementType"
+        counterpartyId:
+          type: [string, "null"]
+          format: uuid
+        settlementStatus:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseSettlementStatus"
+            - type: "null"
+        settledOn:
+          type: [string, "null"]
+          format: date
     BackupProject:
       type: object
       properties:
@@ -3052,6 +3493,11 @@ components:
           type: string
           minLength: 3
           maxLength: 3
+        defaultCounterparty:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 80
+          description: Counterparty name. Optional so older backups still import.
         createdAt:
           type: string
           format: date-time
@@ -3155,6 +3601,23 @@ components:
           description: >
             Optional so backups exported before transaction types existed still
             import; those rows are treated as expenses.
+        settlementType:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseSettlementType"
+            - type: "null"
+          description: Optional so older backups still import; those rows are ordinary expenses.
+        counterparty:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 80
+          description: Counterparty name, portable across installs.
+        settlementStatus:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseSettlementStatus"
+            - type: "null"
+        settledOn:
+          type: [string, "null"]
+          format: date
         createdAt:
           type: string
           format: date-time
@@ -3188,6 +3651,9 @@ components:
           type: integer
           minimum: 0
         expenseLabels:
+          type: integer
+          minimum: 0
+        counterparties:
           type: integer
           minimum: 0
     BackupDocument:
@@ -3224,6 +3690,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BackupExpenseLabel"
+        counterparties:
+          type: array
+          description: Optional so backups exported before settlements existed still import.
+          items:
+            $ref: "#/components/schemas/BackupCounterparty"
       required: [format, version, projects, categories, labels, expenses, expenseLabels]
     BackupImportCount:
       type: object
@@ -3252,6 +3723,8 @@ components:
         expenseLabels:
           type: integer
           minimum: 0
+        counterparties:
+          $ref: "#/components/schemas/BackupImportCount"
         warnings:
           type: array
           items:

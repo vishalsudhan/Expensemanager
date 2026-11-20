@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
+import type { ExpenseSettlementStatus } from './expenseSettlementStatus';
+import type { ExpenseSettlementType } from './expenseSettlementType';
 import type { ExpenseTransactionType } from './expenseTransactionType';
 
 export interface ExpenseInput {
@@ -33,4 +35,10 @@ export interface ExpenseInput {
      */
   notes?: string | null;
   currencyId: string;
+  settlementType?: ExpenseSettlementType;
+  /** @nullable */
+  counterpartyId?: string | null;
+  settlementStatus?: ExpenseSettlementStatus | null;
+  /** @nullable */
+  settledOn?: Date | null;
 }

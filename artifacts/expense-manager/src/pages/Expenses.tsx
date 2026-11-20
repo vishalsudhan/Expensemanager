@@ -19,9 +19,13 @@ import type {
 } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { useOffline } from '@/components/offline-provider';
-import { findCurrency, useCurrencyOptions } from '@/hooks/use-currencies';
+import { defaultCurrency, findCurrency, useCurrencyOptions } from '@/hooks/use-currencies';
 import { categoryPath, useCategoryTree, useLocations } from '@/hooks/use-locations';
 import { enqueueExpense } from '@/lib/offline-store';
+import { useCounterparties } from '@/hooks/use-counterparties';
+import { SettlementFields } from '@/components/settlement-fields';
+import { SettlementCard } from '@/components/settlement-card';
+import { settlementBadge, statusTone } from '@/lib/settlements';
 import { errorText, formatDate, formatTotals, money, moneyByCode } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,6 +53,22 @@ const expenseSchema = z.object({
   description: z.string().max(1000, 'Keep the description under 1,000 characters.'),
   paymentMethod: z.enum(['', 'cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),
   notes: z.string().max(4000, 'Keep notes under 4,000 characters.'),
+  settlementType: z.enum(['none', 'reimbursable', 'paid_by_other']),
+  counterpartyId: z.string(),
+  settlementStatus: z.enum(['pending', 'claimed', 'settled']),
+  settledOn: z.string(),
+}).superRefine((values, ctx) => {
+  if (values.settlementType === 'none' || values.transactionType === 'payment') return;
+  if (!values.counterpartyId) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['counterpartyId'],
+      message: values.settlementType === 'reimbursable' ? 'Choose who will reimburse you.' : 'Choose who paid.',
+    });
+  }
+  if (values.settlementStatus === 'settled' && !/^\d{4}-\d{2}-\d{2}$/.test(values.settledOn)) {
+    ctx.addIssue({ code: 'custom', path: ['settledOn'], message: 'Choose the date.' });
+  }
 });
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
@@ -84,6 +104,7 @@ const defaultValues = (currencyId = '', locationId = ''): ExpenseFormValues => (
   amount: '', date: localToday(), projectId: '',
   categoryId: '', locationId, currencyId, labelIds: [], description: '',
   paymentMethod: '', transactionType: 'expense', notes: '',
+  settlementType: 'none', counterpartyId: '', settlementStatus: 'pending', settledOn: '',
 });
 const fromExpense = (expense: ExpenseRecord): ExpenseFormValues => ({
   amount: expense.amount,
@@ -97,6 +118,10 @@ const fromExpense = (expense: ExpenseRecord): ExpenseFormValues => ({
   description: expense.description ?? '',
   paymentMethod: expense.paymentMethod ?? '',
   notes: expense.notes ?? '',
+  settlementType: expense.settlementType ?? 'none',
+  counterpartyId: expense.counterparty?.id ?? '',
+  settlementStatus: expense.settlementStatus ?? 'pending',
+  settledOn: expense.settledOn ?? '',
 });
 
 function CategoryMark({ color, icon }: { color: string; icon: string | null }) {
@@ -129,11 +154,15 @@ export function ExpenseListPage() {
   const [locationId, setLocationId] = useState(() => urlParams.get('locationId') ?? '');
   const [parentCategoryId, setParentCategoryId] = useState(() => urlParams.get('parentCategoryId') ?? '');
   const [transactionType, setTransactionType] = useState(() => urlParams.get('transactionType') ?? '');
+  const [settlementType, setSettlementType] = useState(() => urlParams.get('settlementType') ?? '');
+  const [settlementStatus, setSettlementStatus] = useState(() => urlParams.get('settlementStatus') ?? '');
+  const [counterpartyId, setCounterpartyId] = useState(() => urlParams.get('counterpartyId') ?? '');
+  const { counterparties } = useCounterparties();
   const [sort, setSort] = useState<ListExpensesSort>(() => {
     const value = urlParams.get('sort');
     return value && ['newest', 'oldest', 'highest', 'lowest'].includes(value) ? (value as ListExpensesSort) : 'newest';
   });
-  const [filtersOpen, setFiltersOpen] = useState(() => ['from', 'to', 'projectId', 'categoryId', 'labelId', 'paymentMethod', 'currencyId'].some((key) => urlParams.has(key)));
+  const [filtersOpen, setFiltersOpen] = useState(() => ['from', 'to', 'projectId', 'categoryId', 'labelId', 'paymentMethod', 'currencyId', 'settlementType', 'settlementStatus', 'counterpartyId'].some((key) => urlParams.has(key)));
 
   useEffect(() => {
     const params = new URLSearchParams(urlSearch);
@@ -147,12 +176,15 @@ export function ExpenseListPage() {
     setLocationId(params.get('locationId') ?? '');
     setParentCategoryId(params.get('parentCategoryId') ?? '');
     setTransactionType(params.get('transactionType') ?? '');
+    setSettlementType(params.get('settlementType') ?? '');
+    setSettlementStatus(params.get('settlementStatus') ?? '');
+    setCounterpartyId(params.get('counterpartyId') ?? '');
     const nextSearch = params.get('search') ?? '';
     setSearch(nextSearch);
     setDebouncedSearch(nextSearch);
     const nextSort = params.get('sort');
     if (nextSort && ['newest', 'oldest', 'highest', 'lowest'].includes(nextSort)) setSort(nextSort as ListExpensesSort);
-    if (['from', 'to', 'projectId', 'categoryId', 'labelId', 'paymentMethod', 'currencyId'].some((key) => params.has(key))) setFiltersOpen(true);
+    if (['from', 'to', 'projectId', 'categoryId', 'labelId', 'paymentMethod', 'currencyId', 'settlementType', 'settlementStatus', 'counterpartyId'].some((key) => params.has(key))) setFiltersOpen(true);
   }, [urlSearch]);
 
   useEffect(() => {
@@ -172,9 +204,12 @@ export function ExpenseListPage() {
     locationId: locationId || undefined,
     parentCategoryId: parentCategoryId || undefined,
     transactionType: (transactionType || undefined) as ListExpensesParams['transactionType'],
+    settlementType: (settlementType || undefined) as ListExpensesParams['settlementType'],
+    settlementStatus: (settlementStatus || undefined) as ListExpensesParams['settlementStatus'],
+    counterpartyId: counterpartyId || undefined,
     sort,
     limit: PAGE_SIZE,
-  }), [debouncedSearch, from, to, projectId, categoryId, labelId, paymentMethod, currencyId, locationId, parentCategoryId, transactionType, sort]);
+  }), [debouncedSearch, from, to, projectId, categoryId, labelId, paymentMethod, currencyId, locationId, parentCategoryId, transactionType, settlementType, settlementStatus, counterpartyId, sort]);
 
   const queryKey = useMemo(() => [...getListExpensesQueryKey(params), 'infinite'] as const, [params]);
 
@@ -191,6 +226,7 @@ export function ExpenseListPage() {
   const totals = query.data?.pages[0]?.totals ?? [];
   const paymentTotals = query.data?.pages[0]?.paymentTotals ?? [];
   const paymentCount = paymentTotals.reduce((sum, entry) => sum + entry.count, 0);
+  const reimbursableTotals = query.data?.pages[0]?.reimbursableTotals ?? [];
 
   const activeFilters: { key: string; label: string; clear: () => void }[] = [];
   if (from) activeFilters.push({ key: 'from', label: `From ${dateLabel(from)}`, clear: () => setFrom('') });
@@ -203,6 +239,9 @@ export function ExpenseListPage() {
   if (locationId) activeFilters.push({ key: 'location', label: locations?.find((location) => location.id === locationId)?.name ?? 'Location', clear: () => setLocationId('') });
   if (parentCategoryId) activeFilters.push({ key: 'category-group', label: categoryTree.byId.get(parentCategoryId)?.name ?? 'Category', clear: () => setParentCategoryId('') });
   if (transactionType) activeFilters.push({ key: 'type', label: transactionType === 'payment' ? 'Payments' : 'Expenses', clear: () => setTransactionType('') });
+  if (settlementType) activeFilters.push({ key: 'settlement', label: settlementType === 'reimbursable' ? 'Reimbursable' : settlementType === 'paid_by_other' ? 'Paid by someone else' : 'I paid', clear: () => setSettlementType('') });
+  if (settlementStatus) activeFilters.push({ key: 'settlement-status', label: settlementStatus === 'open' ? 'Not settled yet' : settlementStatus === 'settled' ? 'Settled' : settlementStatus === 'claimed' ? 'Claimed' : 'Pending', clear: () => setSettlementStatus('') });
+  if (counterpartyId) activeFilters.push({ key: 'counterparty', label: counterparties.find((item) => item.id === counterpartyId)?.name ?? 'Person or company', clear: () => setCounterpartyId('') });
 
   const clearAll = () => {
     setSearch('');
@@ -216,6 +255,9 @@ export function ExpenseListPage() {
     setLocationId('');
     setParentCategoryId('');
     setTransactionType('');
+    setSettlementType('');
+    setSettlementStatus('');
+    setCounterpartyId('');
   };
 
   const hasAnyFilter = activeFilters.length > 0 || debouncedSearch.trim().length > 0;
@@ -334,6 +376,32 @@ export function ExpenseListPage() {
               </select>
             </label>
             <label className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Who paid</span>
+              <select value={settlementType} onChange={(event) => setSettlementType(event.target.value)} className={controlClass} data-testid="select-expense-filter-settlement">
+                <option value="">Anyone</option>
+                <option value="none">I paid (my own cost)</option>
+                <option value="reimbursable">Reimbursable</option>
+                <option value="paid_by_other">Someone paid for me</option>
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Settlement</span>
+              <select value={settlementStatus} onChange={(event) => setSettlementStatus(event.target.value)} className={controlClass} data-testid="select-expense-filter-settlement-status">
+                <option value="">Any status</option>
+                <option value="open">Not settled yet</option>
+                <option value="pending">Pending</option>
+                <option value="claimed">Claimed</option>
+                <option value="settled">Settled</option>
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Person or company</span>
+              <select value={counterpartyId} onChange={(event) => setCounterpartyId(event.target.value)} className={controlClass} data-testid="select-expense-filter-counterparty">
+                <option value="">Anyone</option>
+                {counterparties.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1.5">
               <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Currency</span>
               <select value={currencyId} onChange={(event) => setCurrencyId(event.target.value)} className={controlClass} data-testid="select-expense-filter-currency">
                 <option value="">Any currency</option>
@@ -367,6 +435,13 @@ export function ExpenseListPage() {
                       <span className="font-semibold text-foreground" data-testid="text-expense-payments-amount">
                         {formatTotals(paymentTotals)}
                       </span>{ ' paid in bills' }
+                    </>
+                  )}
+                  {reimbursableTotals.length > 0 && (
+                    <>
+                      {', of which '}
+                      <span className="font-semibold text-foreground" data-testid="text-expense-reimbursable-amount">{formatTotals(reimbursableTotals)}</span>
+                      {' is reimbursable'}
                     </>
                   )}
                 .</>
@@ -446,6 +521,11 @@ export function ExpenseListPage() {
                       {expense.labels.length > 3 && <span className="text-[10px] font-semibold text-muted-foreground">+{expense.labels.length - 3}</span>}
                     </div>
                   )}
+                  {expense.settlementType !== 'none' && expense.counterparty && (
+                    <span className={`mt-2 inline-flex max-w-full items-center rounded-lg border px-2 py-0.5 text-[10px] font-bold leading-4 ${statusTone(expense.settlementStatus)}`} data-testid={`badge-expense-settlement-${expense.id}`}>
+                      {settlementBadge(expense.settlementType, expense.counterparty.name, expense.settlementStatus)}
+                    </span>
+                  )}
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="font-display text-[15px] font-semibold tracking-[-.03em] tabular-nums" data-testid={`text-expense-amount-${expense.id}`}>{money(expense.amount, expense.currency)}</p>
@@ -494,7 +574,7 @@ export function ExpenseEditorPage() {
   const projectsQuery = useListProjects({ status: 'active' });
   const categoriesQuery = useListCategories({ status: 'active' });
   const labelsQuery = useListLabels({ status: 'active' });
-  const { activeCurrencies: currencies, isLoading: currenciesLoading } = useCurrencyOptions();
+  const { currencies: allCurrencies, activeCurrencies, isLoading: currenciesLoading } = useCurrencyOptions();
   const { locations, isLoading: locationsLoading } = useLocations();
   const categoryTree = useCategoryTree();
   const queryClient = useQueryClient();
@@ -542,6 +622,16 @@ export function ExpenseEditorPage() {
   const busy = createExpense.isPending || updateExpense.isPending;
   const expense = detailQuery.data;
   const currencyTouched = useRef(false);
+  // Switched-off currencies can't be picked for new expenses, but an existing
+  // expense keeps its own: it stays in the list so editing never swaps it.
+  const keptCurrencyId = editing ? expense?.currency?.id : undefined;
+  const currencies = useMemo(
+    () => [
+      ...activeCurrencies,
+      ...allCurrencies.filter((currency) => !currency.isActive && currency.id === keptCurrencyId),
+    ],
+    [activeCurrencies, allCurrencies, keptCurrencyId],
+  );
 
   // The first available location is a sensible default; the user stays in control.
   useEffect(() => {
@@ -556,13 +646,15 @@ export function ExpenseEditorPage() {
 
   useEffect(() => {
     if (!currencies.length) return;
+    // While an existing expense is still loading, its currency isn't known yet.
+    if (editing && !expense) return;
     const current = form.getValues('currencyId');
     if (current && currencies.some((currency) => currency.id === current)) return;
-    const fallback = currencies[0].id;
+    const fallback = defaultCurrency(currencies)?.id ?? currencies[0].id;
     if (fallback !== current) {
       form.setValue('currencyId', fallback, { shouldValidate: false });
     }
-  }, [currencies, form]);
+  }, [currencies, form, editing, expense]);
 
   useEffect(() => {
     if (editing && expense && initializedId.current !== expense.id) {
@@ -628,6 +720,14 @@ export function ExpenseEditorPage() {
       paymentMethod: values.paymentMethod || null,
       transactionType: values.transactionType,
       notes: values.notes.trim() || null,
+      ...(values.settlementType === 'none' || values.transactionType === 'payment'
+        ? { settlementType: 'none' as const, counterpartyId: null, settlementStatus: null, settledOn: null }
+        : {
+            settlementType: values.settlementType,
+            counterpartyId: values.counterpartyId,
+            settlementStatus: values.settlementStatus,
+            settledOn: values.settlementStatus === 'settled' ? values.settledOn : null,
+          }),
     };
     if (editing && expenseId) {
       if (!online) {
@@ -705,7 +805,7 @@ export function ExpenseEditorPage() {
               <div className="mb-6 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-secondary text-primary"><ReceiptText size={17} /></span><div><h2 className="font-display text-[17px] font-semibold tracking-[-.025em]">The essentials</h2><p className="text-xs text-muted-foreground">A few details to anchor this expense.</p></div></div>
               <div className="grid gap-5 sm:grid-cols-2">
                 <FormField control={form.control} name="amount" render={({ field }) => <FormItem><FormLabel>Amount <span className="text-destructive">*</span></FormLabel><FormControl><div className="relative"><span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-display text-xl font-semibold text-muted-foreground" data-testid="text-expense-amount-symbol">{findCurrency(currencies, form.watch('currencyId'))?.symbol ?? '₹'}</span><Input {...field} inputMode="decimal" autoComplete="off" placeholder="0.00" maxLength={15} className="h-[58px] rounded-xl bg-background pl-10 font-display text-[24px] font-semibold tracking-[-.04em] tabular-nums" data-testid="input-expense-amount" /></div></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="currencyId" render={({ field }) => <FormItem><FormLabel>Currency <span className="text-destructive">*</span></FormLabel><FormControl><select {...field} disabled={currenciesLoading} onChange={(event) => { currencyTouched.current = true; field.onChange(event); }} aria-label="Currency" className="h-[58px] w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60" data-testid="select-expense-currency"><option value="">{currenciesLoading ? 'Loading currencies…' : 'Choose a currency'}</option>{currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.symbol} {currency.code} · {currency.name}</option>)}</select></FormControl><p className="text-[11px] text-muted-foreground" data-testid="text-expense-currency-hint">Amounts are kept in this currency. Nothing is converted.</p><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="currencyId" render={({ field }) => <FormItem><FormLabel>Currency <span className="text-destructive">*</span></FormLabel><FormControl><select {...field} disabled={currenciesLoading} onChange={(event) => { currencyTouched.current = true; field.onChange(event); }} aria-label="Currency" className="h-[58px] w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60" data-testid="select-expense-currency"><option value="">{currenciesLoading ? 'Loading currencies…' : 'Choose a currency'}</option>{currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.symbol} {currency.code} · {currency.name}{currency.isActive ? '' : ' (switched off)'}</option>)}</select></FormControl><p className="text-[11px] text-muted-foreground" data-testid="text-expense-currency-hint">Amounts are kept in this currency. Nothing is converted.</p><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="date" render={({ field }) => <FormItem><FormLabel>Date <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} type="date" className="h-11 rounded-xl bg-background" data-testid="input-expense-date" /></FormControl><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="categoryId" render={({ field }) => (
                   <FormItem>
@@ -783,6 +883,11 @@ export function ExpenseEditorPage() {
                 <FormField control={form.control} name="description" render={({ field }) => <FormItem className="sm:col-span-2"><FormLabel>Description <span className="font-normal text-muted-foreground">(optional)</span></FormLabel><FormControl><Input {...field} maxLength={1000} placeholder="What was this for?" className="h-11 rounded-xl bg-background" data-testid="input-expense-description" /></FormControl><FormMessage /></FormItem>} />
               </div>
             </section>
+            <SettlementFields
+              projectDefaultCounterpartyId={
+                (projectsQuery.data ?? []).find((project) => project.id === form.watch('projectId'))?.defaultCounterparty?.id ?? null
+              }
+            />
             <section className="rounded-[22px] border border-border/70 bg-card p-5 sm:p-7">
               <div className="mb-6 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-accent/65 text-accent-foreground"><BriefcaseBusiness size={17} /></span><div><h2 className="font-display text-[17px] font-semibold tracking-[-.025em]">A little more context</h2><p className="text-xs text-muted-foreground">Optional details for later.</p></div></div>
               <div className="grid gap-5 sm:grid-cols-2">
@@ -801,6 +906,7 @@ export function ExpenseEditorPage() {
               <div className="mt-4 space-y-3 text-xs leading-5 text-muted-foreground">
                 <p className="flex gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />Amount, date, and category keep the record clear.</p>
                 <p className="flex gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#b9795e]" />Project, labels, and notes are always optional.</p>
+                <p className="flex gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-amber-500" />Reimbursable or paid by someone else? Set it under “Who paid?”.</p>
               </div>
             </section>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row lg:flex-col">
@@ -872,6 +978,7 @@ export function ExpenseDetailPage() {
         <p className="relative mt-4 font-display text-[42px] font-semibold leading-none tracking-[-.06em] tabular-nums sm:text-[52px]" data-testid="text-expense-detail-amount">{money(expense.amount, expense.currency)}</p>
         <p className="relative mt-3 text-xs text-muted-foreground" data-testid="text-expense-detail-currency">{expense.currency?.symbol} {expense.currency?.code} · {expense.currency?.name}<span className="mx-2">·</span>{expense.location?.name}<span className="mx-2">·</span>{expense.project ? `Part of ${expense.project.name}` : 'Not connected to a project'}</p>
       </section>
+      <SettlementCard expense={expense} />
       <section className="mt-5 rounded-[22px] border border-border/70 bg-card p-5 sm:p-7" data-testid="section-expense-context">
         <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-secondary text-primary"><Tag size={16} /></span><div><h2 className="font-display text-[17px] font-semibold tracking-[-.025em]">The context</h2><p className="text-xs text-muted-foreground">The useful details around this entry.</p></div></div>
         <dl className="mt-5 grid gap-x-8 sm:grid-cols-2">

@@ -17,4 +17,6 @@ export interface BackupDocumentCounts {
   expenses?: number;
   /** @minimum 0 */
   expenseLabels?: number;
+  /** @minimum 0 */
+  counterparties?: number;
 }

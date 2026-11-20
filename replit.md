@@ -63,7 +63,7 @@ Stage 16 is basic multi-currency support, deliberately **without** exchange rate
 ## User preferences
 
 - Keep the product personal, simple, mobile-first, fast, offline-capable, and easy to extend.
-- INR (₹) is the initial default currency.
+- QAR is the default currency for new expenses and projects; only QAR and INR are switched on (migration 0005). Others can be re-enabled in Settings.
 
 ## Gotchas
 

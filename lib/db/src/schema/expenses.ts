@@ -12,6 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { categoriesTable } from "./categories";
+import { counterpartiesTable } from "./counterparties";
 import { currenciesTable } from "./currencies";
 import { locationsTable } from "./locations";
 import { projectsTable } from "./projects";
@@ -34,6 +35,29 @@ export const paymentMethodEnum = pgEnum("payment_method", [
  * spending totals. This is a reporting flag only - no double-entry bookkeeping.
  */
 export const transactionTypeEnum = pgEnum("transaction_type", ["expense", "payment"]);
+
+/**
+ * Who carries the cost in the end.
+ *
+ * - none: the user paid and keeps the cost (every expense before this existed).
+ * - reimbursable: the user paid, and a counterparty will pay it back.
+ * - paid_by_other: a counterparty paid on the user's behalf; the user owes them.
+ *
+ * In every case the expense stays a real expense, dated when it happened, so a
+ * later repayment never rewrites the history of an earlier month.
+ */
+export const settlementTypeEnum = pgEnum("settlement_type", [
+  "none",
+  "reimbursable",
+  "paid_by_other",
+]);
+
+/** claimed only applies to reimbursable; settled always carries settled_on. */
+export const settlementStatusEnum = pgEnum("settlement_status", [
+  "pending",
+  "claimed",
+  "settled",
+]);
 
 export const expensesTable = pgTable(
   "expenses",
@@ -58,6 +82,12 @@ export const expensesTable = pgTable(
     paymentMethod: paymentMethodEnum("payment_method"),
     transactionType: transactionTypeEnum("transaction_type").notNull().default("expense"),
     notes: text("notes"),
+    settlementType: settlementTypeEnum("settlement_type").notNull().default("none"),
+    counterpartyId: uuid("counterparty_id").references(() => counterpartiesTable.id, {
+      onDelete: "restrict",
+    }),
+    settlementStatus: settlementStatusEnum("settlement_status"),
+    settledOn: date("settled_on", { mode: "string" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -74,7 +104,16 @@ export const expensesTable = pgTable(
     index("expenses_currency_id_idx").on(table.currencyId),
     index("expenses_transaction_type_idx").on(table.transactionType),
     index("expenses_amount_idx").on(table.amount),
+    index("expenses_settlement_idx").on(table.settlementType, table.settlementStatus),
+    index("expenses_counterparty_id_idx").on(table.counterpartyId),
     check("expenses_amount_positive_check", sql`${table.amount} > 0`),
+    check(
+      "expenses_settlement_consistency_check",
+      sql`(${table.settlementType} = 'none' AND ${table.counterpartyId} IS NULL AND ${table.settlementStatus} IS NULL AND ${table.settledOn} IS NULL)
+        OR (${table.settlementType} <> 'none' AND ${table.counterpartyId} IS NOT NULL AND ${table.settlementStatus} IS NOT NULL
+            AND (${table.settlementStatus} = 'settled') = (${table.settledOn} IS NOT NULL)
+            AND (${table.settlementStatus} <> 'claimed' OR ${table.settlementType} = 'reimbursable'))`,
+    ),
   ],
 );
 

@@ -25,9 +25,13 @@ import {
   UpdateExpenseBody,
   UpdateExpenseParams,
   UpdateExpenseResponse,
+  UpdateExpenseSettlementBody,
+  UpdateExpenseSettlementParams,
+  UpdateExpenseSettlementResponse,
 } from "@workspace/api-zod";
 import {
   categoriesTable,
+  counterpartiesTable,
   currenciesTable,
   db,
   expenseLabelsTable,
@@ -36,7 +40,7 @@ import {
   locationsTable,
   projectsTable,
 } from "@workspace/db";
-import { attachLabels, expenseLabelSelection, expenseSelection } from "../lib/expense-records";
+import { attachLabels, counterpartyJoin, expenseLabelSelection, expenseSelection } from "../lib/expense-records";
 import { sortByCurrencyCode } from "../lib/currency-amounts";
 
 const router: IRouter = Router();
@@ -64,6 +68,119 @@ function normalizeOptionalText(value: string | null | undefined): string | null 
   if (value == null) return null;
   const trimmed = value.trim();
   return trimmed.length ? trimmed : null;
+}
+
+type SettlementType = "none" | "reimbursable" | "paid_by_other";
+type SettlementStatus = "pending" | "claimed" | "settled";
+
+interface StoredSettlement {
+  transactionType: "expense" | "payment";
+  settlementType: SettlementType;
+  counterpartyId: string | null;
+  settlementStatus: SettlementStatus | null;
+  settledOn: string | null;
+}
+
+interface SettlementChanges {
+  transactionType?: "expense" | "payment" | null;
+  settlementType?: SettlementType;
+  counterpartyId?: string | null;
+  settlementStatus?: SettlementStatus | null;
+  settledOn?: Date | null;
+}
+
+const NO_SETTLEMENT: StoredSettlement = {
+  transactionType: "expense",
+  settlementType: "none",
+  counterpartyId: null,
+  settlementStatus: null,
+  settledOn: null,
+};
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Merges requested settlement changes onto what is stored and returns the
+ * complete, consistent settlement - or a message explaining what is missing.
+ * The database CHECK constraint enforces the same rules as a last line.
+ */
+function resolveSettlement(
+  current: StoredSettlement,
+  changes: SettlementChanges,
+):
+  | { ok: true; value: Omit<StoredSettlement, "transactionType"> }
+  | { ok: false; error: string } {
+  const settlementType = changes.settlementType ?? current.settlementType;
+  if (settlementType === "none") {
+    return {
+      ok: true,
+      value: { settlementType, counterpartyId: null, settlementStatus: null, settledOn: null },
+    };
+  }
+
+  const transactionType = changes.transactionType ?? current.transactionType;
+  if (transactionType === "payment") {
+    return {
+      ok: false,
+      error: "A bill payment can't be reimbursable or paid by someone else. Use an expense instead.",
+    };
+  }
+
+  const sameType = current.settlementType === settlementType;
+  const counterpartyId =
+    changes.counterpartyId !== undefined ? changes.counterpartyId : current.counterpartyId;
+  if (!counterpartyId) {
+    return {
+      ok: false,
+      error:
+        settlementType === "reimbursable"
+          ? "Choose who will reimburse this expense."
+          : "Choose who paid for this expense.",
+    };
+  }
+
+  const settlementStatus: SettlementStatus =
+    changes.settlementStatus ?? (sameType ? current.settlementStatus : null) ?? "pending";
+  if (settlementStatus === "claimed" && settlementType !== "reimbursable") {
+    return { ok: false, error: "Only reimbursable expenses can be marked as claimed." };
+  }
+
+  let settledOn: string | null = null;
+  if (settlementStatus === "settled") {
+    if (changes.settledOn) {
+      if (!isValidExpenseDate(changes.settledOn)) {
+        return { ok: false, error: "Enter a valid settlement date." };
+      }
+      settledOn = expenseDateToDatabase(changes.settledOn);
+      // Money can't have come back yet on a later day. One day of slack covers
+      // time zones ahead of the server (Doha is UTC+3).
+      const latest = new Date();
+      latest.setUTCDate(latest.getUTCDate() + 1);
+      if (settledOn > latest.toISOString().slice(0, 10)) {
+        return { ok: false, error: "The settlement date can't be in the future." };
+      }
+    } else {
+      settledOn = (sameType ? current.settledOn : null) ?? todayIso();
+    }
+  }
+
+  return { ok: true, value: { settlementType, counterpartyId, settlementStatus, settledOn } };
+}
+
+async function loadStoredSettlement(expenseId: string): Promise<StoredSettlement | null> {
+  const [row] = await db
+    .select({
+      transactionType: expensesTable.transactionType,
+      settlementType: expensesTable.settlementType,
+      counterpartyId: expensesTable.counterpartyId,
+      settlementStatus: expensesTable.settlementStatus,
+      settledOn: expensesTable.settledOn,
+    })
+    .from(expensesTable)
+    .where(eq(expensesTable.id, expenseId));
+  return row ?? null;
 }
 
 function hasDuplicateLabelIds(labelIds: string[]): boolean {
@@ -103,6 +220,7 @@ async function getExpenseRecord(expenseId: string) {
     .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
     .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
     .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
+    .leftJoin(counterpartiesTable, counterpartyJoin)
     .where(eq(expensesTable.id, expenseId));
 
   if (!expense) return null;
@@ -141,6 +259,9 @@ router.get("/expenses", async (req, res): Promise<void> => {
     currencyId,
     locationId,
     transactionType,
+    settlementType,
+    settlementStatus,
+    counterpartyId,
     sort,
     limit,
     offset,
@@ -168,6 +289,13 @@ router.get("/expenses", async (req, res): Promise<void> => {
   if (currencyId) conditions.push(eq(expensesTable.currencyId, currencyId));
   if (locationId) conditions.push(eq(expensesTable.locationId, locationId));
   if (transactionType) conditions.push(eq(expensesTable.transactionType, transactionType));
+  if (settlementType) conditions.push(eq(expensesTable.settlementType, settlementType));
+  if (settlementStatus === "open") {
+    conditions.push(inArray(expensesTable.settlementStatus, ["pending", "claimed"]));
+  } else if (settlementStatus) {
+    conditions.push(eq(expensesTable.settlementStatus, settlementStatus));
+  }
+  if (counterpartyId) conditions.push(eq(expensesTable.counterpartyId, counterpartyId));
   if (parentCategoryId) {
     // Parent filter matches the parent itself and every subcategory beneath it.
     conditions.push(
@@ -208,6 +336,7 @@ router.get("/expenses", async (req, res): Promise<void> => {
       .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
       .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
+      .leftJoin(counterpartiesTable, counterpartyJoin)
       .where(where)
       .orderBy(...expenseOrderBy(sort))
       .limit(limit)
@@ -215,6 +344,7 @@ router.get("/expenses", async (req, res): Promise<void> => {
     db
       .select({
         transactionType: expensesTable.transactionType,
+        settlementType: expensesTable.settlementType,
         currencyId: currenciesTable.id,
         currencyCode: currenciesTable.code,
         currencyName: currenciesTable.name,
@@ -229,32 +359,53 @@ router.get("/expenses", async (req, res): Promise<void> => {
       .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
       .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
+      .leftJoin(counterpartiesTable, counterpartyJoin)
       .where(where)
-      .groupBy(expensesTable.transactionType, currenciesTable.id),
+      .groupBy(expensesTable.transactionType, expensesTable.settlementType, currenciesTable.id),
   ]);
 
   const items = await attachLabels(expenses);
 
-  const toAmounts = (transactionType: "expense" | "payment") =>
-    sortByCurrencyCode(
-      totalsSummary
-        .filter((row) => row.transactionType === transactionType)
-        .map((row) => ({
-          currency: {
-            id: row.currencyId,
-            code: row.currencyCode,
-            name: row.currencyName,
-            symbol: row.currencySymbol,
-            decimalPlaces: row.currencyDecimalPlaces,
-            isActive: row.currencyIsActive,
-          },
-          total: String(row.total),
-          count: Number(row.count),
-        })),
+  // Rows are split by settlement type too, so merge them back per currency.
+  // Amounts are summed as whole cents to stay exact.
+  type SummaryRow = (typeof totalsSummary)[number];
+  const toCents = (value: string) => {
+    const [whole, fraction = ""] = value.split(".");
+    return BigInt(whole) * 100n + BigInt((fraction + "00").slice(0, 2));
+  };
+  const toAmounts = (keep: (row: SummaryRow) => boolean) => {
+    const byCurrency = new Map<string, { row: SummaryRow; cents: bigint; count: number }>();
+    for (const row of totalsSummary.filter(keep)) {
+      const cents = toCents(String(row.total));
+      const existing = byCurrency.get(row.currencyId);
+      if (existing) {
+        existing.cents += cents;
+        existing.count += Number(row.count);
+      } else {
+        byCurrency.set(row.currencyId, { row, cents, count: Number(row.count) });
+      }
+    }
+    return sortByCurrencyCode(
+      [...byCurrency.values()].map(({ row, cents, count }) => ({
+        currency: {
+          id: row.currencyId,
+          code: row.currencyCode,
+          name: row.currencyName,
+          symbol: row.currencySymbol,
+          decimalPlaces: row.currencyDecimalPlaces,
+          isActive: row.currencyIsActive,
+        },
+        total: `${cents / 100n}.${String(cents % 100n).padStart(2, "0")}`,
+        count,
+      })),
     );
+  };
 
-  const totals = toAmounts("expense");
-  const paymentTotals = toAmounts("payment");
+  const totals = toAmounts((row) => row.transactionType === "expense");
+  const paymentTotals = toAmounts((row) => row.transactionType === "payment");
+  const reimbursableTotals = toAmounts(
+    (row) => row.transactionType === "expense" && row.settlementType === "reimbursable",
+  );
 
   // Summing the per-currency counts still yields the exact number of matches.
   const total = totals.reduce((sum, entry) => sum + entry.count, 0);
@@ -265,6 +416,7 @@ router.get("/expenses", async (req, res): Promise<void> => {
       total,
       totals,
       paymentTotals,
+      reimbursableTotals,
       limit,
       offset,
       hasMore: offset + items.length < total,
@@ -313,6 +465,18 @@ router.post("/expenses", async (req, res): Promise<void> => {
     return;
   }
 
+  const settlement = resolveSettlement(NO_SETTLEMENT, {
+    transactionType: data.transactionType,
+    settlementType: data.settlementType,
+    counterpartyId: data.counterpartyId,
+    settlementStatus: data.settlementStatus,
+    settledOn: data.settledOn,
+  });
+  if (!settlement.ok) {
+    res.status(400).json({ error: settlement.error });
+    return;
+  }
+
   try {
     const expenseId = await db.transaction(async (tx) => {
       const [expense] = await tx
@@ -328,6 +492,7 @@ router.post("/expenses", async (req, res): Promise<void> => {
           paymentMethod: data.paymentMethod ?? null,
           transactionType: data.transactionType ?? "expense",
           notes: normalizeOptionalText(data.notes),
+          ...settlement.value,
         })
         .returning({ id: expensesTable.id });
 
@@ -349,7 +514,7 @@ router.post("/expenses", async (req, res): Promise<void> => {
     res.status(201).json(CreateExpenseResponse.parse(expense));
   } catch (error) {
     if (["23503", "23514"].includes(databaseErrorCode(error) ?? "")) {
-      res.status(400).json({ error: "Check the selected project, category, labels, currency, location, and amount." });
+      res.status(400).json({ error: "Check the selected project, category, labels, currency, location, person or company, and amount." });
       return;
     }
     throw error;
@@ -415,10 +580,49 @@ router.patch("/expenses/:expenseId", async (req, res): Promise<void> => {
   if (changes.notes !== undefined) {
     changes.notes = normalizeOptionalText(changes.notes);
   }
-  const { date, transactionType, ...rest } = changes;
+  const {
+    date,
+    transactionType,
+    settlementType,
+    counterpartyId,
+    settlementStatus,
+    settledOn,
+    ...rest
+  } = changes;
+
+  // Settlement fields are resolved together against what is stored, so a
+  // partial update can never leave them half-filled.
+  const touchesSettlement =
+    settlementType !== undefined ||
+    counterpartyId !== undefined ||
+    settlementStatus !== undefined ||
+    settledOn !== undefined ||
+    (transactionType !== undefined && transactionType !== null);
+  let settlementChanges = {};
+  if (touchesSettlement) {
+    const stored = await loadStoredSettlement(params.data.expenseId);
+    if (!stored) {
+      res.status(404).json({ error: "Expense not found." });
+      return;
+    }
+    const resolved = resolveSettlement(stored, {
+      transactionType,
+      settlementType,
+      counterpartyId,
+      settlementStatus,
+      settledOn,
+    });
+    if (!resolved.ok) {
+      res.status(400).json({ error: resolved.error });
+      return;
+    }
+    settlementChanges = resolved.value;
+  }
+
   const databaseChanges = {
     // A null transactionType means "leave as-is" rather than "clear it".
     ...rest,
+    ...settlementChanges,
     ...(transactionType !== undefined && transactionType !== null ? { transactionType } : {}),
     ...(date !== undefined ? { date: expenseDateToDatabase(date) } : {}),
   };
@@ -462,11 +666,59 @@ router.patch("/expenses/:expenseId", async (req, res): Promise<void> => {
     res.json(UpdateExpenseResponse.parse(expense));
   } catch (error) {
     if (["23503", "23514"].includes(databaseErrorCode(error) ?? "")) {
-      res.status(400).json({ error: "Check the selected project, category, labels, and amount." });
+      res.status(400).json({ error: "Check the selected project, category, labels, person or company, and amount." });
       return;
     }
     throw error;
   }
+});
+
+/**
+ * Moves only the settlement along (claimed, settled, reopened). The expense's
+ * own amount and date are never touched, so past months never change.
+ */
+router.patch("/expenses/:expenseId/settlement", async (req, res): Promise<void> => {
+  const params = UpdateExpenseSettlementParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid expense ID." });
+    return;
+  }
+  const parsed = UpdateExpenseSettlementBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Choose pending, claimed, or settled, with an optional date." });
+    return;
+  }
+
+  const stored = await loadStoredSettlement(params.data.expenseId);
+  if (!stored) {
+    res.status(404).json({ error: "Expense not found." });
+    return;
+  }
+  if (stored.settlementType === "none") {
+    res.status(400).json({ error: "This expense isn't reimbursable or paid by someone else." });
+    return;
+  }
+
+  // Settling without a date means today, never an older stored date.
+  const settledOn =
+    parsed.data.status === "settled" ? (parsed.data.settledOn ?? new Date(`${todayIso()}T00:00:00Z`)) : null;
+  const resolved = resolveSettlement(stored, { settlementStatus: parsed.data.status, settledOn });
+  if (!resolved.ok) {
+    res.status(400).json({ error: resolved.error });
+    return;
+  }
+
+  await db
+    .update(expensesTable)
+    .set(resolved.value)
+    .where(eq(expensesTable.id, params.data.expenseId));
+
+  const expense = await getExpenseRecord(params.data.expenseId);
+  if (!expense) {
+    res.status(404).json({ error: "Expense not found." });
+    return;
+  }
+  res.json(UpdateExpenseSettlementResponse.parse(expense));
 });
 
 router.delete("/expenses/:expenseId", async (req, res): Promise<void> => {

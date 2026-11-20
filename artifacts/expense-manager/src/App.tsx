@@ -16,6 +16,7 @@ import {
   ChartNoAxesColumnIncreasing,
   CircleHelp,
   Folder,
+  HandCoins,
   Hash,
   House,
   Layers3,
@@ -31,6 +32,7 @@ import { LabelListPage } from '@/pages/Labels';
 import { ExpenseDetailPage, ExpenseEditorPage, ExpenseListPage } from '@/pages/Expenses';
 import { HomePage } from '@/pages/Home';
 import { ReportsPage } from '@/pages/Reports';
+import { SettlementsPage } from '@/pages/Settlements';
 import { SettingsPage } from '@/pages/Settings';
 import { ForgotPasswordPage } from '@/pages/ForgotPassword';
 import { LoginPage, SetupPage } from '@/pages/Login';
@@ -53,6 +55,7 @@ const destinations = [
   { label: 'Categories', href: '/categories', icon: Layers3 },
   { label: 'Labels', href: '/labels', icon: Hash },
   { label: 'Reports', href: '/reports', icon: ChartNoAxesColumnIncreasing },
+  { label: 'Owed & owing', href: '/settlements', icon: HandCoins },
   { label: 'Settings', href: '/settings', icon: Settings2 },
 ];
 
@@ -70,6 +73,7 @@ function titleFor(path: string): string {
   if (path.startsWith('/categories')) return 'Categories';
   if (path.startsWith('/labels')) return 'Labels';
   if (path.startsWith('/reports')) return 'Reports';
+  if (path.startsWith('/settlements')) return 'Owed & owing';
   if (path.startsWith('/settings')) return 'Settings';
   return 'Not found';
 }
@@ -94,7 +98,7 @@ function NavigationLink({ item, active }: { item: (typeof destinations)[number];
     <Link
       href={item.href}
       aria-current={active ? 'page' : undefined}
-      data-testid={`link-nav-${item.label.toLowerCase()}`}
+      data-testid={`link-nav-${item.label.toLowerCase().replace(/[^a-z]+/g, '-')}`}
       className={`nav-link flex min-h-11 items-center gap-3 rounded-xl px-3.5 text-[13px] font-semibold ${
         active
           ? 'bg-secondary text-primary'
@@ -113,7 +117,7 @@ function Shell({ children }: { children: ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const previousLocation = useRef(location);
-  const moreRoutes = ['/categories', '/labels', '/settings'];
+  const moreRoutes = ['/categories', '/labels', '/settlements', '/settings'];
   const moreActive = moreRoutes.includes(location);
   const pageTitle = titleFor(location);
   const moreDestinations = destinations.filter(
@@ -207,7 +211,7 @@ function Shell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 onClick={() => setMoreOpen(false)}
-                data-testid={`link-more-${item.label.toLowerCase()}`}
+                data-testid={`link-more-${item.label.toLowerCase().replace(/[^a-z]+/g, '-')}`}
                 className={`flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${location === item.href ? 'bg-secondary text-primary' : 'text-foreground hover:bg-muted'}`}
               >
                 <item.icon size={17} strokeWidth={1.8} /><span>{item.label}</span><ArrowRight size={14} className="ml-auto text-muted-foreground" />
@@ -289,6 +293,7 @@ function ProtectedRoutes() {
         <Route path="/categories/:categoryId" component={CategoryDetailPage} />
         <Route path="/labels" component={LabelListPage} />
         <Route path="/reports" component={ReportsPage} />
+        <Route path="/settlements" component={SettlementsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route><NotFoundPage /></Route>
       </Switch>

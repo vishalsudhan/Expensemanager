@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import {
-  ArrowRight, ArrowUpRight, CircleAlert, MapPin, Plus, RotateCcw, TrendingUp, Wallet,
+  ArrowDownLeft, ArrowRight, ArrowUpRight, CircleAlert, HandCoins, MapPin, Plus, RotateCcw, TrendingUp, Wallet,
 } from 'lucide-react';
 import { getGetDashboardQueryKey, useGetDashboard } from '@workspace/api-client-react';
 import type {
@@ -13,6 +13,7 @@ import { errorText, formatShortDate, formatTotals, money } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLocations } from '@/hooks/use-locations';
+import { subtractTotals } from '@/lib/settlements';
 
 type Granularity = 'day' | 'week' | 'month';
 
@@ -279,7 +280,38 @@ export function HomePage() {
               <Stat label="Today" value={formatTotals(dashboard.summary.today)} testId="text-total-today" />
               <Stat label="This week" value={formatTotals(dashboard.summary.week)} testId="text-total-week" />
             </div>
+            {dashboard.settlements.monthReimbursable.length > 0 && (
+              <p className="mt-4 text-xs leading-5 text-muted-foreground" data-testid="text-month-own-cost">
+                Of this, <span className="font-semibold text-foreground">{formatTotals(dashboard.settlements.monthReimbursable)}</span> is reimbursable ·
+                your own cost <span className="font-semibold text-foreground">{formatTotals(subtractTotals(dashboard.summary.month, dashboard.settlements.monthReimbursable))}</span>
+              </p>
+            )}
           </section>
+
+          {(dashboard.settlements.owedToMe.length > 0 || dashboard.settlements.iOwe.length > 0) && (
+            <Link
+              href="/settlements"
+              className="group grid gap-3 rounded-[24px] border border-border/70 bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-primary/25 sm:grid-cols-[auto_1fr_1fr_auto] sm:items-center sm:gap-6 sm:p-6"
+              data-testid="card-home-settlements"
+            >
+              <span className="hidden size-10 place-items-center rounded-xl bg-secondary text-primary sm:grid"><HandCoins size={18} /></span>
+              <div className="flex items-center gap-3">
+                <ArrowDownLeft size={16} className="shrink-0 text-primary sm:hidden" />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">Owed to you</p>
+                  <p className="mt-1 font-display text-[20px] font-semibold tracking-[-.035em] tabular-nums" data-testid="text-home-owed">{dashboard.settlements.owedToMe.length ? formatTotals(dashboard.settlements.owedToMe) : '—'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 border-t border-border/70 pt-3 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+                <ArrowUpRight size={16} className="shrink-0 text-amber-600 sm:hidden" />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">You owe</p>
+                  <p className="mt-1 font-display text-[20px] font-semibold tracking-[-.035em] tabular-nums" data-testid="text-home-owing">{dashboard.settlements.iOwe.length ? formatTotals(dashboard.settlements.iOwe) : '—'}</p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-primary">Details <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" /></span>
+            </Link>
+          )}
 
           <section className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-7" data-testid="section-spending-trend">
             <div className="flex flex-wrap items-start justify-between gap-3">

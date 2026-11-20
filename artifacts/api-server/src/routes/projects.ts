@@ -18,6 +18,7 @@ import {
 import type { Currency, CurrencyAmount } from "@workspace/api-zod";
 import {
   categoriesTable,
+  counterpartiesTable,
   currenciesTable,
   db,
   expensesTable,
@@ -41,9 +42,25 @@ const projectColumns = {
   icon: projectsTable.icon,
   status: projectsTable.status,
   defaultCurrencyId: projectsTable.defaultCurrencyId,
+  // Needs .leftJoin(counterpartiesTable, defaultCounterpartyJoin).
+  defaultCounterpartyId: counterpartiesTable.id,
+  defaultCounterpartyName: counterpartiesTable.name,
+  defaultCounterpartyStatus: counterpartiesTable.status,
   createdAt: projectsTable.createdAt,
   updatedAt: projectsTable.updatedAt,
 };
+
+const defaultCounterpartyJoin = eq(projectsTable.defaultCounterpartyId, counterpartiesTable.id);
+
+function toDefaultCounterparty(row: {
+  defaultCounterpartyId: string | null;
+  defaultCounterpartyName: string | null;
+  defaultCounterpartyStatus: "active" | "archived" | null;
+}) {
+  return row.defaultCounterpartyId && row.defaultCounterpartyName && row.defaultCounterpartyStatus
+    ? { id: row.defaultCounterpartyId, name: row.defaultCounterpartyName, status: row.defaultCounterpartyStatus }
+    : null;
+}
 
 const joinedCurrencySelection = {
   currencyId: currenciesTable.id,
@@ -95,6 +112,7 @@ router.get("/projects", async (req, res): Promise<void> => {
       .select({ ...projectColumns, ...joinedCurrencySelection })
       .from(projectsTable)
       .innerJoin(currenciesTable, eq(projectsTable.defaultCurrencyId, currenciesTable.id))
+      .leftJoin(counterpartiesTable, defaultCounterpartyJoin)
       .where(statusCondition)
       .orderBy(desc(projectsTable.updatedAt), asc(projectsTable.name)),
     db
@@ -137,6 +155,7 @@ router.get("/projects", async (req, res): Promise<void> => {
           icon: project.icon,
           status: project.status,
           defaultCurrency: toCurrency(project),
+          defaultCounterparty: toDefaultCounterparty(project),
           createdAt: project.createdAt,
           updatedAt: project.updatedAt,
           totals: totals.sort((a, b) => a.currency.code.localeCompare(b.currency.code)),
@@ -173,6 +192,7 @@ router.post("/projects", async (req, res): Promise<void> => {
       .select({ ...projectColumns, ...joinedCurrencySelection })
       .from(projectsTable)
       .innerJoin(currenciesTable, eq(projectsTable.defaultCurrencyId, currenciesTable.id))
+      .leftJoin(counterpartiesTable, defaultCounterpartyJoin)
       .where(eq(projectsTable.id, created!.id))
       .limit(1);
 
@@ -185,6 +205,7 @@ router.post("/projects", async (req, res): Promise<void> => {
         icon: project!.icon,
         status: project!.status,
         defaultCurrency: toCurrency(project!),
+        defaultCounterparty: toDefaultCounterparty(project!),
         createdAt: project!.createdAt,
         updatedAt: project!.updatedAt,
       }),
@@ -195,7 +216,7 @@ router.post("/projects", async (req, res): Promise<void> => {
       return;
     }
     if (["23503", "23514"].includes(String((error as { code?: string }).code))) {
-      res.status(400).json({ error: "Check the selected default currency." });
+      res.status(400).json({ error: "Check the selected default currency and reimburser." });
       return;
     }
     throw error;
@@ -213,6 +234,7 @@ router.get("/projects/:projectId", async (req, res): Promise<void> => {
     .select({ ...projectColumns, ...joinedCurrencySelection })
     .from(projectsTable)
     .innerJoin(currenciesTable, eq(projectsTable.defaultCurrencyId, currenciesTable.id))
+    .leftJoin(counterpartiesTable, defaultCounterpartyJoin)
     .where(eq(projectsTable.id, params.data.projectId))
     .limit(1);
 
@@ -308,6 +330,7 @@ router.get("/projects/:projectId", async (req, res): Promise<void> => {
         icon: project.icon,
         status: project.status,
         defaultCurrency: toCurrency(project),
+        defaultCounterparty: toDefaultCounterparty(project),
         createdAt: project.createdAt,
         updatedAt: project.updatedAt,
       },
@@ -385,6 +408,7 @@ router.patch("/projects/:projectId", async (req, res): Promise<void> => {
       .select({ ...projectColumns, ...joinedCurrencySelection })
       .from(projectsTable)
       .innerJoin(currenciesTable, eq(projectsTable.defaultCurrencyId, currenciesTable.id))
+      .leftJoin(counterpartiesTable, defaultCounterpartyJoin)
       .where(eq(projectsTable.id, params.data.projectId))
       .limit(1);
 
@@ -397,6 +421,7 @@ router.patch("/projects/:projectId", async (req, res): Promise<void> => {
         icon: updated!.icon,
         status: updated!.status,
         defaultCurrency: toCurrency(updated!),
+        defaultCounterparty: toDefaultCounterparty(updated!),
         createdAt: updated!.createdAt,
         updatedAt: updated!.updatedAt,
       }),
@@ -407,7 +432,7 @@ router.patch("/projects/:projectId", async (req, res): Promise<void> => {
       return;
     }
     if (["23503", "23514"].includes(String((error as { code?: string }).code))) {
-      res.status(400).json({ error: "Check the selected default currency." });
+      res.status(400).json({ error: "Check the selected default currency and reimburser." });
       return;
     }
     throw error;
@@ -436,6 +461,7 @@ router.patch("/projects/:projectId/archive", async (req, res): Promise<void> => 
     .select({ ...projectColumns, ...joinedCurrencySelection })
     .from(projectsTable)
     .innerJoin(currenciesTable, eq(projectsTable.defaultCurrencyId, currenciesTable.id))
+    .leftJoin(counterpartiesTable, defaultCounterpartyJoin)
     .where(eq(projectsTable.id, params.data.projectId))
     .limit(1);
 
@@ -448,6 +474,7 @@ router.patch("/projects/:projectId/archive", async (req, res): Promise<void> => 
       icon: archived!.icon,
       status: archived!.status,
       defaultCurrency: toCurrency(archived!),
+      defaultCounterparty: toDefaultCounterparty(archived!),
       createdAt: archived!.createdAt,
       updatedAt: archived!.updatedAt,
     }),

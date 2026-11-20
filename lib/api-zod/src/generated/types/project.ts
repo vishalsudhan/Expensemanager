@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Currency } from './currency';
+import type { ExpenseCounterparty } from './expenseCounterparty';
 import type { ProjectStatus } from './projectStatus';
 
 export interface Project {
@@ -23,6 +24,8 @@ export interface Project {
   icon: string | null;
   status: ProjectStatus;
   defaultCurrency: Currency;
+  /** Suggested reimburser for reimbursable expenses in this project. */
+  defaultCounterparty?: ExpenseCounterparty | null;
   /**
      * Expenses assigned to this project.
      * @minimum 0

@@ -3,6 +3,7 @@ import { asc, eq, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   categoriesTable,
+  counterpartiesTable,
   currenciesTable,
   db,
   expenseLabelsTable,
@@ -27,6 +28,7 @@ type WireProject = {
   icon: string | null;
   status: "active" | "archived";
   defaultCurrency: string;
+  defaultCounterparty: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -59,6 +61,17 @@ type WireExpense = {
   currency: string;
   location: string;
   transactionType: "expense" | "payment" | null;
+  settlementType: "none" | "reimbursable" | "paid_by_other";
+  counterparty: string | null;
+  settlementStatus: "pending" | "claimed" | "settled" | null;
+  settledOn: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+type WireCounterparty = {
+  id: string;
+  name: string;
+  status: "active" | "archived";
   createdAt: string;
   updatedAt: string;
 };
@@ -72,12 +85,14 @@ type WireBackup = {
     labels: number;
     expenses: number;
     expenseLabels: number;
+    counterparties: number;
   };
   projects: WireProject[];
   categories: WireCategory[];
   labels: WireLabel[];
   expenses: WireExpense[];
   expenseLabels: Array<{ expenseId: string; labelId: string }>;
+  counterparties: WireCounterparty[];
 };
 
 const SUPPORTED_BACKUP_VERSION = 1;
@@ -124,14 +139,16 @@ function today(): string {
 }
 
 export async function loadBackup(): Promise<WireBackup> {
-  const [projects, categories, labels, expenses, links] = await Promise.all([
+  const [projects, categories, labels, expenses, links, counterparties] = await Promise.all([
     db
       .select({
         project: projectsTable,
         currencyCode: currenciesTable.code,
+        counterpartyName: counterpartiesTable.name,
       })
       .from(projectsTable)
       .innerJoin(currenciesTable, eq(projectsTable.defaultCurrencyId, currenciesTable.id))
+      .leftJoin(counterpartiesTable, eq(projectsTable.defaultCounterpartyId, counterpartiesTable.id))
       .orderBy(asc(projectsTable.createdAt)),
     db.select().from(categoriesTable).orderBy(asc(categoriesTable.createdAt)),
     db.select().from(labelsTable).orderBy(asc(labelsTable.createdAt)),
@@ -140,18 +157,21 @@ export async function loadBackup(): Promise<WireBackup> {
         expense: expensesTable,
         currencyCode: currenciesTable.code,
         locationSlug: locationsTable.slug,
+        counterpartyName: counterpartiesTable.name,
       })
       .from(expensesTable)
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
       .innerJoin(locationsTable, eq(expensesTable.locationId, locationsTable.id))
+      .leftJoin(counterpartiesTable, eq(expensesTable.counterpartyId, counterpartiesTable.id))
       .orderBy(asc(expensesTable.date), asc(expensesTable.createdAt)),
     db
       .select()
       .from(expenseLabelsTable)
       .orderBy(asc(expenseLabelsTable.expenseId), asc(expenseLabelsTable.labelId)),
+    db.select().from(counterpartiesTable).orderBy(asc(counterpartiesTable.createdAt)),
   ]);
 
-  const projectRecords = projects.map(({ project, currencyCode }) => ({
+  const projectRecords = projects.map(({ project, currencyCode, counterpartyName }) => ({
     id: project.id,
     name: project.name,
     description: project.description,
@@ -159,6 +179,7 @@ export async function loadBackup(): Promise<WireBackup> {
     icon: project.icon,
     status: project.status,
     defaultCurrency: currencyCode,
+    defaultCounterparty: counterpartyName,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
   }));
@@ -182,7 +203,7 @@ export async function loadBackup(): Promise<WireBackup> {
     updatedAt: label.updatedAt.toISOString(),
   }));
 
-  const expenseRecords = expenses.map(({ expense, currencyCode, locationSlug }) => ({
+  const expenseRecords = expenses.map(({ expense, currencyCode, locationSlug, counterpartyName }) => ({
     id: expense.id,
     amount: String(expense.amount),
     date: expense.date,
@@ -194,6 +215,10 @@ export async function loadBackup(): Promise<WireBackup> {
     currency: currencyCode,
     location: locationSlug,
     transactionType: expense.transactionType,
+    settlementType: expense.settlementType,
+    counterparty: counterpartyName,
+    settlementStatus: expense.settlementStatus,
+    settledOn: expense.settledOn,
     createdAt: expense.createdAt.toISOString(),
     updatedAt: expense.updatedAt.toISOString(),
   }));
@@ -213,12 +238,20 @@ export async function loadBackup(): Promise<WireBackup> {
       labels: labelRecords.length,
       expenses: expenseRecords.length,
       expenseLabels: linkRecords.length,
+      counterparties: counterparties.length,
     },
     projects: projectRecords,
     categories: categoryRecords,
     labels: labelRecords,
     expenses: expenseRecords,
     expenseLabels: linkRecords,
+    counterparties: counterparties.map((counterparty) => ({
+      id: counterparty.id,
+      name: counterparty.name,
+      status: counterparty.status,
+      createdAt: counterparty.createdAt.toISOString(),
+      updatedAt: counterparty.updatedAt.toISOString(),
+    })),
   };
 }
 
@@ -275,6 +308,7 @@ export function validateBackup(doc: ParsedBackup, known: {
     ["project", doc.projects],
     ["category", doc.categories],
     ["label", doc.labels],
+    ["person or company", doc.counterparties ?? []],
   ];
   for (const [label, records] of nameCollections) {
     for (const name of findDuplicateNames(records)) {
@@ -312,6 +346,22 @@ export function validateBackup(doc: ParsedBackup, known: {
       !known.projectIds.has(expense.projectId)
     ) {
       errors.push(`Expense ${index + 1} references a project that is missing from the backup.`);
+    }
+    // Settlement fields are optional (older backups); when present they must be consistent.
+    const settlementType = expense.settlementType ?? "none";
+    if (settlementType !== "none") {
+      if (!expense.counterparty?.trim()) {
+        errors.push(`Expense ${index + 1} is ${settlementType === "reimbursable" ? "reimbursable" : "paid by someone else"} but names no person or company.`);
+      }
+      if ((expense.transactionType ?? "expense") === "payment") {
+        errors.push(`Expense ${index + 1} is a bill payment and can't carry a settlement.`);
+      }
+      if (expense.settlementStatus === "claimed" && settlementType !== "reimbursable") {
+        errors.push(`Expense ${index + 1} is marked claimed, which only applies to reimbursable expenses.`);
+      }
+      if (expense.settlementStatus === "settled" && !expense.settledOn) {
+        errors.push(`Expense ${index + 1} is settled but has no settlement date.`);
+      }
     }
   });
 
@@ -384,11 +434,69 @@ function emptyCount(): BackupCount {
   return { created: 0, updated: 0, skipped: 0 };
 }
 
+/**
+ * Imports the people and companies list and returns a lower-cased name -> id
+ * map. Names referenced by expenses or projects but missing from the list
+ * (hand-edited files) are created so nothing is silently dropped.
+ */
+async function importCounterparties(
+  tx: Transaction,
+  doc: ParsedBackup,
+): Promise<{ counts: BackupCount; idByName: Map<string, string> }> {
+  const counts = emptyCount();
+  const existing = await tx.select().from(counterpartiesTable);
+  const byId = new Map(existing.map((row) => [row.id, row]));
+  const idByName = new Map(existing.map((row) => [row.name.trim().toLowerCase(), row.id]));
+
+  for (const counterparty of doc.counterparties ?? []) {
+    const key = counterparty.name.trim().toLowerCase();
+    const matchById = byId.get(counterparty.id);
+    const matchId = matchById?.id ?? idByName.get(key);
+    if (matchId) {
+      await tx
+        .update(counterpartiesTable)
+        .set({ name: counterparty.name.trim(), status: counterparty.status })
+        .where(eq(counterpartiesTable.id, matchId));
+      idByName.set(key, matchId);
+      if (matchById) counts.updated += 1;
+      else counts.skipped += 1;
+      continue;
+    }
+    await tx.insert(counterpartiesTable).values({
+      id: counterparty.id,
+      name: counterparty.name.trim(),
+      status: counterparty.status,
+      ...(counterparty.createdAt ? { createdAt: counterparty.createdAt } : {}),
+      ...(counterparty.updatedAt ? { updatedAt: counterparty.updatedAt } : {}),
+    });
+    idByName.set(key, counterparty.id);
+    counts.created += 1;
+  }
+
+  const referenced = [
+    ...doc.expenses.map((expense) => expense.counterparty),
+    ...doc.projects.map((project) => project.defaultCounterparty),
+  ];
+  for (const name of referenced) {
+    const trimmed = name?.trim();
+    if (!trimmed || idByName.has(trimmed.toLowerCase())) continue;
+    const [created] = await tx
+      .insert(counterpartiesTable)
+      .values({ name: trimmed })
+      .returning({ id: counterpartiesTable.id });
+    idByName.set(trimmed.toLowerCase(), created!.id);
+    counts.created += 1;
+  }
+
+  return { counts, idByName };
+}
+
 async function importProjects(
   tx: Transaction,
   doc: ParsedBackup,
   warnings: string[],
   currencyIds: Map<string, string>,
+  counterpartyIds: Map<string, string>,
 ): Promise<{ counts: BackupCount; idMap: Map<string, string> }> {
   const counts = emptyCount();
   const idMap = new Map<string, string>();
@@ -402,6 +510,15 @@ async function importProjects(
     const matchByName = byName.get(project.name.trim().toLowerCase());
     const target = matchById ?? matchByName;
     const defaultCurrencyId = currencyIds.get(project.defaultCurrency);
+    // Absent in older backups: leave whatever the project already has.
+    const counterpartyChange =
+      project.defaultCounterparty === undefined
+        ? {}
+        : {
+            defaultCounterpartyId: project.defaultCounterparty
+              ? (counterpartyIds.get(project.defaultCounterparty.trim().toLowerCase()) ?? null)
+              : null,
+          };
 
     if (!defaultCurrencyId) {
       warnings.push(
@@ -422,6 +539,7 @@ async function importProjects(
           icon: project.icon ?? null,
           status: project.status,
           defaultCurrencyId,
+          ...counterpartyChange,
         })
         .where(eq(projectsTable.id, target.id));
       if (matchById) {
@@ -440,6 +558,7 @@ async function importProjects(
         icon: project.icon ?? null,
         status: project.status,
         defaultCurrencyId,
+        ...counterpartyChange,
         ...(project.createdAt ? { createdAt: project.createdAt } : {}),
         ...(project.updatedAt ? { updatedAt: project.updatedAt } : {}),
       });
@@ -562,6 +681,7 @@ async function importExpenses(
   currencyIds: Map<string, string>,
   locationIds: Map<string, string>,
   defaultLocationId: string | undefined,
+  counterpartyIds: Map<string, string>,
 ): Promise<{ counts: BackupCount; importedIds: string[] }> {
   const counts = emptyCount();
   const existing = new Set(known.expenseIds);
@@ -592,6 +712,7 @@ async function importExpenses(
       paymentMethod: expense.paymentMethod ?? null,
       transactionType: expense.transactionType ?? "expense",
       notes: expense.notes ?? null,
+      ...settlementValues(expense, counterpartyIds),
     };
 
     if (existing.has(expense.id)) {
@@ -614,12 +735,39 @@ async function importExpenses(
   return { counts, importedIds };
 }
 
+/**
+ * Older backups carry no settlement fields. Then nothing is written: a new row
+ * gets the column defaults (an ordinary expense) and an existing row keeps the
+ * settlement it already has, so restoring an old file never erases one.
+ */
+function settlementValues(
+  expense: ParsedBackup["expenses"][number],
+  counterpartyIds: Map<string, string>,
+) {
+  if (expense.settlementType === undefined) return {};
+  const settlementType = expense.settlementType ?? "none";
+  const counterpartyId = expense.counterparty
+    ? counterpartyIds.get(expense.counterparty.trim().toLowerCase())
+    : undefined;
+  if (settlementType === "none" || !counterpartyId) {
+    return { settlementType: "none" as const, counterpartyId: null, settlementStatus: null, settledOn: null };
+  }
+  const settlementStatus = expense.settlementStatus ?? "pending";
+  return {
+    settlementType,
+    counterpartyId,
+    settlementStatus,
+    settledOn: settlementStatus === "settled" && expense.settledOn ? isoDate(expense.settledOn) : null,
+  };
+}
+
 async function applyBackup(tx: Transaction, doc: ParsedBackup) {
   const warnings: string[] = [];
 
   const currencyIds = await currencyIdsByCode(tx);
   const locationIds = await locationIdsBySlug(tx);
-  const projects = await importProjects(tx, doc, warnings, currencyIds);
+  const counterparties = await importCounterparties(tx, doc);
+  const projects = await importProjects(tx, doc, warnings, currencyIds, counterparties.idByName);
   const categories = await importCategories(tx, doc, warnings);
   const labels = await importLabels(tx, doc, warnings);
 
@@ -633,6 +781,7 @@ async function applyBackup(tx: Transaction, doc: ParsedBackup) {
     currencyIds,
     locationIds,
     await defaultLocationId(tx),
+    counterparties.idByName,
   );
 
   const affectedExpenseIds = [
@@ -661,6 +810,7 @@ async function applyBackup(tx: Transaction, doc: ParsedBackup) {
     labels: labels.counts,
     expenses: expenses.counts,
     expenseLabels: pairs.size,
+    counterparties: counterparties.counts,
     warnings: [...new Set(warnings)],
   };
 }
@@ -686,9 +836,14 @@ router.get("/export/expenses", async (_req, res): Promise<void> => {
         currencyCode: currenciesTable.code,
         locationName: locationsTable.name,
         transactionType: expensesTable.transactionType,
+        settlementType: expensesTable.settlementType,
+        counterpartyName: counterpartiesTable.name,
+        settlementStatus: expensesTable.settlementStatus,
+        settledOn: expensesTable.settledOn,
       })
       .from(expensesTable)
       .innerJoin(categoriesTable, eq(expensesTable.categoryId, categoriesTable.id))
+      .leftJoin(counterpartiesTable, eq(expensesTable.counterpartyId, counterpartiesTable.id))
       .leftJoin(parentCategory, eq(parentCategory.id, categoriesTable.parentId))
       .leftJoin(projectsTable, eq(expensesTable.projectId, projectsTable.id))
       .innerJoin(currenciesTable, eq(expensesTable.currencyId, currenciesTable.id))
@@ -712,6 +867,7 @@ router.get("/export/expenses", async (_req, res): Promise<void> => {
     [
       "Date", "Amount", "Currency", "Location", "Category", "Top Category", "Project",
       "Type", "Description", "Payment Method", "Labels", "Notes",
+      "Settlement", "Settled With", "Settlement Status", "Settled On",
     ],
     ...expenses.map((expense) => [
       expense.date,
@@ -726,6 +882,14 @@ router.get("/export/expenses", async (_req, res): Promise<void> => {
       expense.paymentMethod,
       (labelsByExpense.get(expense.id) ?? []).join(" | "),
       expense.notes,
+      expense.settlementType === "reimbursable"
+        ? "Reimbursable"
+        : expense.settlementType === "paid_by_other"
+          ? "Paid by someone else"
+          : "",
+      expense.counterpartyName,
+      expense.settlementStatus,
+      expense.settledOn,
     ]),
   ];
 

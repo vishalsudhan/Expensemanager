@@ -1,6 +1,7 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import {
   categoriesTable,
+  counterpartiesTable,
   currenciesTable,
   db,
   expenseLabelsTable,
@@ -20,6 +21,9 @@ export const expenseSelection = {
   paymentMethod: expensesTable.paymentMethod,
   notes: expensesTable.notes,
   transactionType: expensesTable.transactionType,
+  settlementType: expensesTable.settlementType,
+  settlementStatus: expensesTable.settlementStatus,
+  settledOn: expensesTable.settledOn,
   createdAt: expensesTable.createdAt,
   updatedAt: expensesTable.updatedAt,
   location: {
@@ -44,6 +48,12 @@ export const expenseSelection = {
     color: categoriesTable.color,
     status: categoriesTable.status,
   },
+  // Needs .leftJoin(counterpartiesTable, ...) - use joinCounterparty below.
+  counterparty: {
+    id: counterpartiesTable.id,
+    name: counterpartiesTable.name,
+    status: counterpartiesTable.status,
+  },
   currency: {
     id: currenciesTable.id,
     code: currenciesTable.code,
@@ -53,6 +63,9 @@ export const expenseSelection = {
     isActive: currenciesTable.isActive,
   },
 };
+
+/** Join condition every query using expenseSelection must left-join on. */
+export const counterpartyJoin = eq(expensesTable.counterpartyId, counterpartiesTable.id);
 
 export const expenseLabelSelection = {
   id: labelsTable.id,

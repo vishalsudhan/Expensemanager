@@ -32,6 +32,13 @@ export interface BackupProject {
      * @maxLength 3
      */
   defaultCurrency: string;
+  /**
+     * Counterparty name. Optional so older backups still import.
+     * @minLength 1
+     * @maxLength 80
+     * @nullable
+     */
+  defaultCounterparty?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

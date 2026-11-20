@@ -31,6 +31,19 @@ export function useCurrencyOptions(): {
   };
 }
 
+/** Currency new expenses and projects start in, when it is switched on. */
+export const DEFAULT_CURRENCY_CODE = 'QAR';
+
+/** The default currency if available, otherwise the first active one. */
+export function defaultCurrency(currencies: readonly Currency[]): Currency | null {
+  return (
+    currencies.find((currency) => currency.isActive && currency.code === DEFAULT_CURRENCY_CODE) ??
+    currencies.find((currency) => currency.isActive) ??
+    currencies[0] ??
+    null
+  );
+}
+
 /** Finds a currency by id, falling back to the first active one. */
 export function findCurrency(
   currencies: readonly Currency[],

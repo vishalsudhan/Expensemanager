@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ExpensePaymentMethod } from './expensePaymentMethod';
+import type { ExpenseSettlementType } from './expenseSettlementType';
 import type { ExpenseTransactionType } from './expenseTransactionType';
+import type { ListExpensesSettlementStatus } from './listExpensesSettlementStatus';
 import type { ListExpensesSort } from './listExpensesSort';
 
 export type ListExpensesParams = {
@@ -48,6 +50,18 @@ parentCategoryId?: string;
  * Filter by transaction type.
  */
 transactionType?: ExpenseTransactionType;
+/**
+ * Only reimbursable expenses, only ones someone else paid, or only ordinary ones.
+ */
+settlementType?: ExpenseSettlementType;
+/**
+ * open matches pending and claimed - anything not yet settled.
+ */
+settlementStatus?: ListExpensesSettlementStatus;
+/**
+ * Only expenses settled with this person or company
+ */
+counterpartyId?: string;
 sort?: ListExpensesSort;
 /**
  * @minimum 1

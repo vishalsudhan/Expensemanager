@@ -33,6 +33,10 @@ import type {
   CategoryReportCollection,
   CategoryUpdate,
   ChangePasswordRequest,
+  Counterparty,
+  CounterpartyCollection,
+  CounterpartyInput,
+  CounterpartyUpdate,
   Currency,
   CurrencyInput,
   CurrencyUpdate,
@@ -42,6 +46,7 @@ import type {
   ExpenseInput,
   ExpensePage,
   ExpenseRecord,
+  ExpenseSettlementUpdate,
   ExpenseUpdate,
   ForgotPasswordRequest,
   GenericMessage,
@@ -52,6 +57,7 @@ import type {
   GetPeriodReportParams,
   GetProjectReportsParams,
   GetReportTrendsParams,
+  GetSettlementReportParams,
   HealthStatus,
   Label,
   LabelCollection,
@@ -59,6 +65,7 @@ import type {
   LabelReportCollection,
   LabelUpdate,
   ListCategoriesParams,
+  ListCounterpartiesParams,
   ListCurrenciesParams,
   ListExpensesParams,
   ListLabelsParams,
@@ -80,6 +87,7 @@ import type {
   RecordDeleteResult,
   ReportTrends,
   ResetPasswordRequest,
+  SettlementReport,
   SetupAccountRequest,
   UnauthorizedResponse
 } from './api.schemas';
@@ -2843,6 +2851,516 @@ export const useArchiveLabel = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getArchiveLabelMutationOptions(options));
     }
+
+export const getListCounterpartiesUrl = (params?: ListCounterpartiesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/counterparties?${stringifiedParams}` : `/api/counterparties`
+}
+
+/**
+ * @summary List the people and companies money is settled with
+ */
+export const listCounterparties = async (params?: ListCounterpartiesParams, options?: Parameters<typeof customFetch>[1]): Promise<CounterpartyCollection> => {
+
+  return customFetch<CounterpartyCollection>(getListCounterpartiesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCounterpartiesQueryKey = (params?: ListCounterpartiesParams,) => {
+    return [
+    `/api/counterparties`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCounterpartiesQueryOptions = <TData = Awaited<ReturnType<typeof listCounterparties>>, TError = ErrorType<unknown>>(params?: ListCounterpartiesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCounterparties>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCounterpartiesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCounterparties>>> = ({ signal }) => listCounterparties(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCounterparties>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCounterpartiesQueryResult = NonNullable<Awaited<ReturnType<typeof listCounterparties>>>
+export type ListCounterpartiesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the people and companies money is settled with
+ */
+
+export function useListCounterparties<TData = Awaited<ReturnType<typeof listCounterparties>>, TError = ErrorType<unknown>>(
+ params?: ListCounterpartiesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCounterparties>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCounterpartiesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCounterpartyUrl = () => {
+
+
+
+
+  return `/api/counterparties`
+}
+
+/**
+ * @summary Add a person or company
+ */
+export const createCounterparty = async (counterpartyInput: CounterpartyInput, options?: Parameters<typeof customFetch>[1]): Promise<Counterparty> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Counterparty>(getCreateCounterpartyUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(counterpartyInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCounterpartyMutationKey = () => ['createCounterparty'] as const;
+
+export const getCreateCounterpartyMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCounterparty>>, TError,CreateCounterpartyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCounterparty>>, TError,CreateCounterpartyMutationVariables, TContext> => {
+
+const mutationKey = getCreateCounterpartyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCounterparty>>, CreateCounterpartyMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCounterparty(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCounterpartyMutationResult = NonNullable<Awaited<ReturnType<typeof createCounterparty>>>
+    export type CreateCounterpartyMutationBody = BodyType<CounterpartyInput>
+    export type CreateCounterpartyMutationError = ErrorType<ErrorResponse>
+    export type CreateCounterpartyMutationVariables = {data: BodyType<CounterpartyInput>}
+
+    /**
+ * @summary Add a person or company
+ */
+export const useCreateCounterparty = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCounterparty>>, TError,CreateCounterpartyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCounterparty>>,
+        TError,
+        CreateCounterpartyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCounterpartyMutationOptions(options));
+    }
+
+export const getUpdateCounterpartyUrl = (counterpartyId: string,) => {
+
+
+
+
+  return `/api/counterparties/${counterpartyId}`
+}
+
+/**
+ * @summary Rename, archive, or restore a person or company
+ */
+export const updateCounterparty = async (counterpartyId: string,
+    counterpartyUpdate: CounterpartyUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Counterparty> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Counterparty>(getUpdateCounterpartyUrl(counterpartyId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(counterpartyUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateCounterpartyMutationKey = () => ['updateCounterparty'] as const;
+
+export const getUpdateCounterpartyMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCounterparty>>, TError,UpdateCounterpartyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCounterparty>>, TError,UpdateCounterpartyMutationVariables, TContext> => {
+
+const mutationKey = getUpdateCounterpartyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCounterparty>>, UpdateCounterpartyMutationVariables> = (props) => {
+          const {counterpartyId,data} = props ?? {};
+
+          return  updateCounterparty(counterpartyId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCounterpartyMutationResult = NonNullable<Awaited<ReturnType<typeof updateCounterparty>>>
+    export type UpdateCounterpartyMutationBody = BodyType<CounterpartyUpdate>
+    export type UpdateCounterpartyMutationError = ErrorType<ErrorResponse>
+    export type UpdateCounterpartyMutationVariables = {counterpartyId: string;data: BodyType<CounterpartyUpdate>}
+
+    /**
+ * @summary Rename, archive, or restore a person or company
+ */
+export const useUpdateCounterparty = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCounterparty>>, TError,UpdateCounterpartyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCounterparty>>,
+        TError,
+        UpdateCounterpartyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateCounterpartyMutationOptions(options));
+    }
+
+export const getDeleteCounterpartyUrl = (counterpartyId: string,) => {
+
+
+
+
+  return `/api/counterparties/${counterpartyId}`
+}
+
+/**
+ * Removes the record when no expense uses it. When expenses still point at it the record is archived instead, so no expense is ever broken.
+ * @summary Delete a person or company
+ */
+export const deleteCounterparty = async (counterpartyId: string, options?: Parameters<typeof customFetch>[1]): Promise<RecordDeleteResult> => {
+
+  return customFetch<RecordDeleteResult>(getDeleteCounterpartyUrl(counterpartyId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCounterpartyMutationKey = () => ['deleteCounterparty'] as const;
+
+export const getDeleteCounterpartyMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCounterparty>>, TError,DeleteCounterpartyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCounterparty>>, TError,DeleteCounterpartyMutationVariables, TContext> => {
+
+const mutationKey = getDeleteCounterpartyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCounterparty>>, DeleteCounterpartyMutationVariables> = (props) => {
+          const {counterpartyId} = props ?? {};
+
+          return  deleteCounterparty(counterpartyId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCounterpartyMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCounterparty>>>
+
+    export type DeleteCounterpartyMutationError = ErrorType<ErrorResponse>
+    export type DeleteCounterpartyMutationVariables = {counterpartyId: string}
+
+    /**
+ * @summary Delete a person or company
+ */
+export const useDeleteCounterparty = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCounterparty>>, TError,DeleteCounterpartyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCounterparty>>,
+        TError,
+        DeleteCounterpartyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteCounterpartyMutationOptions(options));
+    }
+
+export const getUpdateExpenseSettlementUrl = (expenseId: string,) => {
+
+
+
+
+  return `/api/expenses/${expenseId}/settlement`
+}
+
+/**
+ * Marks the expense claimed, settled (paid back to you, or by you), or reopens it. Only the settlement changes; the expense itself, its amount and its date stay as they were, so past months never change.
+ * @summary Move a reimbursable or paid-by-someone-else expense along
+ */
+export const updateExpenseSettlement = async (expenseId: string,
+    expenseSettlementUpdate: ExpenseSettlementUpdate, options?: Parameters<typeof customFetch>[1]): Promise<ExpenseRecord> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ExpenseRecord>(getUpdateExpenseSettlementUrl(expenseId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(expenseSettlementUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateExpenseSettlementMutationKey = () => ['updateExpenseSettlement'] as const;
+
+export const getUpdateExpenseSettlementMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateExpenseSettlement>>, TError,UpdateExpenseSettlementMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateExpenseSettlement>>, TError,UpdateExpenseSettlementMutationVariables, TContext> => {
+
+const mutationKey = getUpdateExpenseSettlementMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateExpenseSettlement>>, UpdateExpenseSettlementMutationVariables> = (props) => {
+          const {expenseId,data} = props ?? {};
+
+          return  updateExpenseSettlement(expenseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateExpenseSettlementMutationResult = NonNullable<Awaited<ReturnType<typeof updateExpenseSettlement>>>
+    export type UpdateExpenseSettlementMutationBody = BodyType<ExpenseSettlementUpdate>
+    export type UpdateExpenseSettlementMutationError = ErrorType<ErrorResponse>
+    export type UpdateExpenseSettlementMutationVariables = {expenseId: string;data: BodyType<ExpenseSettlementUpdate>}
+
+    /**
+ * @summary Move a reimbursable or paid-by-someone-else expense along
+ */
+export const useUpdateExpenseSettlement = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateExpenseSettlement>>, TError,UpdateExpenseSettlementMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateExpenseSettlement>>,
+        TError,
+        UpdateExpenseSettlementMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateExpenseSettlementMutationOptions(options));
+    }
+
+export const getGetSettlementReportUrl = (params?: GetSettlementReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/settlements?${stringifiedParams}` : `/api/reports/settlements`
+}
+
+/**
+ * @summary What is owed to you, what you owe, and what was settled each month
+ */
+export const getSettlementReport = async (params?: GetSettlementReportParams, options?: Parameters<typeof customFetch>[1]): Promise<SettlementReport> => {
+
+  return customFetch<SettlementReport>(getGetSettlementReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSettlementReportQueryKey = (params?: GetSettlementReportParams,) => {
+    return [
+    `/api/reports/settlements`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetSettlementReportQueryOptions = <TData = Awaited<ReturnType<typeof getSettlementReport>>, TError = ErrorType<unknown>>(params?: GetSettlementReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSettlementReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSettlementReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSettlementReport>>> = ({ signal }) => getSettlementReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSettlementReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSettlementReportQueryResult = NonNullable<Awaited<ReturnType<typeof getSettlementReport>>>
+export type GetSettlementReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary What is owed to you, what you owe, and what was settled each month
+ */
+
+export function useGetSettlementReport<TData = Awaited<ReturnType<typeof getSettlementReport>>, TError = ErrorType<unknown>>(
+ params?: GetSettlementReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSettlementReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSettlementReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetReportTrendsUrl = (params: GetReportTrendsParams,) => {
   const normalizedParams = new URLSearchParams();

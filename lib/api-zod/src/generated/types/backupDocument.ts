@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BackupCategory } from './backupCategory';
+import type { BackupCounterparty } from './backupCounterparty';
 import type { BackupDocumentCounts } from './backupDocumentCounts';
 import type { BackupDocumentFormat } from './backupDocumentFormat';
 import type { BackupExpense } from './backupExpense';
@@ -24,4 +25,6 @@ export interface BackupDocument {
   labels: BackupLabel[];
   expenses: BackupExpense[];
   expenseLabels: BackupExpenseLabel[];
+  /** Optional so backups exported before settlements existed still import. */
+  counterparties?: BackupCounterparty[];
 }
