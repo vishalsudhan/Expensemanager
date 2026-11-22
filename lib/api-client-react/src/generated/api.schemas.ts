@@ -768,6 +768,73 @@ export interface CountryCategoryReport {
   countries: CountryBreakdown[];
 }
 
+export interface CountrySummary {
+  location: ExpenseLocation;
+  totals: CurrencyAmount[];
+  previousTotals: CurrencyAmount[];
+  averagePerDay: CurrencyAverage[];
+}
+
+export interface OverviewBucket {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  start: string;
+  totals: CurrencyAmount[];
+}
+
+export type OverviewTimelineGranularity = typeof OverviewTimelineGranularity[keyof typeof OverviewTimelineGranularity];
+
+
+export const OverviewTimelineGranularity = {
+  day: 'day',
+  week: 'week',
+  month: 'month',
+} as const;
+
+export interface OverviewTimeline {
+  granularity: OverviewTimelineGranularity;
+  buckets: OverviewBucket[];
+}
+
+export type ExpenseProjectStatus = typeof ExpenseProjectStatus[keyof typeof ExpenseProjectStatus];
+
+
+export const ExpenseProjectStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface ExpenseProject {
+  id: string;
+  name: string;
+  color: string;
+  status: ExpenseProjectStatus;
+}
+
+export interface OverviewProjectRow {
+  project: ExpenseProject | null;
+  totals: CurrencyAmount[];
+}
+
+export type ExpenseLabelStatus = typeof ExpenseLabelStatus[keyof typeof ExpenseLabelStatus];
+
+
+export const ExpenseLabelStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface ExpenseLabel {
+  id: string;
+  name: string;
+  color: string;
+  status: ExpenseLabelStatus;
+}
+
+export interface OverviewLabelRow {
+  label: ExpenseLabel;
+  totals: CurrencyAmount[];
+}
+
 export type ExpensePaymentMethod = typeof ExpensePaymentMethod[keyof typeof ExpensePaymentMethod];
 
 
@@ -779,6 +846,41 @@ export const ExpensePaymentMethod = {
   upi: 'upi',
   other: 'other',
 } as const;
+
+export interface OverviewPaymentRow {
+  method: ExpensePaymentMethod | null;
+  totals: CurrencyAmount[];
+}
+
+export interface OverviewTopExpense {
+  id: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  amount: string;
+  currency: Currency;
+  /** @nullable */
+  description: string | null;
+  category: ExpenseCategory;
+}
+
+export interface ReportOverview {
+  range: InsightRange;
+  previousRange: InsightRange | null;
+  includeReimbursable: boolean;
+  /** Every country with spending in the range, most entries first. */
+  countries: CountrySummary[];
+  /** The country the detail below is for; null when nothing was spent. */
+  location: ExpenseLocation | null;
+  totals: CurrencyAmount[];
+  previousTotals: CurrencyAmount[];
+  averagePerDay: CurrencyAverage[];
+  categories: CountryCategoryRow[];
+  timeline: OverviewTimeline;
+  projects: OverviewProjectRow[];
+  labels: OverviewLabelRow[];
+  paymentMethods: OverviewPaymentRow[];
+  topExpenses: OverviewTopExpense[];
+}
 
 /**
  * expense = real consumption. payment = settling a debt, excluded from spending totals.
@@ -802,36 +904,6 @@ export const ReportTransactionType = {
   expense: 'expense',
   payment: 'payment',
 } as const;
-
-export type ExpenseProjectStatus = typeof ExpenseProjectStatus[keyof typeof ExpenseProjectStatus];
-
-
-export const ExpenseProjectStatus = {
-  active: 'active',
-  archived: 'archived',
-} as const;
-
-export interface ExpenseProject {
-  id: string;
-  name: string;
-  color: string;
-  status: ExpenseProjectStatus;
-}
-
-export type ExpenseLabelStatus = typeof ExpenseLabelStatus[keyof typeof ExpenseLabelStatus];
-
-
-export const ExpenseLabelStatus = {
-  active: 'active',
-  archived: 'archived',
-} as const;
-
-export interface ExpenseLabel {
-  id: string;
-  name: string;
-  color: string;
-  status: ExpenseLabelStatus;
-}
 
 /**
  * Outcome of a delete request. A record that is still referenced by expenses is archived rather than destroyed, so existing expenses keep their link and their label stays readable.
@@ -1647,6 +1719,21 @@ from?: string;
  * @pattern ^\d{4}-\d{2}-\d{2}$
  */
 to?: string;
+includeReimbursable?: boolean;
+};
+
+export type GetReportOverviewParams = {
+/**
+ * First day of the range. Omit for all time.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from?: string;
+/**
+ * Last day of the range, inclusive. Omit for today.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to?: string;
+locationId?: string;
 includeReimbursable?: boolean;
 };
 

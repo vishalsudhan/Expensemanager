@@ -58,6 +58,7 @@ import type {
   GetLocationReportsParams,
   GetPeriodReportParams,
   GetProjectReportsParams,
+  GetReportOverviewParams,
   GetReportTrendsParams,
   GetSettlementReportParams,
   HealthStatus,
@@ -87,6 +88,7 @@ import type {
   ProjectUpdate,
   RateLimitedResponse,
   RecordDeleteResult,
+  ReportOverview,
   ReportTrends,
   ResetPasswordRequest,
   SettlementReport,
@@ -3437,6 +3439,91 @@ export function useGetCountryCategoryReport<TData = Awaited<ReturnType<typeof ge
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetCountryCategoryReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetReportOverviewUrl = (params?: GetReportOverviewParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/overview?${stringifiedParams}` : `/api/reports/overview`
+}
+
+/**
+ * Real spending only. Reimbursable expenses are left out unless includeReimbursable is true. Every country is summarised; the detail (categories, timeline, projects, labels, payment methods, biggest expenses) is for one country: locationId, or the country with the most entries in the range.
+ * @summary Everything the Reports page and Home need for one range, per country
+ */
+export const getReportOverview = async (params?: GetReportOverviewParams, options?: Parameters<typeof customFetch>[1]): Promise<ReportOverview> => {
+
+  return customFetch<ReportOverview>(getGetReportOverviewUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReportOverviewQueryKey = (params?: GetReportOverviewParams,) => {
+    return [
+    `/api/reports/overview`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetReportOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getReportOverview>>, TError = ErrorType<ErrorResponse>>(params?: GetReportOverviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReportOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReportOverviewQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReportOverview>>> = ({ signal }) => getReportOverview(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReportOverview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReportOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof getReportOverview>>>
+export type GetReportOverviewQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Everything the Reports page and Home need for one range, per country
+ */
+
+export function useGetReportOverview<TData = Awaited<ReturnType<typeof getReportOverview>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetReportOverviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReportOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReportOverviewQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

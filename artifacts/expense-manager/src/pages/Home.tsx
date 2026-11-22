@@ -1,179 +1,22 @@
-import { useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import {
-  ArrowDownLeft, ArrowRight, ArrowUpRight, CircleAlert, HandCoins, MapPin, Plus, RotateCcw, TrendingUp, Wallet,
+  ArrowDownLeft, ArrowRight, ArrowUpRight, CircleAlert, HandCoins, Plus, RotateCcw, Wallet,
 } from 'lucide-react';
 import { getGetDashboardQueryKey, useGetDashboard } from '@workspace/api-client-react';
-import type {
-  CurrencyAmount, DashboardCategorySpending, DashboardProjectSpending, DashboardTrendBucket, ExpenseRecord,
-  ExpenseLocation as ApiLocation,
-} from '@workspace/api-client-react';
+import type { ExpenseRecord } from '@workspace/api-client-react';
 import { errorText, formatShortDate, formatTotals, money } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useLocations } from '@/hooks/use-locations';
-import { subtractTotals } from '@/lib/settlements';
-import { CountryInsights } from '@/components/country-insights';
-
-type Granularity = 'day' | 'week' | 'month';
+import { CountryMonthCards, TopCategoriesCard } from '@/components/home-overview';
 
 const shortDate = formatShortDate;
-/** Adds up trend buckets per currency so the headline stays separated by currency. */
-const sumBucketTotals = (buckets: readonly DashboardTrendBucket[]): CurrencyAmount[] => {
-  const byCurrency = new Map<string, CurrencyAmount>();
-  for (const bucket of buckets) {
-    for (const entry of bucket.totals) {
-      const current = byCurrency.get(entry.currency.id);
-      byCurrency.set(entry.currency.id, {
-        currency: entry.currency,
-        total: (Number(current?.total ?? 0) + Number(entry.total)).toFixed(2),
-        count: (current?.count ?? 0) + entry.count,
-      });
-    }
-  }
-  return [...byCurrency.values()];
-};
-const monthName = (value: string) => {
-  const date = new Date(`${value.slice(0, 10)}T12:00:00`);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { month: 'short' }).format(date);
-};
-const bucketLabel = (value: string, granularity: Granularity) =>
-  granularity === 'month' ? monthName(value) : shortDate(value);
-const granularityLabels: Record<Granularity, string> = { day: 'Daily', week: 'Weekly', month: 'Monthly' };
-const rangeCaption: Record<Granularity, string> = { day: 'Last 14 days', week: 'Last 8 weeks', month: 'Last 6 months' };
 
 function CategoryMark({ color, icon }: { color: string; icon: string | null }) {
   return (
     <span className="grid size-10 shrink-0 place-items-center rounded-[13px] text-[13px]" style={{ backgroundColor: `${color}1F`, color }}>
       {icon ? <span className="size-2.5 rounded-full" style={{ backgroundColor: color }} /> : <Wallet size={16} strokeWidth={1.8} />}
     </span>
-  );
-}
-
-function LocationCard({
-  location, totals, categories, recent,
-}: {
-  location: ApiLocation;
-  totals: CurrencyAmount[];
-  categories: {
-    category: { name: string; color: string };
-    totals: CurrencyAmount[];
-    count: number;
-  }[];
-  recent: ExpenseRecord[];
-}) {
-  const lead = totals.reduce(
-    (best, entry) => (Number(entry.total) > Number(best?.total ?? 0) ? entry : best),
-    totals[0],
-  );
-
-  return (
-    <section
-      className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-6"
-      data-testid={`section-location-${location.slug}`}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <MapPin size={15} className="shrink-0 text-primary" />
-            <h2 className="font-display text-[19px] font-semibold tracking-[-0.03em]" data-testid={`heading-location-${location.slug}`}>
-              {location.name}
-            </h2>
-          </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {lead ? lead.currency.name : 'No spending yet'}
-          </p>
-        </div>
-        {/* Never a combined figure: each currency is reported on its own line. */}
-        <div className="text-right" data-testid={`text-location-totals-${location.slug}`}>
-          {totals.length ? (
-            totals.map((entry) => (
-              <p key={entry.currency.id} className="font-display text-[19px] font-semibold tabular-nums">
-                {money(entry.total, entry.currency)}
-              </p>
-            ))
-          ) : (
-            <p className="font-display text-[19px] font-semibold tabular-nums text-muted-foreground">
-              {formatTotals([])}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Category detail per country now lives in the "Where your money goes" section. */}
-      {recent.length > 0 && (
-        <div className="mt-5 space-y-2 border-t border-border/60 pt-4">
-          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">
-            Recent in {location.name}
-          </p>
-          {recent.map((expense) => (
-            <Link
-              key={expense.id}
-              href={`/expenses/${expense.id}`}
-              className="flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 transition-colors hover:bg-secondary/50"
-              data-testid={`link-location-recent-${expense.id}`}
-            >
-              <span className="min-w-0 truncate text-[13px] font-medium">
-                {expense.description || expense.category.name}
-              </span>
-              <span className="shrink-0 text-[13px] font-semibold tabular-nums">
-                {money(expense.amount, expense.currency)}
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function Stat({ label, value, testId }: { label: string; value: string; testId: string }) {
-  return (
-    <div className="rounded-2xl border border-border/60 bg-secondary/35 px-4 py-3.5">
-      <p className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">{label}</p>
-      <p className="mt-1.5 font-display text-[20px] font-semibold tracking-[-.035em] tabular-nums" data-testid={testId}>{value}</p>
-    </div>
-  );
-}
-
-function BreakdownRow({
-  color, name, count, totals, testId, valueTestId,
-}: {
-  color: string | null; name: string; count: number; totals: CurrencyAmount[]; testId: string; valueTestId: string;
-}) {
-  // Each currency keeps its own bar, so shares are never compared across currencies.
-
-  return (
-    <div data-testid={testId}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: color ?? 'var(--muted-foreground)' }} />
-          <span className="truncate text-sm font-semibold tracking-[-.01em]">{name}</span>
-          <span className="shrink-0 text-[11px] text-muted-foreground">{count} {count === 1 ? 'entry' : 'entries'}</span>
-        </div>
-        <span className="shrink-0 text-right text-sm font-semibold tabular-nums" data-testid={valueTestId}>{formatTotals(totals)}</span>
-      </div>
-      <div className="mt-2 space-y-1">
-        {totals.map((entry) => (
-          <div key={entry.currency.id} className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${Math.max(Math.round((entry.share ?? 0) * 100), 3)}%`,
-                backgroundColor: color ?? 'var(--primary)',
-              }}
-              data-testid={`${testId}-bar-${entry.currency.code}`}
-            />
-          </div>
-        ))}
-        {!totals.length && (
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-            <div className="h-full w-full rounded-full" style={{ width: '3%', backgroundColor: color ?? 'var(--primary)' }} />
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -199,9 +42,9 @@ function RecentExpenseRow({ expense }: { expense: ExpenseRecord }) {
 }
 
 export function HomePage() {
-  const [granularity, setGranularity] = useState<Granularity>('month');
-  const { locations } = useLocations();
-  const params = { granularity, recentLimit: 5 };
+  // Home needs only the owed/owing figures, recent expenses and the empty
+  // state from the dashboard; the monthly figures come from the report overview.
+  const params = { granularity: 'month' as const, recentLimit: 5 };
   const query = useGetDashboard(
     params,
     { query: { queryKey: getGetDashboardQueryKey(params), placeholderData: keepPreviousData } },
@@ -217,7 +60,7 @@ export function HomePage() {
       <header className="flex flex-col gap-5 border-b border-border/80 pb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-display text-[40px] font-semibold leading-none tracking-[-.055em] sm:text-[52px]" data-testid="heading-home">Home</h1>
-          <p className="mt-4 max-w-[470px] text-[14px] leading-6 text-muted-foreground">A quiet look at where your money has been going.</p>
+          <p className="mt-4 max-w-[470px] text-[14px] leading-6 text-muted-foreground">This month at a glance. The full picture is in Reports.</p>
         </div>
         <Link href="/expenses/new" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-transform hover:-translate-y-0.5" data-testid="button-quick-add">
           <Plus size={16} /> Quick add
@@ -246,27 +89,7 @@ export function HomePage() {
         </section>
       ) : dashboard ? (
         <div className="mt-7 space-y-5">
-          <section className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-7" data-testid="section-total-spent">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground">Total spent · this month</p>
-                <p className="mt-3 font-display text-[38px] font-semibold leading-none tracking-[-.06em] tabular-nums sm:text-[46px]" data-testid="text-total-month">{formatTotals(dashboard.summary.month)}</p>
-              </div>
-              <span className="inline-flex w-fit items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-[11px] font-semibold text-secondary-foreground" data-testid="text-total-alltime">
-                <TrendingUp size={13} className="text-primary" /> {formatTotals(dashboard.summary.allTime)} all time
-              </span>
-            </div>
-            <div className="mt-6 grid grid-cols-2 gap-3 border-t border-border/70 pt-5 sm:max-w-md">
-              <Stat label="Today" value={formatTotals(dashboard.summary.today)} testId="text-total-today" />
-              <Stat label="This week" value={formatTotals(dashboard.summary.week)} testId="text-total-week" />
-            </div>
-            {dashboard.settlements.monthReimbursable.length > 0 && (
-              <p className="mt-4 text-xs leading-5 text-muted-foreground" data-testid="text-month-own-cost">
-                Of this, <span className="font-semibold text-foreground">{formatTotals(dashboard.settlements.monthReimbursable)}</span> is reimbursable ·
-                your own cost <span className="font-semibold text-foreground">{formatTotals(subtractTotals(dashboard.summary.month, dashboard.settlements.monthReimbursable))}</span>
-              </p>
-            )}
-          </section>
+          <CountryMonthCards />
 
           {(dashboard.settlements.owedToMe.length > 0 || dashboard.settlements.iOwe.length > 0) && (
             <Link
@@ -293,180 +116,7 @@ export function HomePage() {
             </Link>
           )}
 
-          <CountryInsights />
-
-          <section className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-7" data-testid="section-spending-trend">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground">Spending trend</p>
-                <p className="mt-2 font-display text-[22px] font-semibold tracking-[-.04em] tabular-nums" data-testid="text-trend-total">
-                  {formatTotals(sumBucketTotals(dashboard.trend.buckets))}
-                </p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">{rangeCaption[dashboard.trend.granularity]} · {granularityLabels[dashboard.trend.granularity]}</p>
-              </div>
-              <div className={`flex rounded-xl border border-border bg-background p-1 ${query.isPlaceholderData ? 'opacity-70' : ''}`} role="tablist" aria-label="Trend granularity">
-                {(['day', 'week', 'month'] as const).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="tab"
-                    aria-selected={granularity === option}
-                    onClick={() => setGranularity(option)}
-                    className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors ${granularity === option ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                    data-testid={`button-trend-${option}`}
-                  >
-                    {granularityLabels[option]}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="mt-7 flex h-36 items-end gap-1 sm:gap-2" data-testid="chart-spending-trend">
-              {(() => {
-                // Scale each currency against its own peak so the chart stays readable
-                // without ever comparing values across currencies.
-                const peaks = new Map<string, number>();
-                for (const item of dashboard.trend.buckets) {
-                  for (const entry of item.totals) {
-                    peaks.set(entry.currency.id, Math.max(peaks.get(entry.currency.id) ?? 0, Number(entry.total)));
-                  }
-                }
-
-                return dashboard.trend.buckets.map((bucket) => (
-                  <div key={bucket.start} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-[2px]">
-                    {bucket.totals.map((entry) => {
-                      const peak = peaks.get(entry.currency.id) ?? 0;
-                      const value = Number(entry.total);
-                      const height = peak > 0 ? Math.max((value / peak) * 100, value > 0 ? 6 : 0) : 0;
-                      return (
-                        <div
-                          key={entry.currency.id}
-                          className="w-full rounded-t-[4px] bg-primary/45 transition-colors group-hover:bg-primary"
-                          style={{ height: `${height}%` }}
-                          title={`${bucketLabel(bucket.start, dashboard.trend.granularity)} · ${money(entry.total, entry.currency)}`}
-                          data-testid={`bar-trend-${bucket.start}-${entry.currency.code}`}
-                        />
-                      );
-                    })}
-                    {!bucket.totals.length && (
-                      <div
-                        className="w-full rounded-t-[4px] bg-primary/20"
-                        style={{ height: '2%' }}
-                        data-testid={`bar-trend-${bucket.start}-empty`}
-                      />
-                    )}
-                  </div>
-                ));
-              })()}
-            </div>
-            <div className="mt-3 flex justify-between text-[10px] font-semibold text-muted-foreground">
-              <span>{bucketLabel(dashboard.trend.buckets[0]?.start ?? '', dashboard.trend.granularity)}</span>
-              {dashboard.trend.buckets.length > 2 && <span className="hidden sm:inline">{bucketLabel(dashboard.trend.buckets[Math.floor(dashboard.trend.buckets.length / 2)]?.start ?? '', dashboard.trend.granularity)}</span>}
-              <span>{bucketLabel(dashboard.trend.buckets[dashboard.trend.buckets.length - 1]?.start ?? '', dashboard.trend.granularity)}</span>
-            </div>
-          </section>
-
-          {dashboard.locationSpending.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2.5">
-                <MapPin size={15} className="text-primary" />
-                <h2 className="font-display text-[17px] font-semibold tracking-[-0.03em]" data-testid="heading-locations">
-                  Where you spent
-                </h2>
-              </div>
-              <div className="grid gap-5 lg:grid-cols-2">
-                {dashboard.locationSpending.map((entry) => {
-                  const recent =
-                    dashboard.recentByLocation.find(
-                      (item) => item.location.id === entry.location.id,
-                    )?.expenses ?? [];
-                  return (
-                    <LocationCard
-                      key={entry.location.id}
-                      location={entry.location}
-                      totals={entry.totals}
-                      categories={entry.categories ?? []}
-                      recent={recent}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {dashboard.payments.month.length > 0 && (
-            <section
-              className="rounded-[24px] border border-border/70 bg-secondary/40 p-5 sm:p-6"
-              data-testid="section-payments"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-display text-[17px] font-semibold tracking-[-0.03em]" data-testid="heading-payments">
-                    Bill payments
-                  </h2>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Settled debt, kept out of spending so purchases are not counted twice.
-                  </p>
-                </div>
-                <div className="text-right" data-testid="text-payments-month">
-                  {dashboard.payments.month.map((entry) => (
-                    <p key={entry.currency.id} className="font-display text-[17px] font-semibold tabular-nums">
-                      {money(entry.total, entry.currency)}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )}
-
-          <div className="grid gap-5 lg:grid-cols-2">
-            <section className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-6" data-testid="section-category-spending">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-display text-[17px] font-semibold tracking-[-.03em]">Spending breakdown</h2>
-                <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">This month</span>
-              </div>
-              {dashboard.categorySpending.length ? (
-                <div className="mt-5 space-y-4">
-                  {dashboard.categorySpending.map((row: DashboardCategorySpending) => (
-                    <BreakdownRow
-                      key={row.category.id}
-                      color={row.category.color}
-                      name={row.category.name}
-                      count={row.count}
-                      totals={row.totals}
-                      testId={`row-category-spending-${row.category.id}`}
-                      valueTestId={`text-category-spending-${row.category.id}`}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-5 text-sm text-muted-foreground">No spending recorded this month yet.</p>
-              )}
-            </section>
-
-            <section className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-6" data-testid="section-project-spending">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-display text-[17px] font-semibold tracking-[-.03em]">Project spending</h2>
-                <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">This month</span>
-              </div>
-              {dashboard.projectSpending.length ? (
-                <div className="mt-5 space-y-4">
-                  {dashboard.projectSpending.map((row: DashboardProjectSpending, index: number) => (
-                    <BreakdownRow
-                      key={row.project?.id ?? `none-${index}`}
-                      color={row.project?.color ?? null}
-                      name={row.project?.name ?? 'No project'}
-                      count={row.count}
-                      totals={row.totals}
-                      testId={`row-project-spending-${row.project?.id ?? 'none'}`}
-                      valueTestId={`text-project-spending-${row.project?.id ?? 'none'}`}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-5 text-sm text-muted-foreground">No spending recorded this month yet.</p>
-              )}
-            </section>
-          </div>
+          <TopCategoriesCard />
 
           <section className="rounded-[24px] border border-border/70 bg-card p-5 sm:p-6" data-testid="section-recent-expenses">
             <div className="flex items-center justify-between gap-3">

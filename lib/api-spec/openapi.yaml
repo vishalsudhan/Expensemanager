@@ -1123,6 +1123,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /reports/overview:
+    get:
+      operationId: getReportOverview
+      tags: [reports]
+      summary: Everything the Reports page and Home need for one range, per country
+      description: >-
+        Real spending only. Reimbursable expenses are left out unless
+        includeReimbursable is true. Every country is summarised; the detail
+        (categories, timeline, projects, labels, payment methods, biggest
+        expenses) is for one country: locationId, or the country with the
+        most entries in the range.
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: First day of the range. Omit for all time.
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: to
+          in: query
+          required: false
+          description: Last day of the range, inclusive. Omit for today.
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: includeReimbursable
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Overview for the range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportOverview"
+        "400":
+          description: Invalid range or location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /reports/trends:
     get:
       operationId: getReportTrends
@@ -2728,6 +2779,154 @@ components:
           items:
             $ref: "#/components/schemas/CountryBreakdown"
       required: [range, previousRange, includeReimbursable, countries]
+    CountrySummary:
+      type: object
+      properties:
+        location:
+          $ref: "#/components/schemas/ExpenseLocation"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        previousTotals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        averagePerDay:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAverage"
+      required: [location, totals, previousTotals, averagePerDay]
+    OverviewBucket:
+      type: object
+      properties:
+        start:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+      required: [start, totals]
+    OverviewTimeline:
+      type: object
+      properties:
+        granularity:
+          type: string
+          enum: [day, week, month]
+        buckets:
+          type: array
+          items:
+            $ref: "#/components/schemas/OverviewBucket"
+      required: [granularity, buckets]
+    OverviewProjectRow:
+      type: object
+      properties:
+        project:
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseProject"
+            - type: "null"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+      required: [project, totals]
+    OverviewLabelRow:
+      type: object
+      properties:
+        label:
+          $ref: "#/components/schemas/ExpenseLabel"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+      required: [label, totals]
+    OverviewPaymentRow:
+      type: object
+      properties:
+        method:
+          anyOf:
+            - $ref: "#/components/schemas/ExpensePaymentMethod"
+            - type: "null"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+      required: [method, totals]
+    OverviewTopExpense:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        amount:
+          type: string
+        currency:
+          $ref: "#/components/schemas/Currency"
+        description:
+          type: [string, "null"]
+        category:
+          $ref: "#/components/schemas/ExpenseCategory"
+      required: [id, date, amount, currency, description, category]
+    ReportOverview:
+      type: object
+      properties:
+        range:
+          $ref: "#/components/schemas/InsightRange"
+        previousRange:
+          anyOf:
+            - $ref: "#/components/schemas/InsightRange"
+            - type: "null"
+        includeReimbursable:
+          type: boolean
+        countries:
+          type: array
+          description: Every country with spending in the range, most entries first.
+          items:
+            $ref: "#/components/schemas/CountrySummary"
+        location:
+          description: The country the detail below is for; null when nothing was spent.
+          anyOf:
+            - $ref: "#/components/schemas/ExpenseLocation"
+            - type: "null"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        previousTotals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAmount"
+        averagePerDay:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurrencyAverage"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountryCategoryRow"
+        timeline:
+          $ref: "#/components/schemas/OverviewTimeline"
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/OverviewProjectRow"
+        labels:
+          type: array
+          items:
+            $ref: "#/components/schemas/OverviewLabelRow"
+        paymentMethods:
+          type: array
+          items:
+            $ref: "#/components/schemas/OverviewPaymentRow"
+        topExpenses:
+          type: array
+          items:
+            $ref: "#/components/schemas/OverviewTopExpense"
+      required: [range, previousRange, includeReimbursable, countries, location, totals, previousTotals, averagePerDay, categories, timeline, projects, labels, paymentMethods, topExpenses]
     ExpensePaymentMethod:
       type: string
       enum: [cash, credit_card, debit_card, bank_transfer, upi, other]

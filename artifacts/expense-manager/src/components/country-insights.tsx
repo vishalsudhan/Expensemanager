@@ -7,7 +7,6 @@ import {
   useGetCountryCategoryReport,
 } from '@workspace/api-client-react';
 import type {
-  CountryBreakdown,
   CountryCategoryRow,
   CurrencyAmount,
   CurrencyAverage,
@@ -18,6 +17,7 @@ import { localToday } from '@/lib/settlements';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Amounts } from '@/components/amounts';
 import { Switch } from '@/components/ui/switch';
 
 type Preset = 'this_month' | 'last_month' | 'last_3_months' | 'this_year' | 'all' | 'custom';
@@ -76,7 +76,7 @@ function loadSaved(): { preset: Preset; from: string; to: string; includeReimbur
 }
 
 /** Percentage change per currency; null when there is nothing to compare with. */
-function change(current: CurrencyAmount[], previous: CurrencyAmount[]): { pct: number | null; isNew: boolean } | null {
+export function change(current: CurrencyAmount[], previous: CurrencyAmount[]): { pct: number | null; isNew: boolean } | null {
   if (current.length !== 1) return null; // Never compare across currencies.
   const now = Number(current[0].total);
   const before = Number(previous.find((p) => p.currency.id === current[0].currency.id)?.total ?? 0);
@@ -84,7 +84,7 @@ function change(current: CurrencyAmount[], previous: CurrencyAmount[]): { pct: n
   return { pct: Math.round(((now - before) / before) * 100), isNew: false };
 }
 
-function ChangeBadge({ current, previous, show }: { current: CurrencyAmount[]; previous: CurrencyAmount[]; show: boolean }) {
+export function ChangeBadge({ current, previous, show }: { current: CurrencyAmount[]; previous: CurrencyAmount[]; show: boolean }) {
   if (!show) return null;
   const delta = change(current, previous);
   if (!delta) return null;
@@ -104,16 +104,16 @@ function ChangeBadge({ current, previous, show }: { current: CurrencyAmount[]; p
   );
 }
 
-const perDay = (averages: CurrencyAverage[]) =>
+export const perDay = (averages: CurrencyAverage[]) =>
   averages.map((entry) => money(entry.amount, entry.currency)).join(' · ');
 
-const shareOf = (totals: CurrencyAmount[]) => Math.max(0, ...totals.map((entry) => entry.share ?? 0));
+export const shareOf = (totals: CurrencyAmount[]) => Math.max(0, ...totals.map((entry) => entry.share ?? 0));
 
-function CategoryRow({
-  row, country, range, includeReimbursable, showChange, expanded, onToggle,
+export function CategoryRow({
+  row, locationId, range, includeReimbursable, showChange, expanded, onToggle,
 }: {
   row: CountryCategoryRow;
-  country: CountryBreakdown;
+  locationId: string;
   range: { from: string; to: string };
   includeReimbursable: boolean;
   showChange: boolean;
@@ -122,7 +122,7 @@ function CategoryRow({
 }) {
   const share = shareOf(row.totals);
   const filter = (categoryParam: string) => {
-    const params = new URLSearchParams({ locationId: country.location.id, from: range.from, to: range.to });
+    const params = new URLSearchParams({ locationId, from: range.from, to: range.to });
     const [key, value] = categoryParam.split('=');
     params.set(key, value);
     if (!includeReimbursable) params.set('ownCostOnly', 'true');
@@ -132,8 +132,8 @@ function CategoryRow({
 
   const header = (
     <>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-[96px] flex-1 items-center gap-2">
           {hasChildren ? (
             expanded ? <ChevronDown size={14} className="shrink-0 text-muted-foreground" /> : <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
           ) : (
@@ -143,9 +143,9 @@ function CategoryRow({
           <span className="truncate text-[14px] font-semibold">{row.category.name}</span>
           <ChangeBadge current={row.totals} previous={row.previousTotals} show={showChange} />
         </div>
-        <div className="shrink-0 text-right">
-          <span className="text-[13px] font-semibold tabular-nums">{formatTotals(row.totals)}</span>
-          <span className="ml-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">{Math.round(share * 100)}%</span>
+        <div className="flex shrink-0 items-start gap-1.5 text-right">
+          <Amounts totals={row.totals} className="items-end text-[13px] font-semibold tabular-nums" />
+          <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">{Math.round(share * 100)}%</span>
         </div>
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary/70">
@@ -346,7 +346,7 @@ export function CountryInsights() {
                 <CategoryRow
                   key={row.category.id}
                   row={row}
-                  country={country}
+                  locationId={country.location.id}
                   range={report.range}
                   includeReimbursable={includeReimbursable}
                   showChange={showChange}

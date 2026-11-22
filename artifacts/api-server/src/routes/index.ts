@@ -8,6 +8,7 @@ import dashboardRouter from "./dashboard";
 import expensesRouter from "./expenses";
 import healthRouter from "./health";
 import insightsRouter from "./insights";
+import overviewRouter from "./overview";
 import labelsRouter from "./labels";
 import locationsRouter from "./locations";
 import projectsRouter from "./projects";
@@ -36,6 +37,7 @@ router.use(expensesRouter);
 router.use(dashboardRouter);
 router.use(settlementsRouter);
 router.use(insightsRouter);
+router.use(overviewRouter);
 router.use(reportsRouter);
 router.use(backupRouter);
 

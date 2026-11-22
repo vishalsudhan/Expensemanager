@@ -2095,6 +2095,564 @@ export const GetCountryCategoryReportResponse = zod.object({
 
 
 /**
+ * Real spending only. Reimbursable expenses are left out unless includeReimbursable is true. Every country is summarised; the detail (categories, timeline, projects, labels, payment methods, biggest expenses) is for one country: locationId, or the country with the most entries in the range.
+ * @summary Everything the Reports page and Home need for one range, per country
+ */
+export const getReportOverviewQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportOverviewQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportOverviewQueryIncludeReimbursableDefault = false;
+
+export const GetReportOverviewQueryParams = zod.object({
+  "from": zod.coerce.string().regex(getReportOverviewQueryFromRegExp).optional().describe('First day of the range. Omit for all time.'),
+  "to": zod.coerce.string().regex(getReportOverviewQueryToRegExp).optional().describe('Last day of the range, inclusive. Omit for today.'),
+  "locationId": zod.coerce.string().uuid().optional(),
+  "includeReimbursable": zod.coerce.boolean().default(getReportOverviewQueryIncludeReimbursableDefault)
+})
+
+export const getReportOverviewResponseRangeFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportOverviewResponseRangeToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportOverviewResponseRangeDaysMin = 0;
+
+export const getReportOverviewResponsePreviousRangeOneFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportOverviewResponsePreviousRangeOneToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportOverviewResponsePreviousRangeOneDaysMin = 0;
+
+export const getReportOverviewResponseCountriesItemLocationCountryCodeMin = 2;
+export const getReportOverviewResponseCountriesItemLocationCountryCodeMax = 2;
+
+export const getReportOverviewResponseCountriesItemTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseCountriesItemTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseCountriesItemTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseCountriesItemTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseCountriesItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseCountriesItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseCountriesItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseCountriesItemTotalsItemCountMin = 0;
+
+export const getReportOverviewResponseCountriesItemTotalsItemShareMin = 0;
+export const getReportOverviewResponseCountriesItemTotalsItemShareMax = 1;
+
+export const getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseCountriesItemPreviousTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseCountriesItemPreviousTotalsItemCountMin = 0;
+
+export const getReportOverviewResponseCountriesItemPreviousTotalsItemShareMin = 0;
+export const getReportOverviewResponseCountriesItemPreviousTotalsItemShareMax = 1;
+
+export const getReportOverviewResponseCountriesItemAveragePerDayItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseCountriesItemAveragePerDayItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseCountriesItemAveragePerDayItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseCountriesItemAveragePerDayItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseCountriesItemAveragePerDayItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseCountriesItemAveragePerDayItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseCountriesItemAveragePerDayItemAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseLocationOneCountryCodeMin = 2;
+export const getReportOverviewResponseLocationOneCountryCodeMax = 2;
+
+export const getReportOverviewResponseTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseTotalsItemCountMin = 0;
+
+export const getReportOverviewResponseTotalsItemShareMin = 0;
+export const getReportOverviewResponseTotalsItemShareMax = 1;
+
+export const getReportOverviewResponsePreviousTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponsePreviousTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponsePreviousTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponsePreviousTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponsePreviousTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponsePreviousTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponsePreviousTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponsePreviousTotalsItemCountMin = 0;
+
+export const getReportOverviewResponsePreviousTotalsItemShareMin = 0;
+export const getReportOverviewResponsePreviousTotalsItemShareMax = 1;
+
+export const getReportOverviewResponseAveragePerDayItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseAveragePerDayItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseAveragePerDayItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseAveragePerDayItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseAveragePerDayItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseAveragePerDayItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseAveragePerDayItemAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseCategoriesItemTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseCategoriesItemTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseCategoriesItemTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseCategoriesItemTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseCategoriesItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseCategoriesItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseCategoriesItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseCategoriesItemTotalsItemCountMin = 0;
+
+export const getReportOverviewResponseCategoriesItemTotalsItemShareMin = 0;
+export const getReportOverviewResponseCategoriesItemTotalsItemShareMax = 1;
+
+export const getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseCategoriesItemPreviousTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseCategoriesItemPreviousTotalsItemCountMin = 0;
+
+export const getReportOverviewResponseCategoriesItemPreviousTotalsItemShareMin = 0;
+export const getReportOverviewResponseCategoriesItemPreviousTotalsItemShareMax = 1;
+
+export const getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseCategoriesItemAveragePerDayItemAmountRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseCategoriesItemChildrenItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCountMin = 0;
+
+export const getReportOverviewResponseCategoriesItemChildrenItemTotalsItemShareMin = 0;
+export const getReportOverviewResponseCategoriesItemChildrenItemTotalsItemShareMax = 1;
+
+export const getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCountMin = 0;
+
+export const getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemShareMin = 0;
+export const getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemShareMax = 1;
+
+export const getReportOverviewResponseTimelineBucketsItemStartRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseTimelineBucketsItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseTimelineBucketsItemTotalsItemCountMin = 0;
+
+export const getReportOverviewResponseTimelineBucketsItemTotalsItemShareMin = 0;
+export const getReportOverviewResponseTimelineBucketsItemTotalsItemShareMax = 1;
+
+export const getReportOverviewResponseProjectsItemTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseProjectsItemTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseProjectsItemTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseProjectsItemTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseProjectsItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseProjectsItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseProjectsItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseProjectsItemTotalsItemCountMin = 0;
+
+export const getReportOverviewResponseProjectsItemTotalsItemShareMin = 0;
+export const getReportOverviewResponseProjectsItemTotalsItemShareMax = 1;
+
+export const getReportOverviewResponseLabelsItemTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseLabelsItemTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseLabelsItemTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseLabelsItemTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseLabelsItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseLabelsItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponseLabelsItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponseLabelsItemTotalsItemCountMin = 0;
+
+export const getReportOverviewResponseLabelsItemTotalsItemShareMin = 0;
+export const getReportOverviewResponseLabelsItemTotalsItemShareMax = 1;
+
+export const getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencyCodeMin = 3;
+export const getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencyDecimalPlacesMax = 4;
+
+export const getReportOverviewResponsePaymentMethodsItemTotalsItemTotalRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const getReportOverviewResponsePaymentMethodsItemTotalsItemCountMin = 0;
+
+export const getReportOverviewResponsePaymentMethodsItemTotalsItemShareMin = 0;
+export const getReportOverviewResponsePaymentMethodsItemTotalsItemShareMax = 1;
+
+export const getReportOverviewResponseTopExpensesItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getReportOverviewResponseTopExpensesItemCurrencyCodeMin = 3;
+export const getReportOverviewResponseTopExpensesItemCurrencyCodeMax = 3;
+
+export const getReportOverviewResponseTopExpensesItemCurrencyNameMax = 80;
+
+export const getReportOverviewResponseTopExpensesItemCurrencySymbolMax = 8;
+
+export const getReportOverviewResponseTopExpensesItemCurrencyDecimalPlacesMin = 0;
+export const getReportOverviewResponseTopExpensesItemCurrencyDecimalPlacesMax = 4;
+
+
+
+export const GetReportOverviewResponse = zod.object({
+  "range": zod.object({
+  "from": zod.string().regex(getReportOverviewResponseRangeFromRegExp),
+  "to": zod.string().regex(getReportOverviewResponseRangeToRegExp),
+  "days": zod.number().int().min(getReportOverviewResponseRangeDaysMin).describe('Days in the range, inclusive. Averages per day divide by this.')
+}),
+  "previousRange": zod.union([zod.object({
+  "from": zod.string().regex(getReportOverviewResponsePreviousRangeOneFromRegExp),
+  "to": zod.string().regex(getReportOverviewResponsePreviousRangeOneToRegExp),
+  "days": zod.number().int().min(getReportOverviewResponsePreviousRangeOneDaysMin).describe('Days in the range, inclusive. Averages per day divide by this.')
+}),zod.null()]),
+  "includeReimbursable": zod.boolean(),
+  "countries": zod.array(zod.object({
+  "location": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "countryCode": zod.string().min(getReportOverviewResponseCountriesItemLocationCountryCodeMin).max(getReportOverviewResponseCountriesItemLocationCountryCodeMax).nullable(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseCountriesItemTotalsItemCurrencyCodeMin).max(getReportOverviewResponseCountriesItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseCountriesItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseCountriesItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseCountriesItemTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseCountriesItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponseCountriesItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponseCountriesItemTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponseCountriesItemTotalsItemShareMin).max(getReportOverviewResponseCountriesItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "previousTotals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencyCodeMin).max(getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseCountriesItemPreviousTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponseCountriesItemPreviousTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponseCountriesItemPreviousTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponseCountriesItemPreviousTotalsItemShareMin).max(getReportOverviewResponseCountriesItemPreviousTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "averagePerDay": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseCountriesItemAveragePerDayItemCurrencyCodeMin).max(getReportOverviewResponseCountriesItemAveragePerDayItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseCountriesItemAveragePerDayItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseCountriesItemAveragePerDayItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseCountriesItemAveragePerDayItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseCountriesItemAveragePerDayItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "amount": zod.string().regex(getReportOverviewResponseCountriesItemAveragePerDayItemAmountRegExp)
+}))
+})).describe('Every country with spending in the range, most entries first.'),
+  "location": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "countryCode": zod.string().min(getReportOverviewResponseLocationOneCountryCodeMin).max(getReportOverviewResponseLocationOneCountryCodeMax).nullable(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]).describe('The country the detail below is for; null when nothing was spent.'),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseTotalsItemCurrencyCodeMin).max(getReportOverviewResponseTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponseTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponseTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponseTotalsItemShareMin).max(getReportOverviewResponseTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "previousTotals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponsePreviousTotalsItemCurrencyCodeMin).max(getReportOverviewResponsePreviousTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponsePreviousTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponsePreviousTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponsePreviousTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponsePreviousTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponsePreviousTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponsePreviousTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponsePreviousTotalsItemShareMin).max(getReportOverviewResponsePreviousTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "averagePerDay": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseAveragePerDayItemCurrencyCodeMin).max(getReportOverviewResponseAveragePerDayItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseAveragePerDayItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseAveragePerDayItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseAveragePerDayItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseAveragePerDayItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "amount": zod.string().regex(getReportOverviewResponseAveragePerDayItemAmountRegExp)
+})),
+  "categories": zod.array(zod.object({
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "parentId": zod.string().uuid().nullable().describe('Null for a top-level category.'),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseCategoriesItemTotalsItemCurrencyCodeMin).max(getReportOverviewResponseCategoriesItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseCategoriesItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseCategoriesItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseCategoriesItemTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseCategoriesItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponseCategoriesItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponseCategoriesItemTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponseCategoriesItemTotalsItemShareMin).max(getReportOverviewResponseCategoriesItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})).describe('share is measured within the country, same currency only.'),
+  "previousTotals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencyCodeMin).max(getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseCategoriesItemPreviousTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponseCategoriesItemPreviousTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponseCategoriesItemPreviousTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponseCategoriesItemPreviousTotalsItemShareMin).max(getReportOverviewResponseCategoriesItemPreviousTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})),
+  "averagePerDay": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencyCodeMin).max(getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseCategoriesItemAveragePerDayItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "amount": zod.string().regex(getReportOverviewResponseCategoriesItemAveragePerDayItemAmountRegExp)
+})),
+  "children": zod.array(zod.object({
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "parentId": zod.string().uuid().nullable().describe('Null for a top-level category.'),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencyCodeMin).max(getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponseCategoriesItemChildrenItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponseCategoriesItemChildrenItemTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponseCategoriesItemChildrenItemTotalsItemShareMin).max(getReportOverviewResponseCategoriesItemChildrenItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+})).describe('share is measured within the parent category, same currency only.'),
+  "previousTotals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencyCodeMin).max(getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemShareMin).max(getReportOverviewResponseCategoriesItemChildrenItemPreviousTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+}))
+}))
+})),
+  "timeline": zod.object({
+  "granularity": zod.enum(['day', 'week', 'month']),
+  "buckets": zod.array(zod.object({
+  "start": zod.string().regex(getReportOverviewResponseTimelineBucketsItemStartRegExp),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencyCodeMin).max(getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseTimelineBucketsItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponseTimelineBucketsItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponseTimelineBucketsItemTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponseTimelineBucketsItemTotalsItemShareMin).max(getReportOverviewResponseTimelineBucketsItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+}))
+}))
+}),
+  "projects": zod.array(zod.object({
+  "project": zod.union([zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),zod.null()]),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseProjectsItemTotalsItemCurrencyCodeMin).max(getReportOverviewResponseProjectsItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseProjectsItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseProjectsItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseProjectsItemTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseProjectsItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponseProjectsItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponseProjectsItemTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponseProjectsItemTotalsItemShareMin).max(getReportOverviewResponseProjectsItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+}))
+})),
+  "labels": zod.array(zod.object({
+  "label": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+}),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseLabelsItemTotalsItemCurrencyCodeMin).max(getReportOverviewResponseLabelsItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseLabelsItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseLabelsItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseLabelsItemTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseLabelsItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponseLabelsItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponseLabelsItemTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponseLabelsItemTotalsItemShareMin).max(getReportOverviewResponseLabelsItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+}))
+})),
+  "paymentMethods": zod.array(zod.object({
+  "method": zod.union([zod.enum(['cash', 'credit_card', 'debit_card', 'bank_transfer', 'upi', 'other']),zod.null()]),
+  "totals": zod.array(zod.object({
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencyCodeMin).max(getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencyDecimalPlacesMin).max(getReportOverviewResponsePaymentMethodsItemTotalsItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "total": zod.string().regex(getReportOverviewResponsePaymentMethodsItemTotalsItemTotalRegExp),
+  "count": zod.number().int().min(getReportOverviewResponsePaymentMethodsItemTotalsItemCountMin),
+  "share": zod.number().min(getReportOverviewResponsePaymentMethodsItemTotalsItemShareMin).max(getReportOverviewResponsePaymentMethodsItemTotalsItemShareMax).optional().describe('Share of the matching same-currency total. Never compares across currencies.')
+}))
+})),
+  "topExpenses": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "date": zod.string().regex(getReportOverviewResponseTopExpensesItemDateRegExp),
+  "amount": zod.string(),
+  "currency": zod.object({
+  "id": zod.string().uuid(),
+  "code": zod.string().min(getReportOverviewResponseTopExpensesItemCurrencyCodeMin).max(getReportOverviewResponseTopExpensesItemCurrencyCodeMax),
+  "name": zod.string().min(1).max(getReportOverviewResponseTopExpensesItemCurrencyNameMax),
+  "symbol": zod.string().min(1).max(getReportOverviewResponseTopExpensesItemCurrencySymbolMax),
+  "decimalPlaces": zod.number().int().min(getReportOverviewResponseTopExpensesItemCurrencyDecimalPlacesMin).max(getReportOverviewResponseTopExpensesItemCurrencyDecimalPlacesMax),
+  "isActive": zod.boolean()
+}),
+  "description": zod.string().nullable(),
+  "category": zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "parentId": zod.string().uuid().nullable().describe('Null for a top-level category.'),
+  "icon": zod.string().nullable(),
+  "color": zod.string(),
+  "status": zod.enum(['active', 'archived'])
+})
+}))
+})
+
+
+/**
  * Returns every series and every bucket in one response so the page can draw a single chart and let the reader switch series on and off. Totals are always per currency and never summed across currencies.
  * @summary One time series split into comparable series, for a single chart
  */
