@@ -22,12 +22,6 @@ import { TrendsChart } from '@/components/trends-chart';
 type Tab = 'monthly' | 'weekly' | 'projects' | 'categories' | 'labels' | 'custom';
 type TransactionType = 'total' | 'expense' | 'payment';
 
-const transactionTypes: { key: TransactionType; label: string }[] = [
-  { key: 'total', label: 'Total' },
-  { key: 'expense', label: 'Expense' },
-  { key: 'payment', label: 'Payment' },
-];
-
 const tabs: { key: Tab; label: string }[] = [
   { key: 'monthly', label: 'Monthly' },
   { key: 'weekly', label: 'Weekly' },
@@ -515,7 +509,8 @@ const fieldClass = 'h-10 rounded-xl border border-border bg-card px-3 text-sm fo
 export function ReportsPage() {
   const [tab, setTab] = useState<Tab>('monthly');
   // Transaction type and location apply to every report view.
-  const [transactionType, setTransactionType] = useState<TransactionType>('total');
+  // Everything is recorded as an expense, so reports always count all records.
+  const transactionType: TransactionType = 'total';
   const { locations } = useLocations();
   const [locationId, setLocationId] = useState('');
   const current = today();
@@ -562,32 +557,7 @@ export function ReportsPage() {
         <p className="mt-3 text-xs text-muted-foreground" data-testid="text-report-hint">Select any total, row, or month to open the matching expenses.</p>
       </header>
 
-      <div className="mt-7">
-        <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground" id="label-reports-transaction-type">
-          Transaction Type
-        </span>
-        <div
-          className="mt-2 inline-flex gap-1 rounded-xl bg-secondary/65 p-1"
-          role="group"
-          aria-labelledby="label-reports-transaction-type"
-          data-testid="group-report-transaction-type"
-        >
-          {transactionTypes.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              aria-pressed={transactionType === item.key}
-              onClick={() => setTransactionType(item.key)}
-              className={`min-h-9 rounded-lg px-4 text-xs font-bold transition-colors ${transactionType === item.key ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              data-testid={`button-report-transaction-type-${item.key}`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-5 mb-4 flex flex-wrap items-center gap-3">
+      <div className="mt-7 mb-4 flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
             <MapPin size={15} className="text-primary" />
             <span className="text-[10px] font-bold uppercase tracking-[.13em] text-muted-foreground">

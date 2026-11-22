@@ -16,7 +16,6 @@ const GROUP_OPTIONS: { key: TrendGroupBy; label: string }[] = [
   { key: 'project', label: 'Project' },
   { key: 'label', label: 'Label' },
   { key: 'location', label: 'Location' },
-  { key: 'transactionType', label: 'Type' },
 ];
 
 const GRANULARITIES: { key: Granularity; label: string }[] = [
